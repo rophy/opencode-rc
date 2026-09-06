@@ -1,0 +1,61 @@
+services:
+  oidc-mock:
+    image: ghcr.io/rophy/oidc-mock:20260902-970dd92
+    command: ["serve"]
+    environment:
+      OIDC_CONFIG: |
+        port: 8080
+        issuer: http://oidc-mock:8080
+        clients:
+          - id: opencode-rc
+            secret: opencode-rc-secret
+            redirect_uris:
+              - http://gateway:8080/auth/callback
+        users:
+          - sub: user1
+            email: alice@example.com
+            name: Alice
+          - sub: user2
+            email: bob@example.com
+            name: Bob
+
+  aimock:
+    image: ghcr.io/copilotkit/aimock
+    command: ["-h", "0.0.0.0", "-f", "/fixtures"]
+    volumes:
+      - ./fixtures:/fixtures:ro
+
+  dev-machine:
+    build:
+      context: ./dev-machine
+    environment:
+      OPENAI_API_KEY: mock
+    depends_on:
+      - aimock
+
+  gateway:
+    build:
+      context: ../gateway
+    environment:
+      PORT: "8080"
+      OIDC_ISSUER: http://oidc-mock:8080
+      OIDC_CLIENT_ID: opencode-rc
+      OIDC_CLIENT_SECRET: opencode-rc-secret
+      OIDC_REDIRECT_URI: http://gateway:8080/auth/callback
+      COOKIE_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      COOKIE_SECURE: "false"
+    depends_on:
+      - oidc-mock
+
+  e2e-test:
+    build:
+      context: ./test
+    environment:
+      GATEWAY_URL: http://gateway:8080
+      OIDC_URL: http://oidc-mock:8080
+      DEV_MACHINE_URL: http://dev-machine:4096
+      OIDC_CLIENT_ID: opencode-rc
+      OIDC_CLIENT_SECRET: opencode-rc-secret
+    depends_on:
+      - gateway
+      - dev-machine

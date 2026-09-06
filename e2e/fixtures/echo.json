@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": {},
+      "response": {
+        "content": "Hello from aimock! The e2e test is working."
+      }
+    }
+  ]
+}
