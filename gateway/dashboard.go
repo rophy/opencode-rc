@@ -56,12 +56,20 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
           el.innerHTML = '<p class="empty">No active sessions. Run opencode-rc on your dev machine to get started.</p>';
           return;
         }
-        el.innerHTML = sessions.map(s =>
-          '<div class="session">' +
-            '<a href="/s/' + s.id + '/">' + s.directory + '</a>' +
-            '<div class="meta">Session ' + s.id.slice(0, 8) + ' &middot; ' + s.endpoint + '</div>' +
-          '</div>'
-        ).join('');
+        el.innerHTML = '';
+        sessions.forEach(s => {
+          const div = document.createElement('div');
+          div.className = 'session';
+          const a = document.createElement('a');
+          a.href = '/s/' + encodeURIComponent(s.id) + '/';
+          a.textContent = s.directory;
+          div.appendChild(a);
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = 'Session ' + s.id.slice(0, 8) + ' · ' + s.endpoint;
+          div.appendChild(meta);
+          el.appendChild(div);
+        });
       });
   </script>
 </body>
