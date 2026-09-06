@@ -50,7 +50,13 @@ export function startHeartbeat(
         body: JSON.stringify({ sessionId: sessionID }),
       });
       if (!res.ok) {
-        console.error(`Heartbeat failed: ${res.status}`);
+        if (res.status === 401) {
+          console.error(
+            "Heartbeat authentication failed (token may have expired). Restart opencode-rc to re-authenticate."
+          );
+        } else {
+          console.error(`Heartbeat failed: ${res.status}`);
+        }
       }
     } catch (err) {
       console.error(`Heartbeat error: ${err}`);
