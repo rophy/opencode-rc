@@ -17,6 +17,7 @@ type Config struct {
 	WebUIDir         string
 	CookieSecret     []byte
 	CookieDomain     string
+	SecureCookies    bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -54,6 +55,11 @@ func LoadConfig() (*Config, error) {
 
 	webUIDir := os.Getenv("WEBUI_DIR")
 
+	secureCookies := true
+	if v := os.Getenv("COOKIE_SECURE"); v == "false" {
+		secureCookies = false
+	}
+
 	return &Config{
 		Port:             port,
 		OIDCIssuer:       issuer,
@@ -63,5 +69,6 @@ func LoadConfig() (*Config, error) {
 		WebUIDir:         webUIDir,
 		CookieSecret:     secret,
 		CookieDomain:     os.Getenv("COOKIE_DOMAIN"),
+		SecureCookies:    secureCookies,
 	}, nil
 }

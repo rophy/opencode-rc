@@ -16,12 +16,20 @@ func main() {
 	}
 
 	ctx := context.Background()
-	oidcProvider, err := NewOIDCProvider(ctx, cfg)
+	var oidcProvider *OIDCProvider
+	for attempt := 1; attempt <= 30; attempt++ {
+		oidcProvider, err = NewOIDCProvider(ctx, cfg)
+		if err == nil {
+			break
+		}
+		log.Printf("oidc: attempt %d/30: %v", attempt, err)
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
 		log.Fatalf("oidc: %v", err)
 	}
 
-	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain)
+	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain, cfg.SecureCookies)
 	registry := NewRegistry(60 * time.Second)
 
 	// Background reaper

@@ -24,15 +24,16 @@ type sessionData struct {
 }
 
 type Auth struct {
-	oidc   *OIDCProvider
-	cookie *securecookie.SecureCookie
-	domain string
+	oidc         *OIDCProvider
+	cookie       *securecookie.SecureCookie
+	domain       string
+	secureCookie bool
 }
 
-func NewAuth(oidc *OIDCProvider, cookieSecret []byte, domain string) *Auth {
+func NewAuth(oidc *OIDCProvider, cookieSecret []byte, domain string, secureCookie bool) *Auth {
 	sc := securecookie.New(cookieSecret, nil)
 	sc.MaxAge(86400)
-	return &Auth{oidc: oidc, cookie: sc, domain: domain}
+	return &Auth{oidc: oidc, cookie: sc, domain: domain, secureCookie: secureCookie}
 }
 
 func (a *Auth) Middleware(next http.Handler) http.Handler {
@@ -74,7 +75,7 @@ func (a *Auth) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   300,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   true,
+		Secure:   a.secureCookie,
 	})
 
 	http.Redirect(w, r, a.oidc.oauth2Config.AuthCodeURL(state), http.StatusFound)
@@ -139,7 +140,7 @@ func (a *Auth) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   86400,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   true,
+		Secure:   a.secureCookie,
 		Domain:   a.domain,
 	})
 

@@ -34,7 +34,7 @@ A Go web service that:
 ### 2. CLI (`cli/`)
 
 A Node command-line tool that developers run on their dev machines:
-- Performs OIDC device flow authentication against the corporate IdP
+- Performs OIDC authorization code flow with PKCE (opens browser, receives callback on a local server)
 - Starts `opencode serve` by spawning it as a child process (`opencode serve --hostname 0.0.0.0 --cors <gateway-origin>`)
 - Registers the local server with the gateway (with heartbeat to stay alive)
 - Deregisters on shutdown
@@ -42,7 +42,7 @@ A Node command-line tool that developers run on their dev machines:
 ## User Flow
 
 1. Developer runs `opencode-rc` on their dev machine
-2. CLI performs OIDC device flow (open browser → login → get token)
+2. CLI performs OIDC authorization code flow with PKCE (opens browser → login → callback to local server → get token)
 3. CLI starts `opencode serve` locally
 4. CLI registers with the gateway: "user X has a session at host:port"
 5. CLI sends periodic heartbeats to keep the registration alive
@@ -60,7 +60,7 @@ A Node command-line tool that developers run on their dev machines:
 ## Assumptions
 
 - Dev machines and gateway are on the same corporate network (gateway can reach dev machines directly)
-- Corporate OIDC provider is available for both device flow (CLI) and authorization code flow (web)
+- Corporate OIDC provider supports authorization code flow with PKCE (used by both CLI and gateway)
 - OpenCode is installed on dev machines
 
 ## Implementation
@@ -86,9 +86,13 @@ Environment variables:
 |----------|----------|-------------|
 | `OPENCODE_RC_GATEWAY_URL` | Yes | Gateway URL (e.g. `https://gateway.corp`) |
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
-| `OIDC_CLIENT_ID` | Yes | OAuth client ID (must support device flow) |
-| `OIDC_TOKEN_ENDPOINT` | No | Override token endpoint (default: `{issuer}/oauth/token`) |
-| `OIDC_DEVICE_ENDPOINT` | No | Override device auth endpoint (default: `{issuer}/oauth/device/code`) |
+| `OIDC_CLIENT_ID` | Yes | OAuth client ID (public client, no secret required) |
+| `OIDC_CLIENT_SECRET` | No | OAuth client secret (for confidential clients) |
+| `OIDC_TOKEN_ENDPOINT` | No | Override token endpoint (discovered from OIDC issuer by default) |
+| `OIDC_AUTHORIZATION_ENDPOINT` | No | Override authorization endpoint (discovered from OIDC issuer by default) |
+| `OIDC_CALLBACK_PORTS` | No | Comma-separated ports for local callback server (default: `43212,43213,43214,43215`) |
+
+The CLI authenticates via OIDC authorization code flow with PKCE. It starts a temporary HTTP server on one of the callback ports (tries each in order until one is available), opens the user's browser to the OIDC provider, and receives the authorization code via redirect. Each callback port must be registered as a redirect URI (`http://127.0.0.1:<port>/callback`) in the OIDC provider's client configuration.
 
 The CLI does not depend on `@opencode-ai/sdk`; it starts the local server via `child_process.spawn("opencode", ["serve", "--hostname", "0.0.0.0", "--port", "4096", "--cors", gatewayOrigin])` and parses the "listening on" line from its stdout to discover the bound URL.
 

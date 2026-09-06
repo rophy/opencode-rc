@@ -2,7 +2,7 @@
 // cli/src/index.ts
 
 import { loadConfig } from "./config.js";
-import { deviceFlowAuth } from "./oidc.js";
+import { authorizationCodeAuth } from "./oidc.js";
 import { startServer } from "./server.js";
 import {
   generateSessionID,
@@ -12,11 +12,11 @@ import {
 } from "./register.js";
 
 async function main() {
-  const config = loadConfig();
+  const config = await loadConfig();
   const cwd = process.cwd();
 
   console.log("opencode-rc — authenticating...");
-  const { idToken } = await deviceFlowAuth(config);
+  const { idToken } = await authorizationCodeAuth(config);
   console.log("Authenticated successfully.\n");
 
   const gatewayOrigin = new URL(config.gatewayUrl).origin;
