@@ -1,11 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": "openai",
-  "model": "gpt-4o",
-  "providers": {
+  "model": "openai/gpt-4o",
+  "provider": {
     "openai": {
-      "api": {
-        "url": "http://aimock:4010/v1"
+      "options": {
+        "baseURL": "http://aimock:4010/v1"
       }
     }
   }

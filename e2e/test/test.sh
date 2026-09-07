@@ -59,13 +59,21 @@ echo "--- Test: Browser OIDC login ---"
 COOKIE_JAR=/tmp/cookies.txt
 rm -f "$COOKIE_JAR"
 
-REDIRECT_URL=$(curl -sf -c "$COOKIE_JAR" -o /dev/null -w "%{redirect_url}" "$GATEWAY_URL/auth/login")
+# Verify login page is served (not auto-redirect)
+LOGIN_PAGE=$(curl -sf "$GATEWAY_URL/auth/login" || true)
+if echo "$LOGIN_PAGE" | grep -q "Sign in with OIDC"; then
+  pass "gateway /auth/login shows login page"
+else
+  fail "gateway /auth/login: no login page"
+fi
+
+REDIRECT_URL=$(curl -sf -c "$COOKIE_JAR" -o /dev/null -w "%{redirect_url}" "$GATEWAY_URL/auth/start")
 STATE=$(echo "$REDIRECT_URL" | sed -n 's/.*state=\([^&]*\).*/\1/p')
 
 if [ -n "$STATE" ]; then
-  pass "gateway /auth/login redirects with state"
+  pass "gateway /auth/start redirects to OIDC with state"
 else
-  fail "gateway /auth/login: no state in redirect"
+  fail "gateway /auth/start: no state in redirect"
 fi
 
 # Select user1 (Alice) on oidc-mock
@@ -94,15 +102,19 @@ fi
 # ------------------------------------------------------------------
 echo "--- Test: CLI registration ---"
 
-# Get a token from oidc-mock (simulate CLI auth by directly hitting token endpoint)
-# First get an auth code
+# Get a token from oidc-mock using PKCE (public client, no secret)
+CLI_CLIENT_ID="${OIDC_CLI_CLIENT_ID:-opencode-rc-cli}"
+CLI_REDIRECT_URI="http://127.0.0.1:0/callback"
+CODE_VERIFIER=$(openssl rand -base64 48 | tr -d '=/+\n' | head -c 43)
+CODE_CHALLENGE=$(printf '%s' "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -e | tr '+/' '-_' | tr -d '=')
+
 AUTH_CODE_URL=$(curl -sf -o /dev/null -w "%{redirect_url}" -X POST \
-  -d "sub=user1&client_id=${OIDC_CLIENT_ID}&redirect_uri=${GATEWAY_URL}/auth/callback&state=clitest&nonce=&scope=openid+email+profile&code_challenge=&code_challenge_method=" \
+  -d "sub=user1&client_id=${CLI_CLIENT_ID}&redirect_uri=${CLI_REDIRECT_URI}&state=clitest&nonce=&scope=openid+email+profile&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256" \
   "${OIDC_URL}/authorize/callback")
 AUTH_CODE=$(echo "$AUTH_CODE_URL" | sed -n 's/.*code=\([^&]*\).*/\1/p')
 
 TOKEN_RESP=$(curl -sf -X POST "${OIDC_URL}/token" \
-  -d "grant_type=authorization_code&client_id=${OIDC_CLIENT_ID}&client_secret=${OIDC_CLIENT_SECRET}&code=${AUTH_CODE}&redirect_uri=${GATEWAY_URL}/auth/callback")
+  -d "grant_type=authorization_code&client_id=${CLI_CLIENT_ID}&code=${AUTH_CODE}&redirect_uri=${CLI_REDIRECT_URI}&code_verifier=${CODE_VERIFIER}")
 ID_TOKEN=$(echo "$TOKEN_RESP" | jq -r '.id_token')
 
 if [ -n "$ID_TOKEN" ] && [ "$ID_TOKEN" != "null" ]; then

@@ -1,16 +1,20 @@
 services:
   oidc-mock:
-    image: ghcr.io/rophy/oidc-mock:20260902-970dd92
+    image: ghcr.io/rophy/oidc-mock:20260907-dfef1a3
     command: ["serve"]
     environment:
       OIDC_CONFIG: |
         port: 8080
-        issuer: http://oidc-mock:8080
+        issuer: ${OIDC_ISSUER:-http://oidc-mock:8080}
         clients:
-          - id: opencode-rc
-            secret: opencode-rc-secret
+          - id: ${OIDC_CLIENT_ID:-opencode-rc}
+            secret: ${OIDC_CLIENT_SECRET:-opencode-rc-secret}
             redirect_uris:
               - http://gateway:8080/auth/callback
+              - ${OIDC_REDIRECT_URI:-http://gateway:8080/auth/callback}
+          - id: opencode-rc-cli
+            redirect_uris:
+              - http://127.0.0.1:0/callback
         users:
           - sub: user1
             email: alice@example.com
@@ -38,14 +42,43 @@ services:
       context: ../gateway
     environment:
       PORT: "8080"
-      OIDC_ISSUER: http://oidc-mock:8080
-      OIDC_CLIENT_ID: opencode-rc
-      OIDC_CLIENT_SECRET: opencode-rc-secret
-      OIDC_REDIRECT_URI: http://gateway:8080/auth/callback
-      COOKIE_SECRET: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      COOKIE_SECURE: "false"
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-opencode-rc}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-opencode-rc-secret}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://gateway:8080/auth/callback}
+      COOKIE_SECRET: ${COOKIE_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      OIDC_CLI_CLIENT_ID: opencode-rc-cli
+      WEBUI_DIR: ${WEBUI_HOST_DIR:+/webui}
+    volumes:
+      - ${WEBUI_HOST_DIR:-./_empty}:/webui:ro
     depends_on:
       - oidc-mock
+
+  gateway-expose:
+    profiles: ["expose"]
+    image: alpine/socat
+    command: "tcp-listen:8080,fork,reuseaddr tcp-connect:gateway:8080"
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT}:8080"
+    depends_on:
+      - gateway
+
+  rc-client:
+    profiles: ["rc"]
+    build:
+      context: ./rc-client
+    restart: unless-stopped
+    environment:
+      GATEWAY_URL: http://gateway:8080
+      OIDC_URL: ${OIDC_ISSUER:-http://oidc-mock:8080}
+      DEV_MACHINE_URL: http://dev-machine:4096
+      OIDC_CLIENT_ID: opencode-rc-cli
+      OIDC_REDIRECT_URI: http://127.0.0.1:0/callback
+      OIDC_USER_SUB: ${OIDC_USER_SUB:-user1}
+    depends_on:
+      - gateway
+      - dev-machine
 
   e2e-test:
     build:
