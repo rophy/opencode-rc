@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content, viewport-fit=cover" />
+    <meta name="theme-color" content="#fafafa" />
+    <title>OpenCode RC</title>
+    <script>
+      ;(function () {
+        var scheme = localStorage.getItem("opencode-color-scheme") || "system"
+        var isDark = scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)
+        document.documentElement.dataset.theme = "oc-2"
+        document.documentElement.dataset.colorScheme = isDark ? "dark" : "light"
+        document.documentElement.style.backgroundColor = isDark ? "#080808" : "#fafafa"
+        var meta = document.querySelector("meta[name='theme-color']")
+        if (meta) meta.setAttribute("content", isDark ? "#080808" : "#fafafa")
+      })()
+    </script>
+  </head>
+  <body class="antialiased overscroll-none overflow-hidden">
+    <div id="root" class="flex flex-col h-dvh"></div>
+    <script src="/src/entry.tsx" type="module"></script>
+  </body>
+</html>
