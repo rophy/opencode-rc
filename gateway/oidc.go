@@ -12,6 +12,7 @@ type OIDCProvider struct {
 	provider     *oidc.Provider
 	oauth2Config oauth2.Config
 	verifier     *oidc.IDTokenVerifier
+	cliVerifier  *oidc.IDTokenVerifier
 }
 
 func NewOIDCProvider(ctx context.Context, cfg *Config) (*OIDCProvider, error) {
@@ -30,10 +31,16 @@ func NewOIDCProvider(ctx context.Context, cfg *Config) (*OIDCProvider, error) {
 
 	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.OIDCClientID})
 
+	var cliVerifier *oidc.IDTokenVerifier
+	if cfg.OIDCCLIClientID != "" {
+		cliVerifier = provider.Verifier(&oidc.Config{ClientID: cfg.OIDCCLIClientID})
+	}
+
 	return &OIDCProvider{
 		provider:     provider,
 		oauth2Config: oauth2Config,
 		verifier:     verifier,
+		cliVerifier:  cliVerifier,
 	}, nil
 }
 

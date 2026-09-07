@@ -13,6 +13,7 @@ type Config struct {
 	OIDCIssuer       string
 	OIDCClientID     string
 	OIDCClientSecret string
+	OIDCCLIClientID  string
 	OIDCRedirectURI  string
 	WebUIDir         string
 	CookieSecret     []byte
@@ -60,11 +61,14 @@ func LoadConfig() (*Config, error) {
 		secureCookies = false
 	}
 
+	cliClientID := os.Getenv("OIDC_CLI_CLIENT_ID")
+
 	return &Config{
 		Port:             port,
 		OIDCIssuer:       issuer,
 		OIDCClientID:     clientID,
 		OIDCClientSecret: clientSecret,
+		OIDCCLIClientID:  cliClientID,
 		OIDCRedirectURI:  redirectURI,
 		WebUIDir:         webUIDir,
 		CookieSecret:     secret,
