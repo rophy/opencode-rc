@@ -17,8 +17,10 @@ func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir st
 	})
 
 	// Auth endpoints (unauthenticated)
-	mux.HandleFunc("/auth/login", auth.LoginHandler)
+	mux.HandleFunc("/auth/login", auth.LoginPageHandler)
+	mux.HandleFunc("/auth/start", auth.LoginStartHandler)
 	mux.HandleFunc("/auth/callback", auth.CallbackHandler)
+	mux.HandleFunc("/auth/logout", auth.LogoutHandler)
 
 	// Registration API (CLI uses Bearer token auth)
 	regMux := http.NewServeMux()
@@ -28,6 +30,9 @@ func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir st
 	mux.Handle("/gateway/register", auth.RegistrationAuthMiddleware(regMux))
 	mux.Handle("/gateway/heartbeat", auth.RegistrationAuthMiddleware(regMux))
 	mux.Handle("/gateway/deregister", auth.RegistrationAuthMiddleware(regMux))
+
+	// User info API (browser cookie auth)
+	mux.Handle("/api/me", auth.Middleware(MeHandler()))
 
 	// Dashboard + session API (browser cookie auth)
 	dashMux := http.NewServeMux()
