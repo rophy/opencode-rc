@@ -4,3 +4,4 @@ e2e/.env
 e2e/.env.*
 node_modules/
 dist/
+.playwright-mcp/
