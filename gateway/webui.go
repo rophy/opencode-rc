@@ -55,19 +55,22 @@ func SessionWebUIOrProxy(registry *Registry, webUIDir string) http.Handler {
 			return
 		}
 
-		// Proxy API requests to the dev machine
-		if strings.HasPrefix(subpath, "/api/") {
-			proxy.ServeHTTP(w, r)
-			return
-		}
-
-		// Serve web UI static files
+		// Serve web UI for root path and static assets that exist on disk
 		if webUIDir != "" {
-			r.URL.Path = subpath
-			WebUIHandler(webUIDir).ServeHTTP(w, r)
-			return
+			if subpath == "/" {
+				r.URL.Path = subpath
+				WebUIHandler(webUIDir).ServeHTTP(w, r)
+				return
+			}
+			filePath := filepath.Join(webUIDir, filepath.Clean(subpath))
+			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+				r.URL.Path = subpath
+				WebUIHandler(webUIDir).ServeHTTP(w, r)
+				return
+			}
 		}
 
-		http.Error(w, "web UI not configured", http.StatusNotFound)
+		// Proxy everything else to the dev machine (covers /api/, /global/, /session/, /pty, etc.)
+		proxy.ServeHTTP(w, r)
 	})
 }
