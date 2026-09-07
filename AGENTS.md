@@ -2,6 +2,9 @@
 
 Remote control for OpenCode in corporate environments with OIDC auth.
 
+See `LOCAL.md` for environment-specific info.
+This file is gitignored — if it doesn't exist, there is no local-specific configuration.
+
 ## Project Structure
 
 ```
