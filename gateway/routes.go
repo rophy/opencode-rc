@@ -37,7 +37,11 @@ func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir st
 	// Dashboard + session API (browser cookie auth)
 	dashMux := http.NewServeMux()
 	dashMux.Handle("/gateway/sessions", DashboardSessionsHandler(registry))
-	dashMux.Handle("/", DashboardHandler())
+	if webUIDir != "" {
+		dashMux.Handle("/", WebUIHandler(webUIDir))
+	} else {
+		dashMux.Handle("/", DashboardHandler())
+	}
 	mux.Handle("/gateway/sessions", auth.Middleware(dashMux))
 	mux.Handle("/", auth.Middleware(dashMux))
 
