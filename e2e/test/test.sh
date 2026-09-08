@@ -145,7 +145,7 @@ fi
 # Register dev-machine with gateway
 # Use Docker-internal endpoint so the gateway can proxy to it
 SESSION_ID="e2e-test-session"
-DEV_MACHINE_INTERNAL="${DEV_MACHINE_INTERNAL:-http://dev-machine:4096}"
+DEV_MACHINE_INTERNAL="${DEV_MACHINE_INTERNAL:-http://rc-client:4096}"
 REG_RESP=$(curl -sf -X POST "$GATEWAY_URL/gateway/register" \
   -H "Authorization: Bearer $ID_TOKEN" \
   -H "Content-Type: application/json" \

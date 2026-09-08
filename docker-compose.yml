@@ -31,16 +31,6 @@ services:
     volumes:
       - ./e2e/fixtures:/fixtures:ro
 
-  dev-machine:
-    build:
-      context: ./e2e/dev-machine
-    ports:
-      - "127.0.0.1:${DEV_MACHINE_PORT:-9082}:4096"
-    environment:
-      OPENAI_API_KEY: mock
-    depends_on:
-      - aimock
-
   gateway:
     build:
       context: ./gateway
@@ -71,15 +61,24 @@ services:
   rc-client:
     profiles: ["rc"]
     build:
-      context: ./e2e/rc-client
+      context: ./cli
+    entrypoint: ["/bin/bash", "/rc-entrypoint.sh"]
+    command: ["node", "/cli/dist/index.js"]
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DEV_MACHINE_PORT:-9082}:4096"
+    volumes:
+      - ./e2e/rc-entrypoint.sh:/rc-entrypoint.sh:ro
+      - ./e2e/dev-machine/opencode.json:/project/opencode.json:ro
     environment:
-      GATEWAY_URL: http://gateway:8080
+      OPENCODE_RC_GATEWAY_URL: http://gateway:8080
+      OPENCODE_RC_ENDPOINT: http://rc-client:4096
+      OPENCODE_RC_SESSION_ID: ${OPENCODE_RC_SESSION_ID:-alice-dev}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
       OIDC_URL: ${OIDC_ISSUER:-http://oidc-mock:8080}
-      DEV_MACHINE_URL: http://dev-machine:4096
       OIDC_CLIENT_ID: opencode-rc-cli
-      OIDC_REDIRECT_URI: http://127.0.0.1:0/callback
       OIDC_USER_SUB: ${OIDC_USER_SUB:-user1}
+      OPENAI_API_KEY: mock
     depends_on:
       - gateway
-      - dev-machine
+      - aimock
