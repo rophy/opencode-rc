@@ -29,7 +29,7 @@ services:
     image: ghcr.io/copilotkit/aimock
     command: ["-h", "0.0.0.0", "-f", "/fixtures"]
     volumes:
-      - ./aimock/fixtures:/fixtures:ro
+      - ./compose/aimock/fixtures:/fixtures:ro
 
   gateway:
     build:
@@ -45,7 +45,7 @@ services:
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
       WEBUI_DIR: ${WEBUI_HOST_DIR:+/webui}
     volumes:
-      - ${WEBUI_HOST_DIR:-./gateway/_empty}:/webui:ro
+      - ${WEBUI_HOST_DIR:-./compose/gateway-empty}:/webui:ro
     depends_on:
       - oidc-mock
 
@@ -68,8 +68,8 @@ services:
     ports:
       - "127.0.0.1:${DEV_MACHINE_PORT:-9082}:4096"
     volumes:
-      - ./rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
-      - ./rc-client/opencode.json:/project/opencode.json:ro
+      - ./compose/rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
+      - ./compose/rc-client/opencode.json:/project/opencode.json:ro
     environment:
       OPENCODE_RC_GATEWAY_URL: http://gateway:8080
       OPENCODE_RC_ENDPOINT: http://rc-client:4096
