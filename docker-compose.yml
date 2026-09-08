@@ -2,6 +2,8 @@ services:
   oidc-mock:
     image: ghcr.io/rophy/oidc-mock:20260907-dfef1a3
     command: ["serve"]
+    ports:
+      - "127.0.0.1:${OIDC_MOCK_PORT:-9081}:8080"
     environment:
       OIDC_CONFIG: |
         port: 8080
@@ -27,11 +29,13 @@ services:
     image: ghcr.io/copilotkit/aimock
     command: ["-h", "0.0.0.0", "-f", "/fixtures"]
     volumes:
-      - ./fixtures:/fixtures:ro
+      - ./e2e/fixtures:/fixtures:ro
 
   dev-machine:
     build:
-      context: ./dev-machine
+      context: ./e2e/dev-machine
+    ports:
+      - "127.0.0.1:${DEV_MACHINE_PORT:-9082}:4096"
     environment:
       OPENAI_API_KEY: mock
     depends_on:
@@ -39,7 +43,7 @@ services:
 
   gateway:
     build:
-      context: ../gateway
+      context: ./gateway
     environment:
       PORT: "8080"
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
@@ -51,7 +55,7 @@ services:
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
       WEBUI_DIR: ${WEBUI_HOST_DIR:+/webui}
     volumes:
-      - ${WEBUI_HOST_DIR:-./_empty}:/webui:ro
+      - ${WEBUI_HOST_DIR:-./e2e/_empty}:/webui:ro
     depends_on:
       - oidc-mock
 
@@ -60,14 +64,14 @@ services:
     image: alpine/socat
     command: "tcp-listen:8080,fork,reuseaddr tcp-connect:gateway:8080"
     ports:
-      - "127.0.0.1:${GATEWAY_PORT}:8080"
+      - "127.0.0.1:${GATEWAY_PORT:-9080}:8080"
     depends_on:
       - gateway
 
   rc-client:
     profiles: ["rc"]
     build:
-      context: ./rc-client
+      context: ./e2e/rc-client
     restart: unless-stopped
     environment:
       GATEWAY_URL: http://gateway:8080
@@ -76,19 +80,6 @@ services:
       OIDC_CLIENT_ID: opencode-rc-cli
       OIDC_REDIRECT_URI: http://127.0.0.1:0/callback
       OIDC_USER_SUB: ${OIDC_USER_SUB:-user1}
-    depends_on:
-      - gateway
-      - dev-machine
-
-  e2e-test:
-    build:
-      context: ./test
-    environment:
-      GATEWAY_URL: http://gateway:8080
-      OIDC_URL: http://oidc-mock:8080
-      DEV_MACHINE_URL: http://dev-machine:4096
-      OIDC_CLIENT_ID: opencode-rc
-      OIDC_CLIENT_SECRET: opencode-rc-secret
     depends_on:
       - gateway
       - dev-machine

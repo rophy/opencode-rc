@@ -42,50 +42,36 @@ cd web && bun install && bun run build && cd ..
 
 ## Running Locally with Docker Compose
 
-The `e2e/` directory provides a Docker Compose setup with all components:
+The root `docker-compose.yml` provides all components:
 
-- **gateway** — the OpenCode RC gateway
-- **oidc-mock** — a mock OIDC provider with test users (alice/bob)
-- **dev-machine** — a simulated OpenCode instance backed by an AI mock
+- **gateway** — the OpenCode RC gateway (exposed on port 8080)
+- **oidc-mock** — a mock OIDC provider with test users (exposed on port 8081)
+- **dev-machine** — a simulated OpenCode instance backed by an AI mock (exposed on port 8082)
 - **rc-client** — auto-registers the dev-machine with the gateway
 
 ### Start the environment
 
 ```bash
-cd e2e
-docker compose up -d --build
+docker compose --profile expose --profile rc up -d --build
 ```
 
-This starts the gateway, OIDC mock, and a simulated dev machine. By default the gateway is only accessible from within the Docker network.
-
-### Expose the gateway to localhost
-
-To access the gateway from your browser, add the `expose` profile with a port:
-
-```bash
-cd e2e
-GATEWAY_PORT=8080 docker compose --profile expose up -d --build
-```
-
-Then open http://localhost:8080 in your browser. You'll be redirected to the mock OIDC login.
-
-### Register a dev machine session
-
-To have a session appear in the session picker, also start the `rc` profile:
-
-```bash
-cd e2e
-GATEWAY_PORT=8080 docker compose --profile expose --profile rc up -d --build
-```
+Open http://localhost:9080 in your browser. You'll be redirected to the mock OIDC login.
 
 ### Serve the rc-web UI
 
-To serve the custom web UI instead of the built-in dashboard, set `WEBUI_HOST_DIR` to the absolute path of `web/dist/`:
+To serve the custom web UI instead of the built-in dashboard, set `WEBUI_HOST_DIR`:
 
 ```bash
-cd e2e
-WEBUI_HOST_DIR=$(cd ../web/dist && pwd) GATEWAY_PORT=8080 \
+WEBUI_HOST_DIR=$(cd web/dist && pwd) \
   docker compose --profile expose --profile rc up -d --build
+```
+
+### Run e2e tests
+
+With the stack running:
+
+```bash
+./e2e/test/test.sh
 ```
 
 ### Test users

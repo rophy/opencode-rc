@@ -1,6 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
+# Defaults for running against local docker compose (gateway-expose on port 8080)
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:9080}"
+OIDC_URL="${OIDC_URL:-http://localhost:9081}"
+DEV_MACHINE_URL="${DEV_MACHINE_URL:-http://localhost:9082}"
+OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-opencode-rc}"
+OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-opencode-rc-secret}"
+
+# When running from the host, Docker-internal URLs in redirects need rewriting
+rewrite_url() {
+  echo "$1" | sed \
+    -e "s|http://oidc-mock:8080|${OIDC_URL}|g" \
+    -e "s|http://gateway:8080|${GATEWAY_URL}|g" \
+    -e "s|http://dev-machine:4096|${DEV_MACHINE_URL}|g"
+}
+
 PASS=0
 FAIL=0
 
@@ -68,6 +83,7 @@ else
 fi
 
 REDIRECT_URL=$(curl -sf -c "$COOKIE_JAR" -o /dev/null -w "%{redirect_url}" "$GATEWAY_URL/auth/start")
+REDIRECT_URL=$(rewrite_url "$REDIRECT_URL")
 STATE=$(echo "$REDIRECT_URL" | sed -n 's/.*state=\([^&]*\).*/\1/p')
 
 if [ -n "$STATE" ]; then
@@ -77,9 +93,12 @@ else
 fi
 
 # Select user1 (Alice) on oidc-mock
+# Extract the redirect_uri the gateway registered with the OIDC provider
+OIDC_REDIRECT_URI=$(echo "$REDIRECT_URL" | sed -n 's/.*redirect_uri=\([^&]*\).*/\1/p' | python3 -c "import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))")
 CALLBACK_URL=$(curl -sf -o /dev/null -w "%{redirect_url}" -X POST \
-  -d "sub=user1&client_id=${OIDC_CLIENT_ID}&redirect_uri=${GATEWAY_URL}/auth/callback&state=${STATE}&nonce=&scope=openid+email+profile&code_challenge=&code_challenge_method=" \
+  -d "sub=user1&client_id=${OIDC_CLIENT_ID}&redirect_uri=${OIDC_REDIRECT_URI}&state=${STATE}&nonce=&scope=openid+email+profile&code_challenge=&code_challenge_method=" \
   "${OIDC_URL}/authorize/callback")
+CALLBACK_URL=$(rewrite_url "$CALLBACK_URL")
 
 # Follow callback to gateway
 HTTP_CODE=$(curl -sf -b "$COOKIE_JAR" -c "$COOKIE_JAR" -o /dev/null -w "%{http_code}" "$CALLBACK_URL" || true)
@@ -124,11 +143,13 @@ else
 fi
 
 # Register dev-machine with gateway
+# Use Docker-internal endpoint so the gateway can proxy to it
 SESSION_ID="e2e-test-session"
+DEV_MACHINE_INTERNAL="${DEV_MACHINE_INTERNAL:-http://dev-machine:4096}"
 REG_RESP=$(curl -sf -X POST "$GATEWAY_URL/gateway/register" \
   -H "Authorization: Bearer $ID_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sessionId\":\"$SESSION_ID\",\"endpoint\":\"$DEV_MACHINE_URL\",\"directory\":\"/project\"}" || true)
+  -d "{\"sessionId\":\"$SESSION_ID\",\"endpoint\":\"$DEV_MACHINE_INTERNAL\",\"directory\":\"/project\"}" || true)
 
 if echo "$REG_RESP" | jq -e '.status == "registered"' >/dev/null 2>&1; then
   pass "session registered with gateway"
@@ -187,10 +208,10 @@ else
   fail "deregister failed: $DEREG_RESP"
 fi
 
-# Verify session is gone
+# Verify our test session is gone (other sessions like rc-client's may still exist)
 SESSIONS_AFTER=$(curl -sf -b "$COOKIE_JAR" "$GATEWAY_URL/gateway/sessions" || true)
-COUNT_AFTER=$(echo "$SESSIONS_AFTER" | jq 'length' 2>/dev/null || echo 0)
-if [ "$COUNT_AFTER" -eq 0 ]; then
+TEST_SESSION_AFTER=$(echo "$SESSIONS_AFTER" | jq "[.[] | select(.id == \"$SESSION_ID\")] | length" 2>/dev/null || echo 1)
+if [ "$TEST_SESSION_AFTER" -eq 0 ]; then
   pass "session removed after deregister"
 else
   fail "session still present after deregister: $SESSIONS_AFTER"
