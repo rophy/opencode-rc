@@ -25,8 +25,7 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
-  const gatewayOrigin = new URL(config.gatewayUrl).origin;
-  const server = await startServer(gatewayOrigin);
+  const server = await startServer();
 
   const endpoint = process.env.OPENCODE_RC_ENDPOINT || server.url;
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
