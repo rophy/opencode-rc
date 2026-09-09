@@ -1,4 +1,5 @@
-// cli/src/config.ts
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export interface Config {
   gatewayUrl: string;
@@ -10,9 +11,31 @@ export interface Config {
   oidcCallbackPorts?: number[];
 }
 
+interface FileConfig {
+  gatewayUrl?: string;
+  oidc?: {
+    issuer?: string;
+    clientId?: string;
+    clientSecret?: string;
+    callbackPorts?: number[];
+  };
+}
+
 interface OIDCDiscovery {
   token_endpoint: string;
   authorization_endpoint: string;
+}
+
+async function loadFileConfig(): Promise<FileConfig> {
+  const xdgConfig =
+    process.env.XDG_CONFIG_HOME || join(process.env.HOME || "", ".config");
+  const configPath = join(xdgConfig, "opencode", "rc.json");
+  try {
+    const raw = await readFile(configPath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 }
 
 async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
@@ -28,14 +51,16 @@ async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
 }
 
 export async function loadConfig(): Promise<Config> {
-  const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL;
-  if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required");
+  const file = await loadFileConfig();
 
-  const oidcIssuer = process.env.OIDC_ISSUER;
-  if (!oidcIssuer) throw new Error("OIDC_ISSUER is required");
+  const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
+  if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required (env or ~/.config/opencode/rc.json)");
 
-  const oidcClientID = process.env.OIDC_CLIENT_ID;
-  if (!oidcClientID) throw new Error("OIDC_CLIENT_ID is required");
+  const oidcIssuer = process.env.OIDC_ISSUER || file.oidc?.issuer;
+  if (!oidcIssuer) throw new Error("OIDC_ISSUER is required (env or ~/.config/opencode/rc.json)");
+
+  const oidcClientID = process.env.OIDC_CLIENT_ID || file.oidc?.clientId;
+  if (!oidcClientID) throw new Error("OIDC_CLIENT_ID is required (env or ~/.config/opencode/rc.json)");
 
   const discovery = await discoverOIDC(oidcIssuer);
 
@@ -45,13 +70,16 @@ export async function loadConfig(): Promise<Config> {
   const oidcAuthorizationEndpoint =
     process.env.OIDC_AUTHORIZATION_ENDPOINT || discovery.authorization_endpoint;
 
-  const oidcClientSecret = process.env.OIDC_CLIENT_SECRET || undefined;
+  const oidcClientSecret =
+    process.env.OIDC_CLIENT_SECRET || file.oidc?.clientSecret || undefined;
 
   let oidcCallbackPorts: number[] | undefined;
   if (process.env.OIDC_CALLBACK_PORTS) {
     oidcCallbackPorts = process.env.OIDC_CALLBACK_PORTS
       .split(",")
       .map((s) => parseInt(s.trim(), 10));
+  } else if (file.oidc?.callbackPorts) {
+    oidcCallbackPorts = file.oidc.callbackPorts;
   }
 
   return {
