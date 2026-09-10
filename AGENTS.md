@@ -81,6 +81,16 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
 Default ports: gateway 9080, oidc-mock 9081, dev-machine 9082.
 Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`, `DEV_MACHINE_PORT`.
 
+## npm Publishing (CLI)
+
+The CLI (`cli/`) is published to npm as `opencode-rc` using **npm trusted publishing** (OIDC).
+
+- CI uses `npm stage publish` (not `npm publish`) — this creates a pending version that a maintainer approves on npmjs.com
+- `npm stage publish` is a newer npm feature: it stages a version for review instead of publishing immediately
+- The trusted publisher is configured on npmjs.com to only allow staged publishes from GitHub Actions
+- Workflow: `.github/workflows/cli.yml` — test job on PR+main, publish job on main only
+- The publish job checks if the version already exists on npm before staging
+
 ## Kubectl
 
 This project uses `kind-kind` kubectl context for local development.
