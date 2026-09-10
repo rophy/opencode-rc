@@ -6,13 +6,27 @@ OpenCode RC sits between developers and their OpenCode instances, adding OIDC au
 
 ## How It Works
 
-```
-Developer's machine                    Gateway                         Browser
-┌─────────────────┐    register     ┌──────────────┐    OIDC login   ┌──────────────┐
-│ opencode serve   │───────────────>│  opencode-rc  │<──────────────>│  rc-web SPA   │
-│ (via rc-cli)     │<───────────────│  gateway      │───────────────>│  session list  │
-│                  │  proxy /api/*  │              │  proxy to       │  opencode UI   │
-└─────────────────┘                └──────────────┘  dev machine    └──────────────┘
+```mermaid
+flowchart LR
+    subgraph Dev["Developer's Machine"]
+        CLI["rc-cli"]
+        OC["opencode serve"]
+    end
+    subgraph GW["Gateway"]
+        REG["Session Registry"]
+        PROXY["Reverse Proxy"]
+        AUTH["OIDC Auth"]
+    end
+    subgraph Browser
+        WEB["rc-web SPA"]
+    end
+
+    CLI -- starts --> OC
+    CLI -- register/heartbeat --> REG
+    WEB -- OIDC login --> AUTH
+    WEB -- select session --> REG
+    WEB -- requests --> PROXY
+    PROXY -- "proxy /api/*" --> OC
 ```
 
 1. **rc-cli** starts `opencode serve` on a developer's machine and registers it with the gateway
