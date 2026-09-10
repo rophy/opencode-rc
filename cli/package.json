@@ -17,6 +17,11 @@
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rophy/opencode-rc",
+    "directory": "cli"
+  },
   "dependencies": {
     "@opencode-ai/sdk": "^1.18.29"
   }
