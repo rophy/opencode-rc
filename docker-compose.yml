@@ -33,7 +33,8 @@ services:
 
   gateway:
     build:
-      context: ./gateway
+      context: .
+      dockerfile: gateway/Dockerfile
     environment:
       PORT: "8080"
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
@@ -43,9 +44,6 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
-      WEBUI_DIR: ${WEBUI_HOST_DIR:+/webui}
-    volumes:
-      - ${WEBUI_HOST_DIR:-./compose/gateway-empty}:/webui:ro
     depends_on:
       - oidc-mock
 
