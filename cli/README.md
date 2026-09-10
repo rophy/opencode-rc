@@ -1,6 +1,8 @@
 # opencode-rc
 
-Remote control CLI for [OpenCode](https://opencode.ai). Connects your dev machine to an opencode-rc gateway so you can access OpenCode from a browser.
+Remote control CLI for [OpenCode](https://opencode.ai). Connects your dev machine to an [opencode-rc gateway](https://github.com/rophy/opencode-rc) so you can access OpenCode from a browser.
+
+The gateway is a centralized server that authenticates users via OIDC and routes browser sessions to the correct dev machine. This CLI registers your local OpenCode instance with the gateway.
 
 ## Install
 
