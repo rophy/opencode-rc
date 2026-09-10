@@ -1,8 +1,7 @@
 {
-  "name": "@opencode-rc/cli",
+  "name": "opencode-rc",
   "version": "0.1.0",
-  "private": true,
-  "type": "module",
+    "type": "module",
   "main": "dist/index.js",
   "bin": {
     "opencode-rc": "dist/index.js"
