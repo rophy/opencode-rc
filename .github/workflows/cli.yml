@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - 'cli/**'
+  workflow_dispatch:
 
 jobs:
   test:
