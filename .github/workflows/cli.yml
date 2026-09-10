@@ -1,18 +1,36 @@
-name: Publish CLI
+name: CLI
 
 on:
   push:
     branches: [main]
     paths:
       - 'cli/**'
-
-permissions:
-  id-token: write
-  contents: write
+  pull_request:
+    paths:
+      - 'cli/**'
 
 jobs:
-  publish:
+  test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
     defaults:
       run:
         working-directory: cli
@@ -34,16 +52,12 @@ jobs:
             echo "version=$LOCAL" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and test
+      - name: Build and publish
         if: steps.check.outputs.publish == 'true'
         run: |
           npm ci
           npm run build
-          npm test
-
-      - name: Publish to npm
-        if: steps.check.outputs.publish == 'true'
-        run: npm publish --access public
+          npm publish --access public
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
