@@ -12,8 +12,7 @@ import (
 func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir string) {
 	// Health (unauthenticated)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok\n"))
+		marshalJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": version})
 	})
 
 	// Auth endpoints (unauthenticated)

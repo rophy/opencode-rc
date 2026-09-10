@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var version = "dev"
+
 func main() {
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -45,6 +47,6 @@ func main() {
 	SetupRoutes(mux, auth, registry, cfg.WebUIDir)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	log.Printf("gateway listening on %s", addr)
+	log.Printf("gateway %s listening on %s", version, addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

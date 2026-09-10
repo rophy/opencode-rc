@@ -14,7 +14,8 @@ WORKDIR /src
 COPY gateway/go.mod gateway/go.sum ./
 RUN go mod download
 COPY gateway/*.go ./
-RUN CGO_ENABLED=0 go build -o /gateway .
+COPY gateway/VERSION ./
+RUN CGO_ENABLED=0 go build -ldflags "-X main.version=$(cat VERSION)" -o /gateway .
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=gateway /gateway /gateway

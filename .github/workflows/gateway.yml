@@ -1,0 +1,92 @@
+name: Gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gateway/**'
+      - 'web/**'
+      - 'vendor/opencode'
+  pull_request:
+    paths:
+      - 'gateway/**'
+      - 'web/**'
+      - 'vendor/opencode'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: gateway/Dockerfile
+          push: false
+          tags: opencode-rc-gateway:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Check if version exists on ghcr.io
+        id: check
+        run: |
+          VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
+          if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: gateway/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/gateway:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/gateway:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tag release
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "gateway/${{ steps.check.outputs.version }}"
+          git push origin "gateway/${{ steps.check.outputs.version }}"
