@@ -25,7 +25,7 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
-  const server = await startServer();
+  const server = await startServer(config.servePort);
 
   const endpoint = process.env.OPENCODE_RC_ENDPOINT || server.url;
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
