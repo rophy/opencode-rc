@@ -14,11 +14,11 @@ interface TokenResponse {
   expires_in: number;
 }
 
-function generateCodeVerifier(): string {
+export function generateCodeVerifier(): string {
   return randomBytes(32).toString("base64url");
 }
 
-function generateCodeChallenge(verifier: string): string {
+export function generateCodeChallenge(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
@@ -65,12 +65,20 @@ export async function authorizationCodeAuth(
   };
 }
 
-function listenOnAvailablePort(server: Server, ports: number[]): Promise<number> {
+export function listenOnAvailablePort(server: Server, ports: number[]): Promise<number> {
   return new Promise((resolve, reject) => {
     let index = 0;
 
+    function onListening() {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      resolve(port);
+    }
+    server.on("listening", onListening);
+
     function tryNext() {
       if (index >= ports.length) {
+        server.removeListener("listening", onListening);
         reject(new Error(`All callback ports in use (tried ${ports.join(", ")})`));
         return;
       }
@@ -79,10 +87,11 @@ function listenOnAvailablePort(server: Server, ports: number[]): Promise<number>
         if (err.code === "EADDRINUSE") {
           tryNext();
         } else {
+          server.removeListener("listening", onListening);
           reject(err);
         }
       });
-      server.listen(port, "127.0.0.1", () => resolve(port));
+      server.listen(port, "127.0.0.1");
     }
 
     tryNext();

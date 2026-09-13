@@ -4,12 +4,13 @@
 import { loadConfig } from "./config.js";
 import { authorizationCodeAuth } from "./oidc.js";
 import { startServer } from "./server.js";
-import {
-  generateSessionID,
-  registerWithGateway,
-  startHeartbeat,
-  deregisterFromGateway,
-} from "./register.js";
+import { startTunnelWithReconnect } from "./tunnel.js";
+import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
+
+function generateSessionID(): string {
+  return `${hostname()}-${randomUUID().slice(0, 8)}`;
+}
 
 async function main() {
   const config = await loadConfig();
@@ -25,21 +26,23 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
-  const server = await startServer(config.servePort);
+  const server = await startServer();
 
-  const endpoint = config.endpoint || server.url;
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
-  await registerWithGateway(config, idToken, sessionID, endpoint, process.cwd());
-
-  const stopHeartbeat = startHeartbeat(config, idToken, sessionID);
+  const tunnel = await startTunnelWithReconnect(
+    config,
+    idToken,
+    sessionID,
+    server.url,
+    process.cwd()
+  );
 
   console.log(`\nSession available at: ${config.gatewayUrl}/s/${sessionID}/`);
   console.log("Press Ctrl+C to stop.\n");
 
   const shutdown = async () => {
     console.log("\nShutting down...");
-    stopHeartbeat();
-    await deregisterFromGateway(config, idToken, sessionID);
+    tunnel.close();
     server.close();
     process.exit(0);
   };

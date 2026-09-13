@@ -15,7 +15,12 @@ COPY gateway/go.mod gateway/go.sum ./
 RUN go mod download
 COPY gateway/*.go ./
 COPY gateway/VERSION ./
-RUN CGO_ENABLED=0 go build -ldflags "-X main.version=$(cat VERSION)" -o /gateway .
+ARG COVER=false
+RUN if [ "$COVER" = "true" ]; then \
+      CGO_ENABLED=0 go build -cover -ldflags "-X main.version=$(cat VERSION)" -o /gateway .; \
+    else \
+      CGO_ENABLED=0 go build -ldflags "-X main.version=$(cat VERSION)" -o /gateway .; \
+    fi
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=gateway /gateway /gateway

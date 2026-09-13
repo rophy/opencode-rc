@@ -9,7 +9,7 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 
 ```
 gateway/        # Go reverse proxy with OIDC auth and session registry
-cli/            # Node CLI — OIDC login, starts opencode serve, registers with gateway
+cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Docker Compose test environment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for web/)
@@ -75,11 +75,14 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
   docker compose --profile expose --profile rc up -d --build
 
 # Run e2e tests (requires stack to be running)
-./e2e/test/test.sh
+./e2e/test.sh
+
+# Run e2e tests with coverage collection
+./e2e/coverage.sh
 ```
 
-Default ports: gateway 9080, oidc-mock 9081, dev-machine 9082.
-Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`, `DEV_MACHINE_PORT`.
+Default ports: gateway 9080, oidc-mock 9081.
+Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`.
 
 ## npm Publishing (CLI)
 

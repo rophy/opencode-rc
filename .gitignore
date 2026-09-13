@@ -5,4 +5,5 @@ e2e/.env.*
 node_modules/
 dist/
 .playwright-mcp/
+.cover/
 LOCAL.md

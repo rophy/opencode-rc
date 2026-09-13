@@ -41,8 +41,6 @@ function setEnv(overrides: Record<string, string | undefined> = {}) {
     OIDC_AUTHORIZATION_ENDPOINT: undefined,
     OIDC_CALLBACK_PORTS: undefined,
     OPENCODE_RC_TOKEN: undefined,
-    OPENCODE_RC_SERVE_PORT: undefined,
-    OPENCODE_RC_ENDPOINT: undefined,
   };
   for (const [k, v] of Object.entries({ ...defaults, ...overrides })) {
     if (v === undefined) {
@@ -167,99 +165,5 @@ describe("loadConfig", () => {
 
     const config = await loadConfig();
     expect(config.gatewayUrl).toBe("https://gw.example.com");
-  });
-
-  it("defaults servePort to 4096", async () => {
-    setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
-      OIDC_ISSUER: "http://mock-issuer",
-      OIDC_CLIENT_ID: "my-client",
-    });
-
-    const config = await loadConfig();
-    expect(config.servePort).toBe(4096);
-  });
-
-  it("reads servePort from config file", async () => {
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        gatewayUrl: "https://gw.example.com",
-        servePort: 9999,
-        oidc: {
-          issuer: "http://mock-issuer",
-          clientId: "my-client",
-        },
-      })
-    );
-    setEnv();
-
-    const config = await loadConfig();
-    expect(config.servePort).toBe(9999);
-  });
-
-  it("OPENCODE_RC_SERVE_PORT env overrides config file servePort", async () => {
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        gatewayUrl: "https://gw.example.com",
-        servePort: 9999,
-        oidc: {
-          issuer: "http://mock-issuer",
-          clientId: "my-client",
-        },
-      })
-    );
-    setEnv({ OPENCODE_RC_SERVE_PORT: "7777" });
-
-    const config = await loadConfig();
-    expect(config.servePort).toBe(7777);
-  });
-
-  it("defaults endpoint to undefined", async () => {
-    setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
-      OIDC_ISSUER: "http://mock-issuer",
-      OIDC_CLIENT_ID: "my-client",
-    });
-
-    const config = await loadConfig();
-    expect(config.endpoint).toBeUndefined();
-  });
-
-  it("reads endpoint from config file", async () => {
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        gatewayUrl: "https://gw.example.com",
-        endpoint: "http://10.0.0.5:4096",
-        oidc: {
-          issuer: "http://mock-issuer",
-          clientId: "my-client",
-        },
-      })
-    );
-    setEnv();
-
-    const config = await loadConfig();
-    expect(config.endpoint).toBe("http://10.0.0.5:4096");
-  });
-
-  it("OPENCODE_RC_ENDPOINT env overrides config file endpoint", async () => {
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        gatewayUrl: "https://gw.example.com",
-        endpoint: "http://10.0.0.5:4096",
-        oidc: {
-          issuer: "http://mock-issuer",
-          clientId: "my-client",
-        },
-      })
-    );
-    setEnv({ OPENCODE_RC_ENDPOINT: "http://10.0.0.99:8080" });
-
-    const config = await loadConfig();
-    expect(config.endpoint).toBe("http://10.0.0.99:8080");
   });
 });

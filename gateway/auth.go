@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -306,9 +305,3 @@ func (a *Auth) RegistrationAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// marshalJSON is a helper for JSON responses.
-func marshalJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
-}

@@ -63,14 +63,11 @@ services:
     entrypoint: ["/bin/bash", "/rc-entrypoint.sh"]
     command: ["node", "/cli/dist/index.js"]
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:${DEV_MACHINE_PORT:-9082}:4096"
     volumes:
       - ./compose/rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
       - ./compose/rc-client/opencode.json:/project/opencode.json:ro
     environment:
       OPENCODE_RC_GATEWAY_URL: http://gateway:8080
-      OPENCODE_RC_ENDPOINT: http://rc-client:4096
       OPENCODE_RC_SESSION_ID: ${OPENCODE_RC_SESSION_ID:-alice-dev}
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
       OIDC_URL: ${OIDC_ISSUER:-http://oidc-mock:8080}

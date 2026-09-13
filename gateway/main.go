@@ -37,16 +37,7 @@ func main() {
 	}
 
 	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain, cfg.SecureCookies)
-	registry := NewRegistry(60 * time.Second)
-
-	// Background reaper
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			registry.Reap()
-		}
-	}()
+	registry := NewRegistry()
 
 	mux := http.NewServeMux()
 	SetupRoutes(mux, auth, registry, cfg.WebUIDir)

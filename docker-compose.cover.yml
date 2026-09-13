@@ -1,0 +1,15 @@
+services:
+  gateway:
+    build:
+      args:
+        COVER: "true"
+    environment:
+      GOCOVERDIR: /coverdata
+    volumes:
+      - ./.cover/gateway:/coverdata
+
+  rc-client:
+    environment:
+      NODE_V8_COVERAGE: /coverdata
+    volumes:
+      - ./.cover/cli:/coverdata

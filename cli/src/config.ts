@@ -3,8 +3,6 @@ import { join } from "node:path";
 
 export interface Config {
   gatewayUrl: string;
-  servePort: number;
-  endpoint?: string;
   oidcIssuer: string;
   oidcClientID: string;
   oidcClientSecret?: string;
@@ -15,8 +13,6 @@ export interface Config {
 
 interface FileConfig {
   gatewayUrl?: string;
-  servePort?: number;
-  endpoint?: string;
   oidc?: {
     issuer?: string;
     clientId?: string;
@@ -77,11 +73,6 @@ export async function loadConfig(): Promise<Config> {
   const oidcClientSecret =
     process.env.OIDC_CLIENT_SECRET || file.oidc?.clientSecret || undefined;
 
-  const servePort = parseInt(
-    process.env.OPENCODE_RC_SERVE_PORT || String(file.servePort || 4096),
-    10,
-  );
-
   let oidcCallbackPorts: number[] | undefined;
   if (process.env.OIDC_CALLBACK_PORTS) {
     oidcCallbackPorts = process.env.OIDC_CALLBACK_PORTS
@@ -91,12 +82,8 @@ export async function loadConfig(): Promise<Config> {
     oidcCallbackPorts = file.oidc.callbackPorts;
   }
 
-  const endpoint = process.env.OPENCODE_RC_ENDPOINT || file.endpoint || undefined;
-
   return {
     gatewayUrl,
-    servePort,
-    endpoint,
     oidcIssuer,
     oidcClientID,
     oidcClientSecret,

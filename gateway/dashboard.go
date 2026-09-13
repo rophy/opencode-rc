@@ -66,7 +66,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
           div.appendChild(a);
           const meta = document.createElement('div');
           meta.className = 'meta';
-          meta.textContent = 'Session ' + s.id.slice(0, 8) + ' · ' + s.endpoint;
+          meta.textContent = 'Session ' + s.id.slice(0, 8);
           div.appendChild(meta);
           el.appendChild(div);
         });
