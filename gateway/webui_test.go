@@ -1,0 +1,135 @@
+// gateway/webui_test.go
+package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestWebUIHandler(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), 0644); err != nil {
+		t.Fatalf("failed to write index.html: %v", err)
+	}
+
+	handler := WebUIHandler(dir)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "index") {
+		t.Errorf("expected index.html content, got: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest("GET", "/nonexistent.js", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 (SPA fallback), got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "index") {
+		t.Errorf("expected SPA fallback to index.html, got: %s", rec.Body.String())
+	}
+}
+
+func TestWebUIHandlerStaticFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), 0644); err != nil {
+		t.Fatalf("failed to write index.html: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log('app')"), 0644); err != nil {
+		t.Fatalf("failed to write app.js: %v", err)
+	}
+
+	handler := WebUIHandler(dir)
+
+	req := httptest.NewRequest("GET", "/app.js", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "console.log") {
+		t.Errorf("expected app.js content, got: %s", rec.Body.String())
+	}
+}
+
+func TestSessionWebUIOrProxy(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>index</html>"), 0644); err != nil {
+		t.Fatalf("failed to write index.html: %v", err)
+	}
+
+	reg := NewRegistry()
+	reg.RegisterTunnel("user1", "sess1", "/proj", nil)
+
+	handler := SessionWebUIOrProxy(reg, dir)
+
+	// 1. Non /s/ prefix -> 404
+	req := httptest.NewRequest("GET", "/notS/foo", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("case 1: expected 404, got %d", rec.Code)
+	}
+
+	// 2. /s/sess1 (no trailing slash) -> redirect
+	req = httptest.NewRequest("GET", "/s/sess1", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Errorf("case 2: expected 302, got %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/s/sess1/" {
+		t.Errorf("case 2: expected redirect to /s/sess1/, got %s", loc)
+	}
+
+	// 3. /s/nonexistent/ -> 404
+	req = httptest.NewRequest("GET", "/s/nonexistent/", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("case 3: expected 404, got %d", rec.Code)
+	}
+
+	// 4. /s/sess1/ with webUIDir set -> serves index.html
+	req = httptest.NewRequest("GET", "/s/sess1/", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("case 4: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "index") {
+		t.Errorf("case 4: expected index.html content, got: %s", rec.Body.String())
+	}
+
+	// 5. /s/sess1/api/health -> proxied through tunnel
+	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("healthy"))
+	})
+	mux, cleanup := testTunnel(t, backend)
+	defer cleanup()
+
+	reg.RegisterTunnel("user1", "sess1", "/proj", mux)
+
+	req = httptest.NewRequest("GET", "/s/sess1/api/health", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("case 5: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "healthy") {
+		t.Errorf("case 5: expected proxied content, got: %s", rec.Body.String())
+	}
+}
