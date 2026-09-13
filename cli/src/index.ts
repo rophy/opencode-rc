@@ -27,7 +27,7 @@ async function main() {
 
   const server = await startServer(config.servePort);
 
-  const endpoint = process.env.OPENCODE_RC_ENDPOINT || server.url;
+  const endpoint = config.endpoint || server.url;
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
   await registerWithGateway(config, idToken, sessionID, endpoint, process.cwd());
 

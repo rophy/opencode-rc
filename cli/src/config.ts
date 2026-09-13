@@ -4,6 +4,7 @@ import { join } from "node:path";
 export interface Config {
   gatewayUrl: string;
   servePort: number;
+  endpoint?: string;
   oidcIssuer: string;
   oidcClientID: string;
   oidcClientSecret?: string;
@@ -15,6 +16,7 @@ export interface Config {
 interface FileConfig {
   gatewayUrl?: string;
   servePort?: number;
+  endpoint?: string;
   oidc?: {
     issuer?: string;
     clientId?: string;
@@ -89,9 +91,12 @@ export async function loadConfig(): Promise<Config> {
     oidcCallbackPorts = file.oidc.callbackPorts;
   }
 
+  const endpoint = process.env.OPENCODE_RC_ENDPOINT || file.endpoint || undefined;
+
   return {
     gatewayUrl,
     servePort,
+    endpoint,
     oidcIssuer,
     oidcClientID,
     oidcClientSecret,
