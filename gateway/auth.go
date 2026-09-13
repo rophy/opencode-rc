@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -156,7 +156,7 @@ func (a *Auth) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	token, err := a.oidc.oauth2Config.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
-		log.Printf("oidc exchange error: %v", err)
+		slog.Error("oidc exchange failed", "error", err)
 		http.Error(w, "authentication failed", http.StatusUnauthorized)
 		return
 	}
@@ -211,6 +211,8 @@ func (a *Auth) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		Secure:   a.secureCookie,
 		Domain:   a.domain,
 	})
+
+	slog.Info("login", "user", userID, "name", claims.Name)
 
 	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{
@@ -280,7 +282,7 @@ func (a *Auth) RegistrationAuthMiddleware(next http.Handler) http.Handler {
 			idToken, err = a.oidc.cliVerifier.Verify(r.Context(), rawToken)
 		}
 		if err != nil {
-			log.Printf("token verification failed for %s: %v", r.URL.Path, err)
+			slog.Warn("token verification failed", "path", r.URL.Path, "error", err)
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}

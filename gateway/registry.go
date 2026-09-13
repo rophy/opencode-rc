@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -39,11 +40,15 @@ func (r *Registry) Register(userID, sessionID, endpoint, directory string) {
 		LastHeartbeat: now,
 		CreatedAt:     now,
 	}
+	slog.Info("session registered", "session", sessionID, "user", userID, "endpoint", endpoint)
 }
 
 func (r *Registry) Deregister(sessionID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if s, ok := r.sessions[sessionID]; ok {
+		slog.Info("session deregistered", "session", sessionID, "user", s.UserID)
+	}
 	delete(r.sessions, sessionID)
 }
 
@@ -86,6 +91,7 @@ func (r *Registry) Reap() {
 	cutoff := time.Now().Add(-r.ttl)
 	for id, s := range r.sessions {
 		if s.LastHeartbeat.Before(cutoff) {
+			slog.Info("session reaped", "session", id, "user", s.UserID)
 			delete(r.sessions, id)
 		}
 	}

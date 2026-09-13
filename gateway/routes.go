@@ -4,9 +4,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir string) {
@@ -141,4 +143,23 @@ func deregisterHandler(registry *Registry) http.HandlerFunc {
 		registry.Deregister(req.SessionID)
 		marshalJSON(w, http.StatusOK, map[string]string{"status": "deregistered"})
 	}
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: 200}
+		next.ServeHTTP(rec, r)
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.status, "duration", time.Since(start).Round(time.Millisecond))
+	})
 }

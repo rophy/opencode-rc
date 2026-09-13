@@ -2,7 +2,7 @@ package main
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -57,7 +57,7 @@ func ProxyHandler(registry *Registry) http.Handler {
 			},
 			FlushInterval: -1, // flush immediately for SSE
 			ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-				log.Printf("proxy error session=%s: %v", sessionID, err)
+				slog.Error("proxy error", "session", sessionID, "error", err)
 				http.Error(w, "bad gateway", http.StatusBadGateway)
 			},
 		}

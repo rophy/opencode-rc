@@ -4,17 +4,21 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
 var version = "dev"
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
 	cfg, err := LoadConfig()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		slog.Error("config", "error", err)
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
@@ -24,11 +28,12 @@ func main() {
 		if err == nil {
 			break
 		}
-		log.Printf("oidc: attempt %d/30: %v", attempt, err)
+		slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
 		time.Sleep(2 * time.Second)
 	}
 	if err != nil {
-		log.Fatalf("oidc: %v", err)
+		slog.Error("oidc discovery failed", "error", err)
+		os.Exit(1)
 	}
 
 	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain, cfg.SecureCookies)
@@ -47,6 +52,9 @@ func main() {
 	SetupRoutes(mux, auth, registry, cfg.WebUIDir)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	log.Printf("gateway %s listening on %s", version, addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	slog.Info("gateway starting", "version", version, "addr", addr)
+	if err := http.ListenAndServe(addr, requestLogger(mux)); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
 }
