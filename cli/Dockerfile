@@ -12,11 +12,16 @@ RUN git init && git config user.email "test@test.com" && git config user.name "T
 
 # Build CLI
 WORKDIR /cli
-COPY package.json package-lock.json ./
+COPY cli/package.json cli/package-lock.json ./
 RUN npm install
-COPY tsconfig.json ./
-COPY src/ ./src/
+COPY cli/tsconfig.json ./
+COPY cli/src/ ./src/
 RUN npx tsc
+
+# Install e2e deps (source mounted at runtime)
+WORKDIR /e2e
+COPY e2e/package.json e2e/package-lock.json* ./
+RUN npm install
 
 WORKDIR /project
 ENTRYPOINT ["node", "/cli/dist/index.js"]

@@ -79,7 +79,8 @@ services:
   rc-client:
     profiles: ["rc"]
     build:
-      context: ./cli
+      context: .
+      dockerfile: cli/Dockerfile
     entrypoint: ["/bin/bash", "/rc-entrypoint.sh"]
     command: ["node", "/cli/dist/index.js"]
     restart: unless-stopped
