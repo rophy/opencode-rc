@@ -77,7 +77,7 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
   docker compose --profile rc up -d --build
 
 # Run e2e tests (requires stack to be running)
-./e2e/test.sh
+docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
 
 # Run e2e tests with coverage collection
 ./e2e/coverage.sh
@@ -86,6 +86,7 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
 Default ports: gateway 9080, oidc-mock 9081.
 Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`.
 Tunneler is internal to Docker Compose (not exposed to host).
+E2e tests run inside the `dev-machine` container via Vitest, using the `e2e/` dir mounted read-only at `/e2e`.
 
 ## npm Publishing (CLI)
 
