@@ -1,0 +1,219 @@
+suite: gateway deployment
+templates:
+  - templates/gateway-deployment.yaml
+values:
+  - ../values.yaml
+tests:
+  - it: renders with default values
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-gateway
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["gateway"]
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/rophy/opencode-rc/backend:0.1.0"
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 8080
+            name: http
+
+  - it: uses global imageRegistry
+    set:
+      global.imageRegistry: harbor.corp.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/backend:0.1.0"
+
+  - it: uses per-component registry
+    set:
+      gateway.image.registry: my-registry.io
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "my-registry.io/ghcr.io/rophy/opencode-rc/backend:0.1.0"
+
+  - it: global registry overrides per-component
+    set:
+      global.imageRegistry: harbor.corp.example.com
+      gateway.image.registry: my-registry.io
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/backend:0.1.0"
+
+  - it: sets replicas from values
+    set:
+      gateway.replicas: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: sets COOKIE_SECURE to false in local profile
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECURE
+            value: "false"
+
+  - it: sets COOKIE_SECURE to true in production profile
+    set:
+      profile: production
+      existingSecret: my-secret
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECURE
+            value: "true"
+
+  - it: reads OIDC_CLIENT_SECRET from secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-opencode-rc
+                key: oidc-client-secret
+
+  - it: reads COOKIE_SECRET from secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-opencode-rc
+                key: cookie-secret
+
+  - it: uses existingSecret in production
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: corp-secrets
+                key: cookie-secret
+
+  - it: sets REDIS_URL inline when redis enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: "redis://RELEASE-NAME-opencode-rc-redis:6379/0"
+
+  - it: reads REDIS_URL from secret when redis disabled
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+      redis.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: corp-secrets
+                key: redis-url
+
+  - it: applies tolerations
+    set:
+      gateway.tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "gateway"
+          effect: "NoSchedule"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+
+  - it: applies nodeSelector
+    set:
+      gateway.nodeSelector:
+        tier: frontend
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.tier
+          value: frontend
+
+  - it: applies resources
+    set:
+      gateway.resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+
+  - it: applies podAnnotations
+    set:
+      gateway.podAnnotations:
+        prometheus.io/scrape: "true"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+
+  - it: applies podLabels
+    set:
+      gateway.podLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+
+  - it: applies imagePullSecrets
+    set:
+      imagePullSecrets:
+        - name: corp-registry
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: corp-registry
+
+  - it: applies securityContext
+    set:
+      gateway.securityContext:
+        runAsNonRoot: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+
+  - it: applies containerSecurityContext
+    set:
+      gateway.containerSecurityContext:
+        readOnlyRootFilesystem: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
