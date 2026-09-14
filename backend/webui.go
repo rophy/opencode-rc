@@ -48,9 +48,13 @@ func SessionWebUIOrProxy(store SessionStore, webUIDir string) http.Handler {
 		sessionID := rest[:slashIdx]
 		subpath := rest[slashIdx:]
 
-		// Check session exists
-		_, ok, err := store.Get(r.Context(), sessionID)
-		if err != nil || !ok {
+		meta, ok, err := store.Get(r.Context(), sessionID)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		uid, _ := r.Context().Value(userContextKey).(string)
+		if !ok || (uid != "" && uid != meta.UserID) {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}

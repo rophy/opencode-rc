@@ -25,7 +25,12 @@ func GatewayProxyHandler(store SessionStore) http.Handler {
 		downstream := rest[slashIdx:]
 
 		meta, ok, err := store.Get(r.Context(), sessionID)
-		if err != nil || !ok {
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		uid, _ := r.Context().Value(userContextKey).(string)
+		if !ok || (uid != "" && uid != meta.UserID) {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
