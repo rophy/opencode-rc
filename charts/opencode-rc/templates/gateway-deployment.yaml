@@ -1,0 +1,100 @@
+{{- include "opencode-rc.validateProduction" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-gateway
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+        {{- with .Values.gateway.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.gateway.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: {{ include "opencode-rc.image" (dict "image" .Values.gateway.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          command: ["gateway"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: OIDC_ISSUER
+              value: {{ include "opencode-rc.oidcIssuer" . | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: oidc-client-secret
+            - name: OIDC_REDIRECT_URI
+              value: {{ include "opencode-rc.redirectUri" . | quote }}
+            - name: OIDC_CLI_CLIENT_ID
+              value: {{ .Values.oidc.cliClientId | quote }}
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: cookie-secret
+            - name: COOKIE_SECURE
+              value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
+            {{- if .Values.oidc.cookieDomain }}
+            - name: COOKIE_DOMAIN
+              value: {{ .Values.oidc.cookieDomain | quote }}
+            {{- end }}
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_URL
+              value: {{ include "opencode-rc.redisUrl" . | quote }}
+            {{- else }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: redis-url
+            {{- end }}
+          {{- with .Values.gateway.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.gateway.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
