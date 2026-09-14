@@ -1,0 +1,87 @@
+suite: tunneler deployment
+templates:
+  - templates/tunneler-deployment.yaml
+tests:
+  - it: renders with default values
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-tunneler
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["tunneler"]
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/rophy/opencode-rc/backend:0.1.0"
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 9090
+            name: http
+
+  - it: sets POD_IP from downward API
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+
+  - it: uses global imageRegistry
+    set:
+      global.imageRegistry: harbor.corp.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/backend:0.1.0"
+
+  - it: reads secrets from existingSecret in production
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: corp-secrets
+                key: cookie-secret
+
+  - it: applies tolerations
+    set:
+      tunneler.tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "tunneler"
+          effect: "NoSchedule"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: dedicated
+
+  - it: applies resources
+    set:
+      tunneler.resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 200m
+
+  - it: applies podAnnotations
+    set:
+      tunneler.podAnnotations:
+        sidecar.istio.io/inject: "false"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["sidecar.istio.io/inject"]
+          value: "false"

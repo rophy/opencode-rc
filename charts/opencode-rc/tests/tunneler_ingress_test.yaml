@@ -1,0 +1,66 @@
+suite: tunneler ingress
+templates:
+  - templates/tunneler-ingress.yaml
+tests:
+  - it: is disabled by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders with WebSocket annotations
+    set:
+      tunneler.ingress.enabled: true
+      tunneler.ingress.host: tunneler.corp.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "3600"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"]
+          value: "3600"
+      - equal:
+          path: spec.rules[0].host
+          value: tunneler.corp.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 9090
+
+  - it: merges user annotations with WebSocket defaults
+    set:
+      tunneler.ingress.enabled: true
+      tunneler.ingress.host: tunneler.corp.example.com
+      tunneler.ingress.annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "3600"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-body-size"]
+          value: "50m"
+
+  - it: allows user to override WebSocket timeout
+    set:
+      tunneler.ingress.enabled: true
+      tunneler.ingress.host: tunneler.corp.example.com
+      tunneler.ingress.annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "7200"
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "7200"
+
+  - it: configures TLS
+    set:
+      tunneler.ingress.enabled: true
+      tunneler.ingress.host: tunneler.corp.example.com
+      tunneler.ingress.tls:
+        - secretName: tunneler-tls
+          hosts:
+            - tunneler.corp.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: tunneler-tls

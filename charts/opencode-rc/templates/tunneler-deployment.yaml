@@ -1,0 +1,100 @@
+{{- include "opencode-rc.validateProduction" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-tunneler
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tunneler
+spec:
+  replicas: {{ .Values.tunneler.replicas }}
+  selector:
+    matchLabels:
+      {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tunneler
+  template:
+    metadata:
+      labels:
+        {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tunneler
+        {{- with .Values.tunneler.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.tunneler.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tunneler.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tunneler
+          image: {{ include "opencode-rc.image" (dict "image" .Values.tunneler.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.tunneler.image.pullPolicy }}
+          command: ["tunneler"]
+          ports:
+            - name: http
+              containerPort: 9090
+          env:
+            - name: PORT
+              value: "9090"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: OIDC_ISSUER
+              value: {{ include "opencode-rc.oidcIssuer" . | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: oidc-client-secret
+            - name: OIDC_REDIRECT_URI
+              value: {{ include "opencode-rc.redirectUri" . | quote }}
+            - name: OIDC_CLI_CLIENT_ID
+              value: {{ .Values.oidc.cliClientId | quote }}
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: cookie-secret
+            - name: COOKIE_SECURE
+              value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_URL
+              value: {{ include "opencode-rc.redisUrl" . | quote }}
+            {{- else }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-rc.secretName" . }}
+                  key: redis-url
+            {{- end }}
+          {{- with .Values.tunneler.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tunneler.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.tunneler.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tunneler.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tunneler.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
