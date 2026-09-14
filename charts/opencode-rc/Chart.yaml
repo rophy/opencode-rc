@@ -1,0 +1,7 @@
+# charts/opencode-rc/Chart.yaml
+apiVersion: v2
+name: opencode-rc
+description: Remote control for OpenCode in corporate environments
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

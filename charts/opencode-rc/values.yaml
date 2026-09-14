@@ -1,0 +1,94 @@
+profile: local  # or "production"
+
+global:
+  imageRegistry: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+gateway:
+  image:
+    registry: ""
+    repository: ghcr.io/rophy/opencode-rc/backend
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  securityContext: {}
+  containerSecurityContext: {}
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls: []
+
+tunneler:
+  image:
+    registry: ""
+    repository: ghcr.io/rophy/opencode-rc/backend
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  securityContext: {}
+  containerSecurityContext: {}
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    annotations: {}
+    tls: []
+
+redis:
+  enabled: true
+  image:
+    registry: ""
+    repository: redis
+    tag: "7.4.11-alpine"
+    pullPolicy: IfNotPresent
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  securityContext: {}
+  containerSecurityContext: {}
+
+oidcMock:
+  image:
+    registry: ""
+    repository: ghcr.io/rophy/oidc-mock
+    tag: "20260907-dfef1a3"
+    pullPolicy: IfNotPresent
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+oidc:
+  issuer: ""
+  clientId: "opencode-rc"
+  cliClientId: "opencode-rc-cli"
+  redirectUri: ""
+  cookieDomain: ""
+
+secrets:
+  cookieSecret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  oidcClientSecret: "opencode-rc-secret"
+
+existingSecret: ""
