@@ -1,4 +1,4 @@
-name: Gateway
+name: Backend
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - 'e2e/**'
       - 'cli/Dockerfile'
       - 'docker-compose.yml'
-      - '.github/workflows/gateway.yml'
+      - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
@@ -19,7 +19,7 @@ on:
       - 'e2e/**'
       - 'cli/Dockerfile'
       - 'docker-compose.yml'
-      - '.github/workflows/gateway.yml'
+      - '.github/workflows/backend.yml'
   workflow_dispatch:
 
 jobs:
@@ -33,15 +33,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build gateway image
+      - name: Build backend image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile
           push: false
-          tags: opencode-rc-gateway:test
-          cache-from: type=gha,scope=gateway
-          cache-to: type=gha,mode=max,scope=gateway
+          tags: opencode-rc-backend:test
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
   test:
     runs-on: ubuntu-latest
@@ -94,7 +94,7 @@ jobs:
         id: check
         run: |
           VERSION=$(cat backend/VERSION | tr -d '[:space:]')
-          if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
+          if docker manifest inspect ghcr.io/${{ github.repository }}/backend:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "Version $VERSION already exists, skipping publish"
           else
@@ -123,15 +123,15 @@ jobs:
           file: backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/gateway:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/gateway:latest
-          cache-from: type=gha,scope=gateway
-          cache-to: type=gha,mode=max,scope=gateway
+            ghcr.io/${{ github.repository }}/backend:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag "gateway/${{ steps.check.outputs.version }}"
-          git push origin "gateway/${{ steps.check.outputs.version }}"
+          git tag "backend/${{ steps.check.outputs.version }}"
+          git push origin "backend/${{ steps.check.outputs.version }}"
