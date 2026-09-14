@@ -20,7 +20,7 @@ RUN npx tsc
 
 # Install e2e deps (source mounted at runtime)
 WORKDIR /e2e
-COPY e2e/package.json e2e/package-lock.json* ./
+COPY e2e/package.json e2e/package-lock.json ./
 RUN npm install
 
 WORKDIR /project

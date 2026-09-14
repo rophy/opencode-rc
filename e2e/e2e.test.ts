@@ -9,8 +9,6 @@ const OIDC_URL = "http://oidc-mock:8080";
 // login flow. Reusing them here would make the simulated browser login
 // impersonate the wrong OAuth client and fail token exchange.
 const OIDC_CLIENT_ID = process.env.GATEWAY_OIDC_CLIENT_ID ?? "opencode-rc";
-const OIDC_CLIENT_SECRET =
-  process.env.GATEWAY_OIDC_CLIENT_SECRET ?? "opencode-rc-secret";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 
 async function waitFor(
@@ -135,7 +133,7 @@ describe("opencode-rc e2e", () => {
     expect(res.status).toBe(200);
   });
 
-  it("rc-client tunnel connected", async () => {
+  it("dev-machine tunnel connected", async () => {
     let sessions: any[] = [];
     for (let i = 0; i < 60; i++) {
       try {
