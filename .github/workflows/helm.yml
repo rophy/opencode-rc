@@ -1,0 +1,75 @@
+name: Helm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - '.github/workflows/helm.yml'
+  pull_request:
+    paths:
+      - 'charts/**'
+      - '.github/workflows/helm.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install helm-unittest plugin
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest
+
+      - name: Lint chart
+        run: helm lint charts/opencode-rc
+
+      - name: Run unit tests
+        run: helm unittest charts/opencode-rc
+
+  publish:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Check if version exists on ghcr.io
+        id: check
+        run: |
+          VERSION=$(grep '^version:' charts/opencode-rc/Chart.yaml | awk '{print $2}')
+          if helm show chart oci://ghcr.io/${{ github.repository }}/charts/opencode-rc --version "$VERSION" > /dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION already exists, skipping publish"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Publishing version $VERSION"
+          fi
+
+      - name: Log in to ghcr.io
+        if: steps.check.outputs.publish == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and push
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          helm package charts/opencode-rc
+          helm push opencode-rc-${{ steps.check.outputs.version }}.tgz oci://ghcr.io/${{ github.repository }}/charts
+
+      - name: Tag release
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "helm/${{ steps.check.outputs.version }}"
+          git push origin "helm/${{ steps.check.outputs.version }}"
