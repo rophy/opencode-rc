@@ -83,8 +83,9 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
 ./e2e/coverage.sh
 ```
 
-Default ports: gateway 9080, oidc-mock 9081, tunneler 9082.
-Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`, `TUNNELER_PORT`.
+Default ports: gateway 9080, oidc-mock 9081.
+Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`.
+Tunneler is internal to Docker Compose (not exposed to host).
 
 ## npm Publishing (CLI)
 

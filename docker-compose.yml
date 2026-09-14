@@ -40,8 +40,6 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     command: ["tunneler"]
-    ports:
-      - "127.0.0.1:${TUNNELER_PORT:-9082}:9090"
     environment:
       PORT: "9090"
       POD_IP: tunneler

@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Defaults for running against local docker compose
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:9080}"
-TUNNELER_URL="${TUNNELER_URL:-http://localhost:9082}"
 OIDC_URL="${OIDC_URL:-http://localhost:9081}"
 OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-opencode-rc}"
 OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-opencode-rc-secret}"
@@ -41,8 +40,17 @@ echo ""
 
 # Wait for services
 wait_for "oidc-mock" "$OIDC_URL/.well-known/openid-configuration" 30
-wait_for "tunneler" "$TUNNELER_URL/healthz" 30
 wait_for "gateway" "$GATEWAY_URL/healthz" 30
+
+# Tunneler is internal-only; check from inside the Docker network
+echo "Waiting for tunneler (via rc-client)..."
+for i in $(seq 1 30); do
+  if docker compose exec -T rc-client curl -sf http://tunneler:9090/healthz >/dev/null 2>&1; then
+    echo "  tunneler ready (${i}s)"
+    break
+  fi
+  sleep 1
+done
 echo ""
 
 # ------------------------------------------------------------------
@@ -56,7 +64,7 @@ else
   fail "gateway /healthz: got '$HEALTH'"
 fi
 
-TUNNELER_HEALTH=$(curl -sf "$TUNNELER_URL/healthz" || true)
+TUNNELER_HEALTH=$(docker compose exec -T rc-client curl -sf http://tunneler:9090/healthz 2>/dev/null || true)
 if echo "$TUNNELER_HEALTH" | jq -e '.status == "ok"' >/dev/null 2>&1; then
   pass "tunneler /healthz returns ok"
 else
