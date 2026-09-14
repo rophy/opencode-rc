@@ -37,6 +37,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        COVER: ${COVER:-false}
     command: ["tunneler"]
     environment:
       PORT: "9090"
@@ -48,6 +50,9 @@ services:
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://gateway:8080/auth/callback}
       COOKIE_SECRET: ${COOKIE_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
+      GOCOVERDIR: /coverdata
+    volumes:
+      - ./.cover/tunneler:/coverdata
     depends_on:
       - oidc-mock
       - redis
@@ -56,6 +61,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        COVER: ${COVER:-false}
     command: ["gateway"]
     environment:
       PORT: "8080"
@@ -67,6 +74,9 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
+      GOCOVERDIR: /coverdata
+    volumes:
+      - ./.cover/gateway:/coverdata
     depends_on:
       - oidc-mock
       - redis
@@ -84,6 +94,7 @@ services:
       - ./compose/rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
       - ./compose/rc-client/opencode.json:/project/opencode.json:ro
       - ./e2e:/e2e
+      - ./.cover/cli:/coverdata
     environment:
       OPENCODE_RC_GATEWAY_URL: http://tunneler:9090
       OPENCODE_RC_SESSION_ID: ${OPENCODE_RC_SESSION_ID:-alice-dev}
@@ -92,6 +103,7 @@ services:
       OIDC_CLIENT_ID: opencode-rc-cli
       OIDC_USER_SUB: ${OIDC_USER_SUB:-user1}
       OPENAI_API_KEY: mock
+      NODE_V8_COVERAGE: /coverdata
     depends_on:
       - tunneler
       - aimock
