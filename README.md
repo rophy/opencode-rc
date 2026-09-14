@@ -60,8 +60,7 @@ The root `docker-compose.yml` provides all components:
 
 - **gateway** — the OpenCode RC gateway (exposed on port 8080)
 - **oidc-mock** — a mock OIDC provider with test users (exposed on port 8081)
-- **dev-machine** — a simulated OpenCode instance backed by an AI mock (exposed on port 8082)
-- **rc-client** — auto-registers the dev-machine with the gateway
+- **dev-machine** — a simulated OpenCode instance backed by an AI mock (exposed on port 8082), auto-registers with the gateway
 
 ### Start the environment
 
@@ -85,7 +84,7 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
 With the stack running:
 
 ```bash
-./e2e/test/test.sh
+docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
 ```
 
 ### Test users

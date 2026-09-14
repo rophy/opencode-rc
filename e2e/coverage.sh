@@ -22,7 +22,7 @@ docker compose -f docker-compose.yml -f docker-compose.cover.yml \
   build --build-arg COVER=true gateway tunneler
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
   --profile rc \
-  build rc-client
+  build dev-machine
 
 echo ""
 echo "=== Starting services ==="
@@ -33,7 +33,9 @@ docker compose -f docker-compose.yml -f docker-compose.cover.yml \
 echo ""
 echo "=== Running e2e tests ==="
 TEST_EXIT=0
-"$SCRIPT_DIR/test.sh" || TEST_EXIT=$?
+docker compose -f docker-compose.yml -f docker-compose.cover.yml \
+  --profile rc \
+  exec -T dev-machine sh -c "cd /e2e && npx vitest run" || TEST_EXIT=$?
 
 echo ""
 echo "=== Stopping services (graceful for coverage flush) ==="
@@ -94,13 +96,14 @@ if ls "$COVER_DIR/cli/"*.json 2>/dev/null; then
       --temp-directory "$COVER_DIR/cli" \
       --src src/ \
       --reporter text 2>/dev/null || echo "Warning: c8 report failed (install c8: npm i -g c8)"
+    cd "$PROJECT_DIR"
   else
     echo "Warning: npx not found, cannot report CLI coverage"
   fi
 else
   echo ""
   echo "Warning: no CLI coverage data found in $COVER_DIR/cli/"
-  echo "  Check that NODE_V8_COVERAGE is set and rc-client exited cleanly."
+  echo "  Check that NODE_V8_COVERAGE is set and dev-machine exited cleanly."
 fi
 
 echo ""
