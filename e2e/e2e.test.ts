@@ -3,8 +3,14 @@ import { describe, it, expect, beforeAll } from "vitest";
 const GATEWAY_URL = "http://gateway:8080";
 const TUNNELER_URL = "http://tunneler:9090";
 const OIDC_URL = "http://oidc-mock:8080";
-const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID ?? "opencode-rc";
-const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET ?? "opencode-rc-secret";
+// Note: this intentionally does NOT read process.env.OIDC_CLIENT_ID /
+// OIDC_CLIENT_SECRET — the dev-machine container (where these tests run)
+// sets those to the CLI's own client ("opencode-rc-cli") for its PKCE
+// login flow. Reusing them here would make the simulated browser login
+// impersonate the wrong OAuth client and fail token exchange.
+const OIDC_CLIENT_ID = process.env.GATEWAY_OIDC_CLIENT_ID ?? "opencode-rc";
+const OIDC_CLIENT_SECRET =
+  process.env.GATEWAY_OIDC_CLIENT_SECRET ?? "opencode-rc-secret";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 
 async function waitFor(
@@ -30,8 +36,11 @@ class CookieJar {
     const setCookies = response.headers.getSetCookie?.() ?? [];
     for (const sc of setCookies) {
       const [pair] = sc.split(";");
-      const [name, value] = pair.split("=", 2);
-      if (name && value) this.cookies.set(name.trim(), value.trim());
+      const eq = pair.indexOf("=");
+      if (eq === -1) continue;
+      const name = pair.slice(0, eq).trim();
+      const value = pair.slice(eq + 1).trim();
+      if (name && value) this.cookies.set(name, value);
     }
   }
 
