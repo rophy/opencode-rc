@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'gateway/**'
+      - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
   pull_request:
     paths:
-      - 'gateway/**'
+      - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: gateway/Dockerfile
+          file: backend/Dockerfile
           push: false
           tags: opencode-rc-gateway:test
           cache-from: type=gha
@@ -50,7 +50,7 @@ jobs:
       - name: Check if version exists on ghcr.io
         id: check
         run: |
-          VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
+          VERSION=$(cat backend/VERSION | tr -d '[:space:]')
           if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
@@ -75,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: gateway/Dockerfile
+          file: backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/gateway:${{ steps.check.outputs.version }}

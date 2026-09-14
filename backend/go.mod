@@ -1,4 +1,4 @@
-module github.com/rophy/opencode-rc/gateway
+module github.com/rophy/opencode-rc/backend
 
 go 1.25.9
 

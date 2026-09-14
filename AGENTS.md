@@ -8,7 +8,7 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-gateway/        # Go reverse proxy with OIDC auth and session registry
+backend/        # Go reverse proxy with OIDC auth and session registry
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Docker Compose test environment
@@ -53,7 +53,7 @@ Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 ### Gateway
 
 ```bash
-cd gateway && go build -o gateway .
+cd backend && go build -o opencode-rc .
 ```
 
 ### Dev server (web)

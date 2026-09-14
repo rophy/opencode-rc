@@ -34,7 +34,7 @@ services:
   gateway:
     build:
       context: .
-      dockerfile: gateway/Dockerfile
+      dockerfile: backend/Dockerfile
     environment:
       PORT: "8080"
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}

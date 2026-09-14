@@ -38,7 +38,7 @@ flowchart LR
 
 | Component | Language | Description |
 |-----------|----------|-------------|
-| `gateway/` | Go | Reverse proxy with OIDC auth, session registry, WebSocket support |
+| `backend/` | Go | Reverse proxy with OIDC auth, session registry, WebSocket support |
 | `cli/` | Node | Starts opencode serve, authenticates with gateway, heartbeat registration |
 | `web/` | TypeScript/SolidJS | SPA wrapping OpenCode's web UI with session picker and user bar |
 
