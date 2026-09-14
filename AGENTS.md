@@ -83,10 +83,9 @@ docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
 ./e2e/coverage.sh
 ```
 
-Default ports: gateway 9080, oidc-mock 9081.
-Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`.
-Tunneler is internal to Docker Compose (not exposed to host).
+No ports are exposed to the host. All services are internal to the Docker network.
 E2e tests run inside the `dev-machine` container via Vitest, using the `e2e/` dir mounted read-only at `/e2e`.
+For manual browser access, exec into the dev-machine container.
 
 ## npm Publishing (CLI)
 

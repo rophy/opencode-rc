@@ -58,25 +58,16 @@ cd web && bun install && bun run build && cd ..
 
 The root `docker-compose.yml` provides all components:
 
-- **gateway** — the OpenCode RC gateway (exposed on port 8080)
-- **oidc-mock** — a mock OIDC provider with test users (exposed on port 8081)
-- **dev-machine** — a simulated OpenCode instance backed by an AI mock (exposed on port 8082), auto-registers with the gateway
+- **gateway** — the OpenCode RC gateway
+- **oidc-mock** — a mock OIDC provider with test users
+- **dev-machine** — a simulated OpenCode instance backed by an AI mock, auto-registers with the gateway
+
+No ports are exposed to the host. All services communicate over the Docker network. E2e tests and manual tasks run inside the `dev-machine` container.
 
 ### Start the environment
 
 ```bash
 docker compose --profile rc up -d --build
-```
-
-Open http://localhost:9080 in your browser. You'll be redirected to the mock OIDC login.
-
-### Serve the rc-web UI
-
-To serve the custom web UI instead of the built-in dashboard, set `WEBUI_HOST_DIR`:
-
-```bash
-WEBUI_HOST_DIR=$(cd web/dist && pwd) \
-  docker compose --profile rc up -d --build
 ```
 
 ### Run e2e tests
