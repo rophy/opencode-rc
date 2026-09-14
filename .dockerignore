@@ -3,8 +3,6 @@
 .git
 .superpowers
 .playwright-mcp
-cli/
 compose/
 docs/
-e2e/
 gateway/Dockerfile

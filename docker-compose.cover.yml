@@ -17,7 +17,7 @@ services:
     volumes:
       - ./.cover/tunneler:/coverdata
 
-  rc-client:
+  dev-machine:
     environment:
       NODE_V8_COVERAGE: /coverdata
     volumes:
