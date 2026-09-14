@@ -1,0 +1,19 @@
+{{- if eq .Values.profile "local" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-oidc-mock
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oidc-mock
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "opencode-rc.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: oidc-mock
+{{- end }}

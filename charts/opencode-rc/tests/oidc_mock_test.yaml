@@ -1,0 +1,106 @@
+suite: oidc mock
+templates:
+  - templates/oidc-mock-deployment.yaml
+  - templates/oidc-mock-service.yaml
+  - templates/oidc-mock-configmap.yaml
+tests:
+  - it: creates deployment in local profile
+    template: templates/oidc-mock-deployment.yaml
+    set:
+      profile: local
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-oidc-mock
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "ghcr.io/rophy/oidc-mock:20260907-dfef1a3"
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value: ["serve"]
+
+  - it: is absent in production profile
+    template: templates/oidc-mock-deployment.yaml
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates service in local profile
+    template: templates/oidc-mock-service.yaml
+    set:
+      profile: local
+    asserts:
+      - isKind:
+          of: Service
+      - contains:
+          path: spec.ports
+          content:
+            port: 8080
+            targetPort: http
+            protocol: TCP
+            name: http
+
+  - it: service absent in production
+    template: templates/oidc-mock-service.yaml
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates configmap with OIDC config
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      profile: local
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "id: opencode-rc"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "id: opencode-rc-cli"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "alice@example.com"
+
+  - it: configmap absent in production
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: uses global imageRegistry
+    template: templates/oidc-mock-deployment.yaml
+    set:
+      profile: local
+      global.imageRegistry: harbor.corp.example.com
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: "harbor.corp.example.com/ghcr.io/rophy/oidc-mock:20260907-dfef1a3"
+
+  - it: applies tolerations
+    template: templates/oidc-mock-deployment.yaml
+    set:
+      profile: local
+      oidcMock.tolerations:
+        - key: "test"
+          operator: "Exists"
+    asserts:
+      - equal:
+          path: spec.template.spec.tolerations[0].key
+          value: test

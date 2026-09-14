@@ -1,0 +1,62 @@
+{{- if eq .Values.profile "local" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-oidc-mock
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oidc-mock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: oidc-mock
+  template:
+    metadata:
+      labels:
+        {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: oidc-mock
+        {{- with .Values.oidcMock.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.oidcMock.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: oidc-mock
+          image: {{ include "opencode-rc.image" (dict "image" .Values.oidcMock.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.oidcMock.image.pullPolicy }}
+          command: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OIDC_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "opencode-rc.fullname" . }}-oidc-mock
+                  key: oidc-config.yaml
+          {{- with .Values.oidcMock.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.oidcMock.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.oidcMock.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.oidcMock.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
