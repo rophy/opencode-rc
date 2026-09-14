@@ -29,6 +29,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.oidcMock.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: oidc-mock
           image: {{ include "opencode-rc.image" (dict "image" .Values.oidcMock.image "global" .Values.global) }}
@@ -45,6 +49,10 @@ spec:
                   key: oidc-config.yaml
           {{- with .Values.oidcMock.resources }}
           resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.oidcMock.containerSecurityContext }}
+          securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       {{- with .Values.oidcMock.nodeSelector }}

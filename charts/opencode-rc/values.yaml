@@ -79,6 +79,8 @@ oidcMock:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  securityContext: {}
+  containerSecurityContext: {}
 
 oidc:
   issuer: ""
