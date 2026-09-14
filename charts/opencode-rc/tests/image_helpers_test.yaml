@@ -1,0 +1,18 @@
+suite: image helper
+templates:
+  - templates/secret.yaml  # need a template to render; secret.yaml is simple
+tests:
+  - it: uses default repository and tag
+    set:
+      profile: local
+    asserts:
+      - isKind:
+          of: Secret
+
+  - it: renders with global imageRegistry override
+    set:
+      profile: local
+      global.imageRegistry: harbor.corp.example.com
+    asserts:
+      - isKind:
+          of: Secret
