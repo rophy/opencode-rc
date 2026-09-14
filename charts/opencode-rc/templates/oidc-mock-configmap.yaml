@@ -1,0 +1,28 @@
+{{- if eq .Values.profile "local" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-oidc-mock
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oidc-mock
+data:
+  oidc-config.yaml: |
+    port: 8080
+    issuer: http://{{ include "opencode-rc.fullname" . }}-oidc-mock:8080
+    clients:
+      - id: {{ .Values.oidc.clientId }}
+        secret: {{ .Values.secrets.oidcClientSecret }}
+        redirect_uris:
+          - {{ include "opencode-rc.redirectUri" . }}
+      - id: {{ .Values.oidc.cliClientId }}
+        redirect_uris:
+          - http://127.0.0.1:0/callback
+    users:
+      - sub: user1
+        email: alice@example.com
+        name: Alice
+      - sub: user2
+        email: bob@example.com
+        name: Bob
+{{- end }}
