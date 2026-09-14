@@ -83,8 +83,7 @@ services:
     volumes:
       - ./compose/rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
       - ./compose/rc-client/opencode.json:/project/opencode.json:ro
-      - ./e2e:/e2e:ro
-      - /e2e/node_modules
+      - ./e2e:/e2e
     environment:
       OPENCODE_RC_GATEWAY_URL: http://tunneler:9090
       OPENCODE_RC_SESSION_ID: ${OPENCODE_RC_SESSION_ID:-alice-dev}
