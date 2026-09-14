@@ -1,0 +1,19 @@
+OpenCode RC has been deployed!
+
+Profile: {{ .Values.profile }}
+
+{{- if .Values.gateway.ingress.enabled }}
+Gateway URL: http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}
+{{- else }}
+Gateway: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-gateway 8080:8080
+{{- end }}
+
+{{- if .Values.tunneler.ingress.enabled }}
+Tunneler URL: http{{ if .Values.tunneler.ingress.tls }}s{{ end }}://{{ .Values.tunneler.ingress.host }}
+{{- else }}
+Tunneler: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-tunneler 9090:9090
+{{- end }}
+
+CLI setup:
+  npm install -g opencode-rc
+  opencode-rc --gateway-url {{ if .Values.tunneler.ingress.enabled }}http{{ if .Values.tunneler.ingress.tls }}s{{ end }}://{{ .Values.tunneler.ingress.host }}{{ else }}http://localhost:9090{{ end }}

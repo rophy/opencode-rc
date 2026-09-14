@@ -1,0 +1,35 @@
+suite: profile validation
+templates:
+  - templates/gateway-deployment.yaml
+tests:
+  - it: production fails without existingSecret
+    set:
+      profile: production
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "existingSecret is required when profile is production"
+
+  - it: production fails without oidc.issuer
+    set:
+      profile: production
+      existingSecret: corp-secrets
+    asserts:
+      - failedTemplate:
+          errorMessage: "oidc.issuer is required when profile is production"
+
+  - it: production renders with all required values
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: local profile renders without any overrides
+    set:
+      profile: local
+    asserts:
+      - isKind:
+          of: Deployment
