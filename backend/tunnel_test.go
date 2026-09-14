@@ -12,9 +12,9 @@ import (
 )
 
 func TestTunnelHandlerMissingAuth(t *testing.T) {
-	auth := testAuthWithVerifier(&mockVerifier{}, nil)
-	reg := NewRegistry()
-	handler := TunnelHandler(auth, reg)
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	rec := httptest.NewRecorder()
@@ -26,9 +26,9 @@ func TestTunnelHandlerMissingAuth(t *testing.T) {
 }
 
 func TestTunnelHandlerInvalidToken(t *testing.T) {
-	auth := testAuthWithVerifier(&mockVerifier{err: errors.New("invalid signature")}, nil)
-	reg := NewRegistry()
-	handler := TunnelHandler(auth, reg)
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set("Authorization", "Bearer bad-token")
@@ -41,9 +41,9 @@ func TestTunnelHandlerInvalidToken(t *testing.T) {
 }
 
 func TestTunnelHandlerMissingSessionId(t *testing.T) {
-	auth := testAuthWithVerifier(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil)
-	reg := NewRegistry()
-	handler := TunnelHandler(auth, reg)
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
@@ -56,9 +56,9 @@ func TestTunnelHandlerMissingSessionId(t *testing.T) {
 }
 
 func TestTunnelHandlerSuccess(t *testing.T) {
-	auth := testAuthWithVerifier(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil)
-	reg := NewRegistry()
-	handler := TunnelHandler(auth, reg)
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -74,30 +74,39 @@ func TestTunnelHandlerSuccess(t *testing.T) {
 	}
 	defer ws.Close()
 
-	var sess *Session
+	var meta SessionMeta
+	var found bool
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if s, ok := reg.Lookup("test-sess"); ok {
-			sess = s
+		if m, ok := reg.GetMeta(t.Context(), "test-sess"); ok {
+			meta = m
+			found = true
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if sess == nil {
+	if !found {
 		t.Fatal("expected session to be registered")
 	}
-	if sess.UserID != "user@example.com" {
-		t.Errorf("expected user@example.com, got %s", sess.UserID)
+	if meta.UserID != "user@example.com" {
+		t.Errorf("expected user@example.com, got %s", meta.UserID)
 	}
-	if sess.Directory != "/proj" {
-		t.Errorf("expected /proj, got %s", sess.Directory)
+	if meta.Directory != "/proj" {
+		t.Errorf("expected /proj, got %s", meta.Directory)
+	}
+	if meta.TunnelerAddr != "10.0.0.1:9090" {
+		t.Errorf("expected 10.0.0.1:9090, got %s", meta.TunnelerAddr)
+	}
+
+	if _, ok := reg.GetTunnel("test-sess"); !ok {
+		t.Fatal("expected tunnel to be registered")
 	}
 
 	ws.Close()
 
 	deadline = time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if _, ok := reg.Lookup("test-sess"); !ok {
+		if _, ok := reg.GetTunnel("test-sess"); !ok {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

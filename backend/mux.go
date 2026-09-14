@@ -158,6 +158,9 @@ func (m *muxConn) readPump() {
 
 // close shuts down the mux connection.
 func (m *muxConn) close() error {
+	if m.ws == nil {
+		return nil
+	}
 	return m.ws.Close()
 }
 
@@ -398,4 +401,3 @@ func (m *muxConn) proxyWebSocketUpgrade(w http.ResponseWriter, r *http.Request, 
 
 	<-done
 }
-

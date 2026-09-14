@@ -1,76 +1,81 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
 )
 
-type Session struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"userId"`
-	Directory string    `json:"directory"`
-	CreatedAt time.Time `json:"createdAt"`
-	Tunnel    *muxConn  `json:"-"`
+type TunnelRegistry struct {
+	store   SessionStore
+	tunnels sync.Map // sessionID → *muxConn
 }
 
-type Registry struct {
-	mu       sync.RWMutex
-	sessions map[string]*Session // keyed by session ID
+func NewTunnelRegistry(store SessionStore) *TunnelRegistry {
+	return &TunnelRegistry{store: store}
 }
 
-func NewRegistry() *Registry {
-	return &Registry{
-		sessions: make(map[string]*Session),
-	}
-}
-
-func (r *Registry) RegisterTunnel(userID, sessionID, directory string, tunnel *muxConn) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// Close existing tunnel if re-registering
-	if old, ok := r.sessions[sessionID]; ok && old.Tunnel != nil {
-		old.Tunnel.close()
+func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, directory, podAddr string, tunnel *muxConn) {
+	if old, ok := r.tunnels.Load(sessionID); ok && old != nil {
+		old.(*muxConn).close()
 	}
 
-	r.sessions[sessionID] = &Session{
-		ID:        sessionID,
-		UserID:    userID,
-		Directory: directory,
-		CreatedAt: time.Now(),
-		Tunnel:    tunnel,
+	meta := SessionMeta{
+		ID:           sessionID,
+		UserID:       userID,
+		Directory:    directory,
+		TunnelerAddr: podAddr,
+		CreatedAt:    time.Now(),
 	}
-	slog.Info("session registered", "session", sessionID, "user", userID)
+	if err := r.store.Put(ctx, meta); err != nil {
+		slog.Error("failed to register session", "session", sessionID, "error", err)
+	}
+
+	r.tunnels.Store(sessionID, tunnel)
+	slog.Info("session registered", "session", sessionID, "user", userID, "addr", podAddr)
 }
 
-func (r *Registry) Deregister(sessionID string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if s, ok := r.sessions[sessionID]; ok {
-		slog.Info("session deregistered", "session", sessionID, "user", s.UserID)
+func (r *TunnelRegistry) Deregister(ctx context.Context, sessionID string) {
+	r.tunnels.Delete(sessionID)
+	if err := r.store.Delete(ctx, sessionID); err != nil {
+		slog.Error("failed to deregister session", "session", sessionID, "error", err)
 	}
-	delete(r.sessions, sessionID)
+	slog.Info("session deregistered", "session", sessionID)
 }
 
-func (r *Registry) Sessions(userID string) []Session {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	var result []Session
-	for _, s := range r.sessions {
-		if s.UserID == userID {
-			result = append(result, *s)
-		}
-	}
-	return result
-}
-
-func (r *Registry) Lookup(sessionID string) (*Session, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	s, ok := r.sessions[sessionID]
+func (r *TunnelRegistry) GetTunnel(sessionID string) (*muxConn, bool) {
+	t, ok := r.tunnels.Load(sessionID)
 	if !ok {
 		return nil, false
 	}
-	return s, true
+	return t.(*muxConn), true
+}
+
+func (r *TunnelRegistry) GetMeta(ctx context.Context, sessionID string) (SessionMeta, bool) {
+	meta, ok, err := r.store.Get(ctx, sessionID)
+	if err != nil {
+		slog.Error("failed to lookup session", "session", sessionID, "error", err)
+		return SessionMeta{}, false
+	}
+	return meta, ok
+}
+
+func (r *TunnelRegistry) RefreshLoop(ctx context.Context, sessionID string, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			meta, ok, err := r.store.Get(ctx, sessionID)
+			if err != nil || !ok {
+				return
+			}
+			if err := r.store.Put(ctx, meta); err != nil {
+				slog.Warn("session refresh failed", "session", sessionID, "error", err)
+			}
+		}
+	}
 }

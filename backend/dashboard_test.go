@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,16 +11,17 @@ import (
 )
 
 func TestDashboardSessionsAPI(t *testing.T) {
-	reg := NewRegistry()
-	reg.RegisterTunnel("user1", "sess1", "/proj-a", nil)
-	reg.RegisterTunnel("user1", "sess2", "/proj-b", nil)
-	reg.RegisterTunnel("user2", "sess3", "/proj-c", nil)
+	store := testRedisStore(t)
+	ctx := context.Background()
+	store.Put(ctx, SessionMeta{ID: "sess1", UserID: "user1", Directory: "/proj-a"})
+	store.Put(ctx, SessionMeta{ID: "sess2", UserID: "user1", Directory: "/proj-b"})
+	store.Put(ctx, SessionMeta{ID: "sess3", UserID: "user2", Directory: "/proj-c"})
 
-	handler := DashboardSessionsHandler(reg)
+	handler := DashboardSessionsHandler(store)
 
 	req := httptest.NewRequest("GET", "/gateway/sessions", nil)
-	ctx := setUserContext(req.Context(), "user1")
-	req = req.WithContext(ctx)
+	reqCtx := setUserContext(req.Context(), "user1")
+	req = req.WithContext(reqCtx)
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -28,7 +30,7 @@ func TestDashboardSessionsAPI(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	var sessions []Session
+	var sessions []SessionMeta
 	if err := json.NewDecoder(rec.Body).Decode(&sessions); err != nil {
 		t.Fatalf("failed to decode: %v", err)
 	}
@@ -38,8 +40,8 @@ func TestDashboardSessionsAPI(t *testing.T) {
 }
 
 func TestDashboardSessionsUnauthorized(t *testing.T) {
-	reg := NewRegistry()
-	handler := DashboardSessionsHandler(reg)
+	store := testRedisStore(t)
+	handler := DashboardSessionsHandler(store)
 
 	req := httptest.NewRequest("GET", "/gateway/sessions", nil)
 	rec := httptest.NewRecorder()
@@ -51,8 +53,8 @@ func TestDashboardSessionsUnauthorized(t *testing.T) {
 }
 
 func TestDashboardSessionsEmpty(t *testing.T) {
-	reg := NewRegistry()
-	handler := DashboardSessionsHandler(reg)
+	store := testRedisStore(t)
+	handler := DashboardSessionsHandler(store)
 
 	req := httptest.NewRequest("GET", "/gateway/sessions", nil)
 	ctx := setUserContext(req.Context(), "user1")

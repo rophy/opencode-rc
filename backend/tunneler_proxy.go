@@ -5,16 +5,16 @@ import (
 	"strings"
 )
 
-func ProxyHandler(registry *Registry) http.Handler {
+func TunnelerProxyHandler(registry *TunnelRegistry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// URL: /s/{sessionID}/api/...
-		// Strip "/s/{sessionID}" prefix, pass the rest to the backend.
+		// URL: /proxy/{sessionID}/api/...
+		// Strip "/proxy/{sessionID}" prefix, pass the rest to the backend.
 		path := r.URL.Path
-		if !strings.HasPrefix(path, "/s/") {
+		if !strings.HasPrefix(path, "/proxy/") {
 			http.NotFound(w, r)
 			return
 		}
-		rest := path[len("/s/"):]
+		rest := path[len("/proxy/"):]
 		slashIdx := strings.Index(rest, "/")
 		if slashIdx < 0 {
 			http.NotFound(w, r)
@@ -27,23 +27,25 @@ func ProxyHandler(registry *Registry) http.Handler {
 			downstream += "?" + r.URL.RawQuery
 		}
 
-		session, ok := registry.Lookup(sessionID)
+		tunnel, ok := registry.GetTunnel(sessionID)
 		if !ok {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
 
-		if session.Tunnel == nil {
+		meta, _ := registry.GetMeta(r.Context(), sessionID)
+
+		if tunnel == nil {
 			http.Error(w, "session has no tunnel", http.StatusBadGateway)
 			return
 		}
 
 		if isWebSocketUpgrade(r) {
-			session.Tunnel.proxyWebSocketUpgrade(w, r, downstream, session.Directory)
+			tunnel.proxyWebSocketUpgrade(w, r, downstream, meta.Directory)
 			return
 		}
 
-		session.Tunnel.proxyHTTPRequest(w, r, downstream, session.Directory)
+		tunnel.proxyHTTPRequest(w, r, downstream, meta.Directory)
 	})
 }
 

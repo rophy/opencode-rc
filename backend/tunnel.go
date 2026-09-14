@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,8 +15,8 @@ var upgrader = websocket.Upgrader{
 
 // TunnelHandler upgrades a CLI connection to a WebSocket tunnel.
 // The CLI authenticates with a Bearer token and provides a sessionID.
-// The gateway registers the session with the tunnel mux connection.
-func TunnelHandler(auth *Auth, registry *Registry) http.HandlerFunc {
+// The tunneler registers the session with the tunnel mux connection.
+func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Validate Bearer token
 		token := r.Header.Get("Authorization")
@@ -24,9 +26,9 @@ func TunnelHandler(auth *Auth, registry *Registry) http.HandlerFunc {
 		}
 		rawToken := token[7:]
 
-		idToken, err := auth.oidc.verifier.Verify(r.Context(), rawToken)
-		if err != nil && auth.oidc.cliVerifier != nil {
-			idToken, err = auth.oidc.cliVerifier.Verify(r.Context(), rawToken)
+		idToken, err := verifier.Verify(r.Context(), rawToken)
+		if err != nil && cliVerifier != nil {
+			idToken, err = cliVerifier.Verify(r.Context(), rawToken)
 		}
 		if err != nil {
 			slog.Warn("tunnel auth failed", "error", err)
@@ -64,13 +66,17 @@ func TunnelHandler(auth *Auth, registry *Registry) http.HandlerFunc {
 
 		mux := newMuxConn(ws)
 
-		registry.RegisterTunnel(userID, sessionID, directory, mux)
+		registry.Register(r.Context(), userID, sessionID, directory, podAddr, mux)
 		slog.Info("tunnel established", "session", sessionID, "user", userID)
+
+		refreshCtx, cancelRefresh := context.WithCancel(context.Background())
+		go registry.RefreshLoop(refreshCtx, sessionID, 5*time.Minute)
 
 		// Block until tunnel closes
 		<-mux.closed
 
-		registry.Deregister(sessionID)
+		cancelRefresh()
+		registry.Deregister(context.Background(), sessionID)
 		slog.Info("tunnel closed", "session", sessionID, "user", userID)
 	}
 }

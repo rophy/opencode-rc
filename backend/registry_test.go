@@ -1,58 +1,96 @@
 package main
 
 import (
+	"context"
 	"testing"
+	"time"
 )
 
-func TestRegistryRegisterTunnelAndLookup(t *testing.T) {
-	r := NewRegistry()
-	r.RegisterTunnel("user1", "sess1", "/home/user1/project", nil)
+func TestTunnelRegistryRegisterAndGetTunnel(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	ctx := context.Background()
 
-	s, ok := r.Lookup("sess1")
+	tunnel := &muxConn{closed: make(chan struct{})}
+	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "10.0.0.1:9090", tunnel)
+
+	got, ok := reg.GetTunnel("sess-1")
 	if !ok {
-		t.Fatal("expected session to be found")
+		t.Fatal("expected tunnel to exist")
 	}
-	if s.UserID != "user1" {
-		t.Errorf("expected UserID=user1, got %s", s.UserID)
+	if got != tunnel {
+		t.Error("expected same tunnel pointer")
 	}
-	if s.Directory != "/home/user1/project" {
-		t.Errorf("expected Directory=/home/user1/project, got %s", s.Directory)
-	}
-}
 
-func TestRegistrySessions(t *testing.T) {
-	r := NewRegistry()
-	r.RegisterTunnel("user1", "sess1", "/home/user1/project-a", nil)
-	r.RegisterTunnel("user1", "sess2", "/home/user1/project-b", nil)
-	r.RegisterTunnel("user2", "sess3", "/home/user2/project", nil)
-
-	sessions := r.Sessions("user1")
-	if len(sessions) != 2 {
-		t.Fatalf("expected 2 sessions for user1, got %d", len(sessions))
+	meta, ok := reg.GetMeta(ctx, "sess-1")
+	if !ok {
+		t.Fatal("expected metadata to exist")
+	}
+	if meta.TunnelerAddr != "10.0.0.1:9090" {
+		t.Errorf("TunnelerAddr = %q, want %q", meta.TunnelerAddr, "10.0.0.1:9090")
 	}
 }
 
-func TestRegistryDeregister(t *testing.T) {
-	r := NewRegistry()
-	r.RegisterTunnel("user1", "sess1", "/proj", nil)
-	r.Deregister("sess1")
+func TestTunnelRegistryDeregister(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	ctx := context.Background()
 
-	_, ok := r.Lookup("sess1")
+	tunnel := &muxConn{closed: make(chan struct{})}
+	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+	reg.Deregister(ctx, "sess-1")
+
+	_, ok := reg.GetTunnel("sess-1")
 	if ok {
-		t.Fatal("expected session to be gone after deregister")
+		t.Fatal("expected tunnel to be gone")
+	}
+	_, ok = reg.GetMeta(ctx, "sess-1")
+	if ok {
+		t.Fatal("expected metadata to be gone")
 	}
 }
 
-func TestRegistryReRegisterClosesPrevious(t *testing.T) {
-	r := NewRegistry()
-	r.RegisterTunnel("user1", "sess1", "/proj-v1", nil)
-	r.RegisterTunnel("user1", "sess1", "/proj-v2", nil)
+func TestTunnelRegistryReRegisterClosesPrevious(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	ctx := context.Background()
 
-	s, ok := r.Lookup("sess1")
-	if !ok {
-		t.Fatal("expected session to be found")
+	oldTunnel := &muxConn{closed: make(chan struct{})}
+	newTunnel := &muxConn{closed: make(chan struct{})}
+
+	reg.Register(ctx, "alice@example.com", "sess-1", "/old", "", oldTunnel)
+	reg.Register(ctx, "alice@example.com", "sess-1", "/new", "", newTunnel)
+
+	got, _ := reg.GetTunnel("sess-1")
+	if got != newTunnel {
+		t.Error("expected new tunnel")
 	}
-	if s.Directory != "/proj-v2" {
-		t.Errorf("expected updated directory, got %s", s.Directory)
+
+	meta, _ := reg.GetMeta(ctx, "sess-1")
+	if meta.Directory != "/new" {
+		t.Errorf("Directory = %q, want %q", meta.Directory, "/new")
+	}
+}
+
+func TestTunnelRegistryRefreshLoopStopsOnCancel(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	tunnel := &muxConn{closed: make(chan struct{})}
+	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+
+	done := make(chan struct{})
+	go func() {
+		reg.RefreshLoop(ctx, "sess-1", 50*time.Millisecond)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("refresh loop did not stop after context cancel")
 	}
 }

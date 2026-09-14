@@ -11,39 +11,6 @@ import (
 	"time"
 )
 
-func SetupRoutes(mux *http.ServeMux, auth *Auth, registry *Registry, webUIDir string) {
-	// Health (unauthenticated)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		marshalJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": version})
-	})
-
-	// Auth endpoints (unauthenticated)
-	mux.HandleFunc("/auth/login", auth.LoginPageHandler)
-	mux.HandleFunc("/auth/start", auth.LoginStartHandler)
-	mux.HandleFunc("/auth/callback", auth.CallbackHandler)
-	mux.HandleFunc("/auth/logout", auth.LogoutHandler)
-
-	// Tunnel endpoint (CLI uses Bearer token auth, upgrades to WebSocket)
-	mux.HandleFunc("/gateway/tunnel", TunnelHandler(auth, registry))
-
-	// User info API (browser cookie auth)
-	mux.Handle("/api/me", auth.Middleware(MeHandler()))
-
-	// Dashboard + session API (browser cookie auth)
-	dashMux := http.NewServeMux()
-	dashMux.Handle("/gateway/sessions", DashboardSessionsHandler(registry))
-	if webUIDir != "" {
-		dashMux.Handle("/", WebUIHandler(webUIDir))
-	} else {
-		dashMux.Handle("/", DashboardHandler())
-	}
-	mux.Handle("/gateway/sessions", auth.Middleware(dashMux))
-	mux.Handle("/", auth.Middleware(dashMux))
-
-	// Session proxy + web UI (browser cookie auth)
-	mux.Handle("/s/", auth.Middleware(SessionWebUIOrProxy(registry, webUIDir)))
-}
-
 type statusRecorder struct {
 	http.ResponseWriter
 	status int

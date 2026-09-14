@@ -11,16 +11,20 @@ func setUserContext(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userContextKey, userID)
 }
 
-func DashboardSessionsHandler(registry *Registry) http.Handler {
+func DashboardSessionsHandler(store SessionStore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := UserFromContext(r.Context())
 		if userID == "" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		sessions := registry.Sessions(userID)
+		sessions, err := store.List(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		if sessions == nil {
-			sessions = []Session{}
+			sessions = []SessionMeta{}
 		}
 		marshalJSON(w, http.StatusOK, sessions)
 	})

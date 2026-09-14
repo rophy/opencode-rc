@@ -27,8 +27,8 @@ func WebUIHandler(webUIDir string) http.Handler {
 	})
 }
 
-func SessionWebUIOrProxy(registry *Registry, webUIDir string) http.Handler {
-	proxy := ProxyHandler(registry)
+func SessionWebUIOrProxy(store SessionStore, webUIDir string) http.Handler {
+	proxy := GatewayProxyHandler(store)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -49,8 +49,8 @@ func SessionWebUIOrProxy(registry *Registry, webUIDir string) http.Handler {
 		subpath := rest[slashIdx:]
 
 		// Check session exists
-		_, ok := registry.Lookup(sessionID)
-		if !ok {
+		_, ok, err := store.Get(r.Context(), sessionID)
+		if err != nil || !ok {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}

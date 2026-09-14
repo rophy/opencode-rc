@@ -9,7 +9,7 @@ RUN cd web && bun install --frozen-lockfile
 COPY web/ web/
 RUN cd web && OPENCODE_ROOT=/src/vendor/opencode bun run build
 
-FROM golang:1.25 AS backend
+FROM golang:1.25 AS build
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -23,7 +23,7 @@ RUN if [ "$COVER" = "true" ]; then \
     fi
 
 FROM gcr.io/distroless/static-debian12
-COPY --from=backend /opencode-rc /opencode-rc
+COPY --from=build /opencode-rc /opencode-rc
 COPY --from=web /src/web/dist /webui
 ENV WEBUI_DIR=/webui
 EXPOSE 8080

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,10 +71,11 @@ func TestSessionWebUIOrProxy(t *testing.T) {
 		t.Fatalf("failed to write index.html: %v", err)
 	}
 
-	reg := NewRegistry()
-	reg.RegisterTunnel("user1", "sess1", "/proj", nil)
+	store := testRedisStore(t)
+	ctx := context.Background()
+	store.Put(ctx, SessionMeta{ID: "sess1", UserID: "user1", Directory: "/proj"})
 
-	handler := SessionWebUIOrProxy(reg, dir)
+	handler := SessionWebUIOrProxy(store, dir)
 
 	// 1. Non /s/ prefix -> 404
 	req := httptest.NewRequest("GET", "/notS/foo", nil)
@@ -113,15 +115,14 @@ func TestSessionWebUIOrProxy(t *testing.T) {
 		t.Errorf("case 4: expected index.html content, got: %s", rec.Body.String())
 	}
 
-	// 5. /s/sess1/api/health -> proxied through tunnel
-	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 5. /s/sess1/api/health -> proxied through tunneler
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("healthy"))
-	})
-	mux, cleanup := testTunnel(t, backend)
-	defer cleanup()
+	}))
+	defer backend.Close()
 
-	reg.RegisterTunnel("user1", "sess1", "/proj", mux)
+	store.Put(ctx, SessionMeta{ID: "sess1", UserID: "user1", Directory: "/proj", TunnelerAddr: backend.Listener.Addr().String()})
 
 	req = httptest.NewRequest("GET", "/s/sess1/api/health", nil)
 	rec = httptest.NewRecorder()

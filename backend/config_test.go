@@ -13,6 +13,7 @@ func TestLoadConfigAllFields(t *testing.T) {
 	t.Setenv("OIDC_CLIENT_SECRET", "secret")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("COOKIE_SECURE", "false")
 	t.Setenv("WEBUI_DIR", "/tmp/webui")
 	t.Setenv("OIDC_CLI_CLIENT_ID", "cli-client")
@@ -60,6 +61,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -81,6 +83,7 @@ func TestLoadConfigMissingIssuer(t *testing.T) {
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
 	if err == nil || !strings.Contains(err.Error(), "OIDC_ISSUER is required") {
@@ -92,6 +95,7 @@ func TestLoadConfigMissingClientID(t *testing.T) {
 	t.Setenv("OIDC_ISSUER", "http://issuer")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
 	if err == nil || !strings.Contains(err.Error(), "OIDC_CLIENT_ID is required") {
@@ -103,6 +107,7 @@ func TestLoadConfigMissingRedirectURI(t *testing.T) {
 	t.Setenv("OIDC_ISSUER", "http://issuer")
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
 	if err == nil || !strings.Contains(err.Error(), "OIDC_REDIRECT_URI is required") {
@@ -126,6 +131,7 @@ func TestLoadConfigInvalidCookieSecret(t *testing.T) {
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", "notvalidhex")
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
 	if err == nil || !strings.Contains(err.Error(), "COOKIE_SECRET must be") {
@@ -139,9 +145,40 @@ func TestLoadConfigInvalidPort(t *testing.T) {
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
 	if err == nil || !strings.Contains(err.Error(), "PORT must be") {
 		t.Fatalf("expected PORT must be an integer error, got %v", err)
+	}
+}
+
+func TestLoadConfigMissingRedisURL(t *testing.T) {
+	t.Setenv("OIDC_ISSUER", "http://issuer")
+	t.Setenv("OIDC_CLIENT_ID", "client")
+	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
+	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "")
+
+	_, err := LoadConfig()
+	if err == nil || !strings.Contains(err.Error(), "REDIS_URL is required") {
+		t.Fatalf("expected REDIS_URL is required error, got %v", err)
+	}
+}
+
+func TestLoadConfigPodIP(t *testing.T) {
+	t.Setenv("OIDC_ISSUER", "http://issuer")
+	t.Setenv("OIDC_CLIENT_ID", "client")
+	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
+	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
+	t.Setenv("POD_IP", "10.0.0.1")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PodIP != "10.0.0.1" {
+		t.Errorf("PodIP = %q, want %q", cfg.PodIP, "10.0.0.1")
 	}
 }

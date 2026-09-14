@@ -19,6 +19,8 @@ type Config struct {
 	CookieSecret     []byte
 	CookieDomain     string
 	SecureCookies    bool
+	RedisURL         string
+	PodIP            string
 }
 
 func LoadConfig() (*Config, error) {
@@ -63,6 +65,11 @@ func LoadConfig() (*Config, error) {
 
 	cliClientID := os.Getenv("OIDC_CLI_CLIENT_ID")
 
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		return nil, errors.New("REDIS_URL is required")
+	}
+
 	return &Config{
 		Port:             port,
 		OIDCIssuer:       issuer,
@@ -74,5 +81,7 @@ func LoadConfig() (*Config, error) {
 		CookieSecret:     secret,
 		CookieDomain:     os.Getenv("COOKIE_DOMAIN"),
 		SecureCookies:    secureCookies,
+		RedisURL:         redisURL,
+		PodIP:            os.Getenv("POD_IP"),
 	}, nil
 }
