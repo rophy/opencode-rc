@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -80,10 +82,7 @@ func runGateway() {
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	slog.Info("gateway starting", "version", version, "addr", addr)
-	if err := http.ListenAndServe(addr, requestLogger(mux)); err != nil {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
-	}
+	listenAndServeGraceful(addr, requestLogger(mux))
 }
 
 func runTunneler() {
@@ -129,8 +128,28 @@ func runTunneler() {
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	slog.Info("tunneler starting", "version", version, "addr", addr, "podAddr", podAddr)
-	if err := http.ListenAndServe(addr, requestLogger(mux)); err != nil {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
+	listenAndServeGraceful(addr, requestLogger(mux))
+}
+
+func listenAndServeGraceful(addr string, handler http.Handler) {
+	srv := &http.Server{Addr: addr, Handler: handler}
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-done
+	slog.Info("shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("shutdown error", "error", err)
 	}
 }

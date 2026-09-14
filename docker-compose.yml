@@ -28,7 +28,7 @@ services:
             name: Bob
 
   aimock:
-    image: ghcr.io/copilotkit/aimock:v1.42.0
+    image: ghcr.io/copilotkit/aimock:1.42.0
     command: ["-h", "0.0.0.0", "-f", "/fixtures"]
     volumes:
       - ./compose/aimock/fixtures:/fixtures:ro
