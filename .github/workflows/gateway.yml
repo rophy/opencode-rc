@@ -7,11 +7,19 @@ on:
       - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
+      - 'e2e/**'
+      - 'cli/Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/gateway.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
+      - 'e2e/**'
+      - 'cli/Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/gateway.yml'
   workflow_dispatch:
 
 jobs:
@@ -25,18 +33,53 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build image
+      - name: Build gateway image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile
           push: false
           tags: opencode-rc-gateway:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install e2e deps
+        run: cd e2e && npm ci
+
+      - name: Build and start stack
+        run: docker compose --profile rc up -d --build
+
+      - name: Wait for gateway to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T dev-machine curl -sf http://gateway:8080/healthz > /dev/null 2>&1; then
+              echo "Gateway ready"
+              break
+            fi
+            echo "Waiting for gateway... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run e2e tests
+        run: docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
 
   publish:
-    needs: build
+    needs: [build, test]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -53,9 +96,11 @@ jobs:
           VERSION=$(cat backend/VERSION | tr -d '[:space:]')
           if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION already exists, skipping publish"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Publishing version $VERSION"
           fi
 
       - name: Set up Docker Buildx
@@ -80,8 +125,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/gateway:${{ steps.check.outputs.version }}
             ghcr.io/${{ github.repository }}/gateway:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
