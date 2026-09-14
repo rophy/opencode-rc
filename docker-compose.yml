@@ -1,4 +1,8 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", ""]
+
   oidc-mock:
     image: ghcr.io/rophy/oidc-mock:20260907-dfef1a3
     command: ["serve"]
@@ -31,12 +35,33 @@ services:
     volumes:
       - ./compose/aimock/fixtures:/fixtures:ro
 
+  tunneler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["tunneler"]
+    environment:
+      PORT: "9090"
+      POD_IP: tunneler
+      REDIS_URL: redis://redis:6379/0
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-opencode-rc}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-opencode-rc-secret}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://gateway:8080/auth/callback}
+      COOKIE_SECRET: ${COOKIE_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      OIDC_CLI_CLIENT_ID: opencode-rc-cli
+    depends_on:
+      - oidc-mock
+      - redis
+
   gateway:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    command: ["gateway"]
     environment:
       PORT: "8080"
+      REDIS_URL: redis://redis:6379/0
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-opencode-rc}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-opencode-rc-secret}
@@ -46,6 +71,8 @@ services:
       OIDC_CLI_CLIENT_ID: opencode-rc-cli
     depends_on:
       - oidc-mock
+      - redis
+      - tunneler
 
   gateway-expose:
     profiles: ["expose"]
@@ -55,6 +82,15 @@ services:
       - "127.0.0.1:${GATEWAY_PORT:-9080}:8080"
     depends_on:
       - gateway
+
+  tunneler-expose:
+    profiles: ["expose"]
+    image: alpine/socat
+    command: "tcp-listen:9090,fork,reuseaddr tcp-connect:tunneler:9090"
+    ports:
+      - "127.0.0.1:${TUNNELER_PORT:-9082}:9090"
+    depends_on:
+      - tunneler
 
   rc-client:
     profiles: ["rc"]
@@ -67,7 +103,7 @@ services:
       - ./compose/rc-client/entrypoint.sh:/rc-entrypoint.sh:ro
       - ./compose/rc-client/opencode.json:/project/opencode.json:ro
     environment:
-      OPENCODE_RC_GATEWAY_URL: http://gateway:8080
+      OPENCODE_RC_GATEWAY_URL: http://tunneler:9090
       OPENCODE_RC_SESSION_ID: ${OPENCODE_RC_SESSION_ID:-alice-dev}
       OIDC_ISSUER: ${OIDC_ISSUER:-http://oidc-mock:8080}
       OIDC_URL: ${OIDC_ISSUER:-http://oidc-mock:8080}
@@ -75,5 +111,5 @@ services:
       OIDC_USER_SUB: ${OIDC_USER_SUB:-user1}
       OPENAI_API_KEY: mock
     depends_on:
-      - gateway
+      - tunneler
       - aimock

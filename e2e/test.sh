@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Defaults for running against local docker compose (gateway-expose on port 8080)
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:9080}"
+TUNNELER_URL="${TUNNELER_URL:-http://localhost:9082}"
 OIDC_URL="${OIDC_URL:-http://localhost:9081}"
 OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-opencode-rc}"
 OIDC_CLIENT_SECRET="${OIDC_CLIENT_SECRET:-opencode-rc-secret}"
@@ -40,6 +41,7 @@ echo ""
 
 # Wait for services
 wait_for "oidc-mock" "$OIDC_URL/.well-known/openid-configuration" 30
+wait_for "tunneler" "$TUNNELER_URL/healthz" 30
 wait_for "gateway" "$GATEWAY_URL/healthz" 30
 echo ""
 
@@ -52,6 +54,13 @@ if echo "$HEALTH" | jq -e '.status == "ok"' >/dev/null 2>&1; then
   pass "gateway /healthz returns ok"
 else
   fail "gateway /healthz: got '$HEALTH'"
+fi
+
+TUNNELER_HEALTH=$(curl -sf "$TUNNELER_URL/healthz" || true)
+if echo "$TUNNELER_HEALTH" | jq -e '.status == "ok"' >/dev/null 2>&1; then
+  pass "tunneler /healthz returns ok"
+else
+  fail "tunneler /healthz: got '$TUNNELER_HEALTH'"
 fi
 
 # ------------------------------------------------------------------

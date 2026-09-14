@@ -8,6 +8,15 @@ services:
     volumes:
       - ./.cover/gateway:/coverdata
 
+  tunneler:
+    build:
+      args:
+        COVER: "true"
+    environment:
+      GOCOVERDIR: /coverdata
+    volumes:
+      - ./.cover/tunneler:/coverdata
+
   rc-client:
     environment:
       NODE_V8_COVERAGE: /coverdata

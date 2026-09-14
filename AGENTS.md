@@ -8,8 +8,10 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-backend/        # Go reverse proxy with OIDC auth and session registry
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
+backend/        # Go — builds `opencode-rc` binary with two subcommands:
+                #   `opencode-rc gateway` (stateless reverse proxy, auth, dashboard)
+                #   `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
+cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Docker Compose test environment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for web/)
@@ -81,8 +83,8 @@ WEBUI_HOST_DIR=$(cd web/dist && pwd) \
 ./e2e/coverage.sh
 ```
 
-Default ports: gateway 9080, oidc-mock 9081.
-Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`.
+Default ports: gateway 9080, oidc-mock 9081, tunneler 9082.
+Override with `GATEWAY_PORT`, `OIDC_MOCK_PORT`, `TUNNELER_PORT`.
 
 ## npm Publishing (CLI)
 

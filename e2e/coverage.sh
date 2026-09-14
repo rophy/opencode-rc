@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run e2e tests with coverage collection for both gateway (Go) and CLI (Node).
+# Run e2e tests with coverage collection for gateway (Go), tunneler (Go), and CLI (Node).
 #
 # Usage: ./e2e/coverage.sh
 #
 # Prerequisites: docker compose
-# Output: .cover/gateway.out, .cover/cli/ (V8 coverage JSON)
+# Output: .cover/gateway.out, .cover/tunneler.out, .cover/cli/ (V8 coverage JSON)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -14,12 +14,12 @@ cd "$PROJECT_DIR"
 
 COVER_DIR="$PROJECT_DIR/.cover"
 rm -rf "$COVER_DIR"
-mkdir -p "$COVER_DIR/gateway" "$COVER_DIR/cli"
+mkdir -p "$COVER_DIR/gateway" "$COVER_DIR/tunneler" "$COVER_DIR/cli"
 
 echo "=== Building with coverage instrumentation ==="
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
   --profile expose --profile rc \
-  build --build-arg COVER=true gateway
+  build --build-arg COVER=true gateway tunneler
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
   --profile expose --profile rc \
   build rc-client
@@ -63,6 +63,25 @@ if ls "$COVER_DIR/gateway/"*.{out,cov} 2>/dev/null || ls "$COVER_DIR/gateway/cov
 else
   echo "Warning: no gateway coverage data found in $COVER_DIR/gateway/"
   echo "  Check that GOCOVERDIR is set and the gateway received SIGTERM."
+fi
+
+# Tunneler (Go): convert binary coverage to textfmt
+if ls "$COVER_DIR/tunneler/"*.{out,cov} 2>/dev/null || ls "$COVER_DIR/tunneler/cov"* 2>/dev/null; then
+  echo "Tunneler coverage data found."
+  if command -v go >/dev/null 2>&1; then
+    go tool covdata textfmt -i="$COVER_DIR/tunneler" -o="$COVER_DIR/tunneler.out" 2>/dev/null && {
+      echo ""
+      echo "--- Tunneler coverage ---"
+      go tool cover -func="$COVER_DIR/tunneler.out" | tail -1
+      echo "Full report: go tool cover -func=$COVER_DIR/tunneler.out"
+      echo "HTML report: go tool cover -html=$COVER_DIR/tunneler.out -o=$COVER_DIR/tunneler.html"
+    } || echo "Warning: could not convert tunneler coverage (go tool covdata failed)"
+  else
+    echo "Warning: go not found, cannot convert tunneler coverage"
+  fi
+else
+  echo "Warning: no tunneler coverage data found in $COVER_DIR/tunneler/"
+  echo "  Check that GOCOVERDIR is set and the tunneler received SIGTERM."
 fi
 
 # CLI (Node): report using c8
