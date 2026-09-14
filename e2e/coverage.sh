@@ -12,37 +12,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
+export COVER=true
+
 COVER_DIR="$PROJECT_DIR/.cover"
 rm -rf "$COVER_DIR"
 mkdir -p "$COVER_DIR/gateway" "$COVER_DIR/tunneler" "$COVER_DIR/cli"
 
 echo "=== Building with coverage instrumentation ==="
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
-  build --build-arg COVER=true gateway tunneler
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
-  build dev-machine
+docker compose --profile rc build gateway tunneler dev-machine
 
 echo ""
 echo "=== Starting services ==="
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
-  up -d
+docker compose --profile rc up -d
 
 echo ""
 echo "=== Running e2e tests ==="
 TEST_EXIT=0
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
+docker compose --profile rc \
   exec -T dev-machine sh -c "cd /e2e && npx vitest run" || TEST_EXIT=$?
 
 echo ""
 echo "=== Stopping services (graceful for coverage flush) ==="
-# SIGTERM lets processes flush coverage data before exit
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
-  stop -t 10
+docker compose --profile rc stop -t 10
 
 echo ""
 echo "=== Collecting coverage ==="
@@ -50,7 +41,6 @@ echo "=== Collecting coverage ==="
 # Gateway (Go): convert binary coverage to textfmt
 if ls "$COVER_DIR/gateway/"*.{out,cov} 2>/dev/null || ls "$COVER_DIR/gateway/cov"* 2>/dev/null; then
   echo "Gateway coverage data found."
-  # Use go tool covdata to convert to text format
   if command -v go >/dev/null 2>&1; then
     go tool covdata textfmt -i="$COVER_DIR/gateway" -o="$COVER_DIR/gateway.out" 2>/dev/null && {
       echo ""
@@ -107,8 +97,6 @@ else
 fi
 
 echo ""
-docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile rc \
-  down
+docker compose --profile rc down
 
 exit $TEST_EXIT
