@@ -69,12 +69,12 @@ Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
 ## Docker Compose
 
 ```bash
-# Full stack with gateway exposed on localhost:8080
-docker compose --profile expose --profile rc up -d --build
+# Full stack
+docker compose --profile rc up -d --build
 
 # With rc-web UI
 WEBUI_HOST_DIR=$(cd web/dist && pwd) \
-  docker compose --profile expose --profile rc up -d --build
+  docker compose --profile rc up -d --build
 
 # Run e2e tests (requires stack to be running)
 ./e2e/test.sh

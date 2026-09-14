@@ -66,7 +66,7 @@ The root `docker-compose.yml` provides all components:
 ### Start the environment
 
 ```bash
-docker compose --profile expose --profile rc up -d --build
+docker compose --profile rc up -d --build
 ```
 
 Open http://localhost:9080 in your browser. You'll be redirected to the mock OIDC login.
@@ -77,7 +77,7 @@ To serve the custom web UI instead of the built-in dashboard, set `WEBUI_HOST_DI
 
 ```bash
 WEBUI_HOST_DIR=$(cd web/dist && pwd) \
-  docker compose --profile expose --profile rc up -d --build
+  docker compose --profile rc up -d --build
 ```
 
 ### Run e2e tests

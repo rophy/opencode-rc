@@ -18,16 +18,16 @@ mkdir -p "$COVER_DIR/gateway" "$COVER_DIR/tunneler" "$COVER_DIR/cli"
 
 echo "=== Building with coverage instrumentation ==="
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile expose --profile rc \
+  --profile rc \
   build --build-arg COVER=true gateway tunneler
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile expose --profile rc \
+  --profile rc \
   build rc-client
 
 echo ""
 echo "=== Starting services ==="
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile expose --profile rc \
+  --profile rc \
   up -d
 
 echo ""
@@ -39,7 +39,7 @@ echo ""
 echo "=== Stopping services (graceful for coverage flush) ==="
 # SIGTERM lets processes flush coverage data before exit
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile expose --profile rc \
+  --profile rc \
   stop -t 10
 
 echo ""
@@ -105,7 +105,7 @@ fi
 
 echo ""
 docker compose -f docker-compose.yml -f docker-compose.cover.yml \
-  --profile expose --profile rc \
+  --profile rc \
   down
 
 exit $TEST_EXIT

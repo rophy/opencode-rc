@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Defaults for running against local docker compose (gateway-expose on port 8080)
+# Defaults for running against local docker compose
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:9080}"
 TUNNELER_URL="${TUNNELER_URL:-http://localhost:9082}"
 OIDC_URL="${OIDC_URL:-http://localhost:9081}"
