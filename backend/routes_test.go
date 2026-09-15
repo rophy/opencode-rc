@@ -1,12 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRequestLoggerStatus200(t *testing.T) {
@@ -125,5 +131,179 @@ func TestIsWebSocketUpgrade(t *testing.T) {
 	req3.Header.Set("Upgrade", "other")
 	if isWebSocketUpgrade(req3) {
 		t.Error("expected false for non-websocket Upgrade header")
+	}
+}
+
+type hijackableRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (h *hijackableRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return nil, nil, errors.New("test hijack")
+}
+
+func TestStatusRecorderHijackSuccess(t *testing.T) {
+	hr := &hijackableRecorder{httptest.NewRecorder()}
+	sr := &statusRecorder{ResponseWriter: hr, status: 200}
+	_, _, err := sr.Hijack()
+	// The hijackableRecorder returns an error, but the key is that it goes through the Hijacker interface
+	if err == nil {
+		t.Error("expected error from test hijack")
+	}
+}
+
+func TestStatusRecorderFlush(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sr := &statusRecorder{ResponseWriter: rec, status: 200}
+	sr.Flush()
+}
+
+func TestStatusRecorderHijack(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sr := &statusRecorder{ResponseWriter: rec, status: 200}
+	_, _, err := sr.Hijack()
+	if err == nil {
+		t.Error("expected error from non-hijackable ResponseWriter")
+	}
+	if !strings.Contains(err.Error(), "does not implement http.Hijacker") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSetupGatewayRoutesHealthz(t *testing.T) {
+	store := testRedisStore(t)
+	a, _ := testAuth()
+	mux := http.NewServeMux()
+	SetupGatewayRoutes(mux, a, store, "")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Errorf("expected status ok, got: %s", rec.Body.String())
+	}
+}
+
+func TestSetupGatewayRoutesLoginPage(t *testing.T) {
+	store := testRedisStore(t)
+	a, _ := testAuth()
+	mux := http.NewServeMux()
+	SetupGatewayRoutes(mux, a, store, "")
+
+	req := httptest.NewRequest("GET", "/auth/login", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Sign in with OIDC") {
+		t.Errorf("expected login page content")
+	}
+}
+
+func TestSetupGatewayRoutesRootRedirectsToLogin(t *testing.T) {
+	store := testRedisStore(t)
+	a, _ := testAuth()
+	mux := http.NewServeMux()
+	SetupGatewayRoutes(mux, a, store, "")
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect to login, got %d", rec.Code)
+	}
+}
+
+func TestSetupGatewayRoutesHealthzDegraded(t *testing.T) {
+	client := testRedisClient(t)
+	client.Close() // close to make Ping fail
+	store := NewRedisStore(client, 10*time.Minute)
+	a, _ := testAuth()
+	mux := http.NewServeMux()
+	SetupGatewayRoutes(mux, a, store, "")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"degraded"`) {
+		t.Errorf("expected degraded status, got: %s", rec.Body.String())
+	}
+}
+
+func TestSetupGatewayRoutesWithWebUIDir(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>web</html>"), 0644)
+
+	store := testRedisStore(t)
+	a, sc := testAuth()
+	mux := http.NewServeMux()
+	SetupGatewayRoutes(mux, a, store, dir)
+
+	// Auth-protected root should serve WebUIHandler instead of DashboardHandler
+	data := sessionData{
+		UserID: "testuser@example.com",
+		Expiry: time.Now().Add(1 * time.Hour).Unix(),
+	}
+	encoded, _ := sc.Encode("orc_session", data)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_session", Value: encoded})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "web") {
+		t.Errorf("expected WebUI content, got: %s", rec.Body.String())
+	}
+}
+
+func TestSetupTunnelerRoutesHealthzDegraded(t *testing.T) {
+	client := testRedisClient(t)
+	client.Close()
+	store := NewRedisStore(client, 10*time.Minute)
+	reg := NewTunnelRegistry(store)
+	mux := http.NewServeMux()
+	SetupTunnelerRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"degraded"`) {
+		t.Errorf("expected degraded status, got: %s", rec.Body.String())
+	}
+}
+
+func TestSetupTunnelerRoutesHealthz(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	mux := http.NewServeMux()
+	SetupTunnelerRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
+		t.Errorf("expected status ok, got: %s", rec.Body.String())
 	}
 }

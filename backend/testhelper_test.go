@@ -36,6 +36,12 @@ func testRedisStore(t *testing.T) SessionStore {
 	return NewRedisStore(client, 10*time.Minute)
 }
 
+func testBrokenStore(t *testing.T) SessionStore {
+	t.Helper()
+	client := redis.NewClient(&redis.Options{Addr: "localhost:1"}) // port 1 = guaranteed to fail
+	return NewRedisStore(client, 10*time.Minute)
+}
+
 func testRedisClient(t *testing.T) *redis.Client {
 	t.Helper()
 	ctx := context.Background()

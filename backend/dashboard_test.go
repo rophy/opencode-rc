@@ -71,6 +71,22 @@ func TestDashboardSessionsEmpty(t *testing.T) {
 	}
 }
 
+func TestDashboardSessionsStoreError(t *testing.T) {
+	store := testBrokenStore(t)
+	handler := DashboardSessionsHandler(store)
+
+	req := httptest.NewRequest("GET", "/gateway/sessions", nil)
+	ctx := setUserContext(req.Context(), "user1")
+	req = req.WithContext(ctx)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
 func TestDashboardHandler(t *testing.T) {
 	handler := DashboardHandler()
 

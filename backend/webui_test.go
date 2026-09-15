@@ -115,7 +115,22 @@ func TestSessionWebUIOrProxy(t *testing.T) {
 		t.Errorf("case 4: expected index.html content, got: %s", rec.Body.String())
 	}
 
-	// 5. /s/sess1/api/health -> proxied through tunneler
+	// 5. /s/sess1/app.js (static file on disk) -> served from webUIDir
+	jsFile := filepath.Join(dir, "app.js")
+	if err := os.WriteFile(jsFile, []byte("console.log('app')"), 0644); err != nil {
+		t.Fatalf("failed to write app.js: %v", err)
+	}
+	req = httptest.NewRequest("GET", "/s/sess1/app.js", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("case 5: expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "console.log") {
+		t.Errorf("case 5: expected app.js content, got: %s", rec.Body.String())
+	}
+
+	// 6. /s/sess1/api/health -> proxied through tunneler
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("healthy"))
@@ -128,9 +143,62 @@ func TestSessionWebUIOrProxy(t *testing.T) {
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("case 5: expected 200, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("case 6: expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "healthy") {
-		t.Errorf("case 5: expected proxied content, got: %s", rec.Body.String())
+		t.Errorf("case 6: expected proxied content, got: %s", rec.Body.String())
+	}
+}
+
+func TestSessionWebUIOrProxyUserMismatch(t *testing.T) {
+	store := testRedisStore(t)
+	ctx := context.Background()
+	store.Put(ctx, SessionMeta{ID: "sess1", UserID: "alice@example.com", Directory: "/proj"})
+
+	handler := SessionWebUIOrProxy(store, "")
+
+	req := httptest.NewRequest("GET", "/s/sess1/api/health", nil)
+	reqCtx := context.WithValue(req.Context(), userContextKey, "bob@example.com")
+	req = req.WithContext(reqCtx)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for user mismatch, got %d", rec.Code)
+	}
+}
+
+func TestSessionWebUIOrProxyStoreError(t *testing.T) {
+	store := testBrokenStore(t)
+	handler := SessionWebUIOrProxy(store, "")
+
+	req := httptest.NewRequest("GET", "/s/sess1/api/health", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for store error, got %d", rec.Code)
+	}
+}
+
+func TestSessionWebUIOrProxyNoWebUIDir(t *testing.T) {
+	store := testRedisStore(t)
+	ctx := context.Background()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("proxied"))
+	}))
+	defer backend.Close()
+
+	store.Put(ctx, SessionMeta{ID: "sess1", UserID: "user1", Directory: "/proj", TunnelerAddr: backend.Listener.Addr().String()})
+
+	handler := SessionWebUIOrProxy(store, "")
+
+	// Without webUIDir, root path goes to proxy
+	req := httptest.NewRequest("GET", "/s/sess1/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
