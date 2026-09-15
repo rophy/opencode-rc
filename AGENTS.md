@@ -72,7 +72,7 @@ Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
 E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build images and deploy the actual Helm chart. This ensures the chart is tested end-to-end.
 
 ```bash
-# Run all tests (vitest + playwright)
+# Run all tests (vitest + playwright) with Go coverage
 ./e2e/run.sh
 
 # Run only vitest
@@ -83,7 +83,12 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 
 # Keep cluster after tests (for debugging)
 ./e2e/run.sh --no-teardown
+
+# Skip coverage collection
+./e2e/run.sh --no-coverage
 ```
+
+Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
 
 The test environment deploys:
 - The Helm chart (gateway, tunneler, redis, oidc-mock) with `local` profile
