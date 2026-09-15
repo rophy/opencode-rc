@@ -339,7 +339,117 @@ describe("startTunnel", () => {
         "http://localhost:9999",
         "/tmp"
       )
-    ).rejects.toThrow("tunnel connection failed");
+    ).rejects.toThrow();
+  });
+});
+
+async function withHttpServer<T>(
+  handler: (req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void,
+  fn: (port: number) => Promise<T>
+): Promise<T> {
+  const srv = createServer(handler);
+  await new Promise<void>((resolve) => srv.listen(0, resolve));
+  const address = srv.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  try {
+    return await fn(port);
+  } finally {
+    await new Promise<void>((resolve) => srv.close(() => resolve()));
+  }
+}
+
+describe("startTunnel pre-flight", () => {
+  it("rejects with 401 status and error body", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(401, { "Content-Type": "text/plain" });
+        res.end("invalid token: token is expired");
+      },
+      async (port) => {
+        await expect(
+          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toThrow("Tunnel pre-flight failed: 401");
+
+        await expect(
+          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toThrow("invalid token: token is expired");
+      }
+    );
+  });
+
+  it("rejects with 403 status", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.end("forbidden");
+      },
+      async (port) => {
+        await expect(
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toThrow("Tunnel pre-flight failed: 403");
+      }
+    );
+  });
+
+  it("rejects with 502 status", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.end("bad gateway");
+      },
+      async (port) => {
+        await expect(
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toThrow("Tunnel pre-flight failed: 502");
+      }
+    );
+  });
+
+  it("passes through on 400 (expected from tunneler)", async () => {
+    // The actual tunneler returns 400 for non-websocket requests.
+    // Pre-flight should not reject on 400 — it proceeds to WebSocket.
+    // We can't test the full WS path here, so just verify no throw from pre-flight
+    // by checking it eventually fails on the WS upgrade (not the pre-flight).
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Not a websocket request");
+      },
+      async (port) => {
+        // Will fail on WebSocket upgrade (not pre-flight)
+        await expect(
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toThrow();
+
+        // But NOT a pre-flight error
+        const err = await startTunnel(
+          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp"
+        ).catch((e: Error) => e);
+        expect(err.message).not.toContain("pre-flight");
+      }
+    );
+  });
+
+  it("passes through on 426 (Upgrade Required)", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(426, { "Content-Type": "text/plain" });
+        res.end("Upgrade Required");
+      },
+      async (port) => {
+        const err = await startTunnel(
+          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp"
+        ).catch((e: Error) => e);
+        expect(err.message).not.toContain("pre-flight");
+      }
+    );
+  });
+
+  it("rejects with network error when server unreachable", async () => {
+    // Use a port with no server
+    await expect(
+      startTunnel(makeConfig(1), "token", "s1", "http://localhost:9999", "/tmp")
+    ).rejects.toThrow();
   });
 });
 

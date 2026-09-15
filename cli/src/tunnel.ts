@@ -113,22 +113,21 @@ export async function startTunnel(
   const baseUrl = config.gatewayUrl.replace(/\/$/, "");
   const tunnelPath = `/gateway/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}`;
 
-  // Pre-flight: attempt a plain HTTP request to surface auth/network errors
+  // Pre-flight: plain HTTP request to surface auth/network errors
   // before the opaque WebSocket upgrade failure.
+  // Expected responses (server reachable, needs WS): 400, 426, 405.
+  // Actionable errors worth reporting early: 401, 403, 5xx.
   try {
     const resp = await fetch(`${baseUrl}${tunnelPath}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    // A working tunneler returns 400 "Not a websocket request" — that's expected.
-    // Anything else (401, 403, 502, etc.) is a real error worth reporting.
-    if (resp.status !== 400) {
+    const preflightOk = [400, 405, 426];
+    if (!preflightOk.includes(resp.status) && (resp.status === 401 || resp.status === 403 || resp.status >= 500)) {
       const body = await resp.text().catch(() => "");
-      if (resp.status >= 400) {
-        const msg = `Tunnel pre-flight failed: ${resp.status} ${resp.statusText}${body ? " — " + body.trim() : ""}`;
-        console.error(msg);
-        throw new Error(msg);
-      }
+      const msg = `Tunnel pre-flight failed: ${resp.status} ${resp.statusText}${body ? " — " + body.trim() : ""}`;
+      console.error(msg);
+      throw new Error(msg);
     }
   } catch (err: any) {
     if (err.message?.startsWith("Tunnel pre-flight")) throw err;
