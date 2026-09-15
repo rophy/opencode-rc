@@ -54,6 +54,41 @@ else
 fi
 
 echo ""
+echo "=== Generating TLS test certs ==="
+CERT_DIR=$(mktemp -d)
+# CA 1 (trusted) + server cert for https-trusted service
+openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca1.key" -out "$CERT_DIR/ca1.crt" \
+  -days 1 -nodes -subj "/CN=Trusted CA" 2>/dev/null
+openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv1.key" -out "$CERT_DIR/srv1.csr" \
+  -nodes -subj "/CN=https-trusted" \
+  -addext "subjectAltName=DNS:https-trusted,DNS:https-trusted.default.svc.cluster.local" 2>/dev/null
+openssl x509 -req -in "$CERT_DIR/srv1.csr" -CA "$CERT_DIR/ca1.crt" -CAkey "$CERT_DIR/ca1.key" \
+  -CAcreateserial -out "$CERT_DIR/srv1.crt" -days 1 \
+  -copy_extensions copyall 2>/dev/null
+
+# CA 2 (untrusted) + server cert for https-untrusted service
+openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca2.key" -out "$CERT_DIR/ca2.crt" \
+  -days 1 -nodes -subj "/CN=Untrusted CA" 2>/dev/null
+openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv2.key" -out "$CERT_DIR/srv2.csr" \
+  -nodes -subj "/CN=https-untrusted" \
+  -addext "subjectAltName=DNS:https-untrusted,DNS:https-untrusted.default.svc.cluster.local" 2>/dev/null
+openssl x509 -req -in "$CERT_DIR/srv2.csr" -CA "$CERT_DIR/ca2.crt" -CAkey "$CERT_DIR/ca2.key" \
+  -CAcreateserial -out "$CERT_DIR/srv2.crt" -days 1 \
+  -copy_extensions copyall 2>/dev/null
+
+# Create k8s secrets for the TLS test
+kubectl create secret tls tls-trusted \
+  --cert="$CERT_DIR/srv1.crt" --key="$CERT_DIR/srv1.key" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret tls tls-untrusted \
+  --cert="$CERT_DIR/srv2.crt" --key="$CERT_DIR/srv2.key" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic trusted-ca \
+  --from-file=ca.crt="$CERT_DIR/ca1.crt" \
+  -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+rm -rf "$CERT_DIR"
+
+echo ""
 echo "=== Building and deploying ==="
 skaffold run -n "$NAMESPACE"
 
@@ -82,6 +117,41 @@ for i in $(seq 1 60); do
   fi
   sleep 2
 done
+
+echo ""
+echo "=== Testing SSL_CERT_DIR (TLS CA trust) ==="
+# Wait for tls-test pods to attempt OIDC discovery (a few retries)
+echo "Waiting for TLS test pods to produce logs..."
+sleep 15
+
+TLS_EXIT=0
+
+# Trusted pod: CA is in SSL_CERT_DIR, should NOT get x509 error
+# It should fail with OIDC discovery error (404 from nginx, not valid OIDC)
+TRUSTED_LOGS=$(kubectl logs deployment/tls-test-trusted -n "$NAMESPACE" --tail=30 2>&1) || true
+if echo "$TRUSTED_LOGS" | grep -qi "x509"; then
+  echo "FAIL: trusted endpoint got x509 error (SSL_CERT_DIR not working)"
+  echo "$TRUSTED_LOGS"
+  TLS_EXIT=1
+else
+  echo "PASS: trusted endpoint - no x509 error (TLS handshake succeeded)"
+fi
+
+# Untrusted pod: CA is NOT in SSL_CERT_DIR, SHOULD get x509 error
+UNTRUSTED_LOGS=$(kubectl logs deployment/tls-test-untrusted -n "$NAMESPACE" --tail=30 2>&1) || true
+if echo "$UNTRUSTED_LOGS" | grep -qi "x509"; then
+  echo "PASS: untrusted endpoint - got x509 error as expected"
+else
+  echo "FAIL: untrusted endpoint did not get x509 error"
+  echo "$UNTRUSTED_LOGS"
+  TLS_EXIT=1
+fi
+
+if [ "$TLS_EXIT" -ne 0 ]; then
+  echo ""
+  echo "=== TLS test FAILED ==="
+  exit 1
+fi
 
 TEST_EXIT=0
 

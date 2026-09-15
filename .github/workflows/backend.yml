@@ -62,6 +62,30 @@ jobs:
           chmod +x skaffold
           sudo mv skaffold /usr/local/bin/
 
+      - name: Generate TLS test certs
+        run: |
+          CERT_DIR=$(mktemp -d)
+          openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca1.key" -out "$CERT_DIR/ca1.crt" \
+            -days 1 -nodes -subj "/CN=Trusted CA" 2>/dev/null
+          openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv1.key" -out "$CERT_DIR/srv1.csr" \
+            -nodes -subj "/CN=https-trusted" \
+            -addext "subjectAltName=DNS:https-trusted,DNS:https-trusted.default.svc.cluster.local" 2>/dev/null
+          openssl x509 -req -in "$CERT_DIR/srv1.csr" -CA "$CERT_DIR/ca1.crt" -CAkey "$CERT_DIR/ca1.key" \
+            -CAcreateserial -out "$CERT_DIR/srv1.crt" -days 1 -copy_extensions copyall 2>/dev/null
+
+          openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca2.key" -out "$CERT_DIR/ca2.crt" \
+            -days 1 -nodes -subj "/CN=Untrusted CA" 2>/dev/null
+          openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv2.key" -out "$CERT_DIR/srv2.csr" \
+            -nodes -subj "/CN=https-untrusted" \
+            -addext "subjectAltName=DNS:https-untrusted,DNS:https-untrusted.default.svc.cluster.local" 2>/dev/null
+          openssl x509 -req -in "$CERT_DIR/srv2.csr" -CA "$CERT_DIR/ca2.crt" -CAkey "$CERT_DIR/ca2.key" \
+            -CAcreateserial -out "$CERT_DIR/srv2.crt" -days 1 -copy_extensions copyall 2>/dev/null
+
+          kubectl create secret tls tls-trusted --cert="$CERT_DIR/srv1.crt" --key="$CERT_DIR/srv1.key"
+          kubectl create secret tls tls-untrusted --cert="$CERT_DIR/srv2.crt" --key="$CERT_DIR/srv2.key"
+          kubectl create secret generic trusted-ca --from-file=ca.crt="$CERT_DIR/ca1.crt"
+          rm -rf "$CERT_DIR"
+
       - name: Build and deploy
         run: cd e2e && skaffold run -n default
 
@@ -70,6 +94,27 @@ jobs:
 
       - name: Wait for dev-machine
         run: kubectl wait --for=condition=Available deployment/dev-machine --timeout=120s
+
+      - name: Validate SSL_CERT_DIR (TLS CA trust)
+        run: |
+          echo "Waiting for TLS test pods to attempt OIDC discovery..."
+          sleep 15
+          TRUSTED_LOGS=$(kubectl logs deployment/tls-test-trusted --tail=30 2>&1) || true
+          if echo "$TRUSTED_LOGS" | grep -qi "x509"; then
+            echo "FAIL: trusted endpoint got x509 error"
+            echo "$TRUSTED_LOGS"
+            exit 1
+          fi
+          echo "PASS: trusted endpoint - no x509 error"
+
+          UNTRUSTED_LOGS=$(kubectl logs deployment/tls-test-untrusted --tail=30 2>&1) || true
+          if echo "$UNTRUSTED_LOGS" | grep -qi "x509"; then
+            echo "PASS: untrusted endpoint - got x509 error as expected"
+          else
+            echo "FAIL: untrusted endpoint did not get x509 error"
+            echo "$UNTRUSTED_LOGS"
+            exit 1
+          fi
 
       - name: Run vitest e2e tests
         run: |
@@ -95,6 +140,8 @@ jobs:
           kubectl logs deployment/opencode-rc-gateway --tail=50 || true
           kubectl logs deployment/opencode-rc-tunneler --tail=50 || true
           kubectl logs deployment/dev-machine --tail=50 || true
+          kubectl logs deployment/tls-test-trusted --tail=20 || true
+          kubectl logs deployment/tls-test-untrusted --tail=20 || true
 
   publish:
     needs: [build, test]
