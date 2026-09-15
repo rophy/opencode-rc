@@ -1,0 +1,13 @@
+{{- if .Values.extraCACerts }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+data:
+  {{- range $name, $cert := .Values.extraCACerts }}
+  {{ $name }}: |
+    {{- $cert | nindent 4 }}
+  {{- end }}
+{{- end }}
