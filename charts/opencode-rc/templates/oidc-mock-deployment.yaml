@@ -37,7 +37,7 @@ spec:
         - name: oidc-mock
           image: {{ include "opencode-rc.image" (dict "image" .Values.oidcMock.image "global" .Values.global) }}
           imagePullPolicy: {{ .Values.oidcMock.image.pullPolicy }}
-          command: ["serve"]
+          args: ["serve"]
           ports:
             - name: http
               containerPort: 8080

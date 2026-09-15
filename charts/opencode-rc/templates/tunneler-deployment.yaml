@@ -37,7 +37,7 @@ spec:
         - name: tunneler
           image: {{ include "opencode-rc.image" (dict "image" .Values.tunneler.image "global" .Values.global) }}
           imagePullPolicy: {{ .Values.tunneler.image.pullPolicy }}
-          command: ["tunneler"]
+          args: ["tunneler"]
           ports:
             - name: http
               containerPort: 9090
