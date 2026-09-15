@@ -10,6 +10,8 @@ build:
       context: ..
       docker:
         dockerfile: backend/Dockerfile
+        buildArgs:
+          COVER: "true"
     - image: dev-machine
       context: ..
       docker:
