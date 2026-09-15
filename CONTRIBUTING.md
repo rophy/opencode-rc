@@ -4,9 +4,9 @@
 
 ```
 backend/        # Go — single binary with two subcommands: gateway, tunneler
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
+cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
 web/            # SolidJS SPA — session picker + OpenCode web UI wrapper
-e2e/            # Docker Compose test environment + Vitest/Playwright tests
+e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream OpenCode source (build dependency for web/)
 ```
@@ -15,7 +15,9 @@ vendor/opencode # Git submodule — upstream OpenCode source (build dependency f
 
 - Go 1.22+
 - Node.js 22+ / Bun
-- Docker and Docker Compose
+- Docker
+- [kind](https://kind.sigs.k8s.io/) (Kubernetes in Docker)
+- [Skaffold](https://skaffold.dev/)
 - Helm 3 (for chart testing)
 - [helm-unittest](https://github.com/helm-unittest/helm-unittest) plugin
 
@@ -54,32 +56,32 @@ cd web && bun run dev
 
 Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
 
-## Docker Compose
-
-The compose environment runs all components on an internal Docker network with no exposed ports. Tests and manual operations run inside the `dev-machine` container.
-
-```bash
-# Full stack
-docker compose --profile rc up -d --build
-
-# With rc-web UI (build web first)
-WEBUI_HOST_DIR=$(cd web/dist && pwd) \
-  docker compose --profile rc up -d --build
-```
-
 ## Running Tests
 
-### Vitest E2E
+### E2E Tests (Kind + Skaffold)
+
+E2e tests run on a kind cluster using Skaffold to build images and deploy the actual Helm chart. This ensures the chart is tested end-to-end.
 
 ```bash
-docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
+# Run all tests (vitest + playwright)
+./e2e/run.sh
+
+# Run only vitest
+./e2e/run.sh --vitest
+
+# Run only playwright
+./e2e/run.sh --playwright
+
+# Keep cluster after tests (for debugging)
+./e2e/run.sh --no-teardown
 ```
 
-### Playwright Browser E2E
+The test environment deploys:
+- The Helm chart (gateway, tunneler, redis, oidc-mock) with `local` profile
+- An aimock service (mock AI backend)
+- A dev-machine pod (Playwright image with CLI + test runner)
 
-```bash
-docker compose exec dev-machine sh -c "cd /e2e && npx playwright test"
-```
+Tests run inside the dev-machine pod via `kubectl exec`.
 
 ### CLI Unit Tests
 
@@ -91,12 +93,6 @@ cd cli && npx vitest run
 
 ```bash
 helm unittest charts/opencode-rc
-```
-
-### E2E with Coverage
-
-```bash
-./e2e/coverage.sh
 ```
 
 ## Git Submodule

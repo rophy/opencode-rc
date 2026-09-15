@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: 0,
   use: {
-    baseURL: process.env.GATEWAY_URL || "http://gateway:8080",
+    baseURL: process.env.GATEWAY_URL || "http://opencode-rc-gateway:8080",
     ignoreHTTPSErrors: true,
   },
   projects: [

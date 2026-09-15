@@ -8,8 +8,8 @@ on:
       - 'web/**'
       - 'vendor/opencode'
       - 'e2e/**'
-      - 'cli/Dockerfile'
-      - 'docker-compose.yml'
+      - 'cli/**'
+      - 'charts/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
@@ -17,8 +17,8 @@ on:
       - 'web/**'
       - 'vendor/opencode'
       - 'e2e/**'
-      - 'cli/Dockerfile'
-      - 'docker-compose.yml'
+      - 'cli/**'
+      - 'charts/**'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
@@ -50,33 +50,51 @@ jobs:
         with:
           submodules: true
 
-      - uses: actions/setup-node@v5
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
         with:
-          node-version: '22'
+          cluster_name: opencode-rc-e2e
+          config: e2e/kind-config.yaml
 
-      - name: Install e2e deps
-        run: cd e2e && npm ci
-
-      - name: Build and start stack
-        run: docker compose --profile rc up -d --build
-
-      - name: Wait for gateway to be ready
+      - name: Install Skaffold
         run: |
-          for i in $(seq 1 30); do
-            if docker compose exec -T dev-machine curl -sf http://gateway:8080/healthz > /dev/null 2>&1; then
-              echo "Gateway ready"
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x skaffold
+          sudo mv skaffold /usr/local/bin/
+
+      - name: Build and deploy
+        run: cd e2e && skaffold run -n default
+
+      - name: Wait for gateway
+        run: kubectl wait --for=condition=Available deployment/opencode-rc-gateway --timeout=120s
+
+      - name: Wait for dev-machine
+        run: kubectl wait --for=condition=Available deployment/dev-machine --timeout=120s
+
+      - name: Run vitest e2e tests
+        run: |
+          DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
+          for i in $(seq 1 60); do
+            if kubectl exec "$DEV_POD" -- curl -sf http://opencode-rc-gateway:8080/healthz > /dev/null 2>&1; then
               break
             fi
-            echo "Waiting for gateway... ($i/30)"
             sleep 2
           done
+          kubectl exec "$DEV_POD" -- sh -c \
+            "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
 
-      - name: Run e2e tests
-        run: docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
+      - name: Run playwright e2e tests
+        run: |
+          DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec "$DEV_POD" -- sh -c \
+            "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 npx playwright test --config playwright.config.ts"
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose logs
+        run: |
+          kubectl logs deployment/opencode-rc-gateway --tail=50 || true
+          kubectl logs deployment/opencode-rc-tunneler --tail=50 || true
+          kubectl logs deployment/dev-machine --tail=50 || true
 
   publish:
     needs: [build, test]
