@@ -11,7 +11,7 @@ gateway:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/backend
-    tag: "0.1.0"
+    tag: "0.1.1"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
@@ -33,7 +33,7 @@ tunneler:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/backend
-    tag: "0.1.0"
+    tag: "0.1.1"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
@@ -71,7 +71,7 @@ oidcMock:
   image:
     registry: ""
     repository: ghcr.io/rophy/oidc-mock
-    tag: "20260907-dfef1a3"
+    tag: "20260913-34fdbaf"
     pullPolicy: IfNotPresent
   resources: {}
   podAnnotations: {}

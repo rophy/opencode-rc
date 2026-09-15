@@ -4,7 +4,7 @@ services:
     command: ["redis-server", "--save", ""]
 
   oidc-mock:
-    image: ghcr.io/rophy/oidc-mock:20260907-dfef1a3
+    image: ghcr.io/rophy/oidc-mock:20260913-34fdbaf
     command: ["serve"]
     environment:
       OIDC_CONFIG: |
