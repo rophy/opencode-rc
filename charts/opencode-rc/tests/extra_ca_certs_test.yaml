@@ -1,0 +1,37 @@
+suite: extra CA certs
+templates:
+  - templates/extra-ca-certs-configmap.yaml
+values:
+  - ../values.yaml
+tests:
+  - it: does not render when extraCACerts is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ConfigMap with cert data
+    set:
+      extraCACerts:
+        internal-ca.crt: "-----BEGIN CERTIFICATE-----\nMIIDxTCC\n-----END CERTIFICATE-----"
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-extra-ca-certs
+      - matchRegex:
+          path: data["internal-ca.crt"]
+          pattern: "BEGIN CERTIFICATE"
+
+  - it: renders multiple certs
+    set:
+      extraCACerts:
+        ca1.crt: "-----BEGIN CERTIFICATE-----\ncert1\n-----END CERTIFICATE-----"
+        ca2.crt: "-----BEGIN CERTIFICATE-----\ncert2\n-----END CERTIFICATE-----"
+    asserts:
+      - matchRegex:
+          path: data["ca1.crt"]
+          pattern: "cert1"
+      - matchRegex:
+          path: data["ca2.crt"]
+          pattern: "cert2"

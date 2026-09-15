@@ -72,6 +72,10 @@ spec:
             - name: TLS_INSECURE_SKIP_VERIFY
               value: "true"
             {{- end }}
+            {{- if .Values.extraCACerts }}
+            - name: SSL_CERT_DIR
+              value: "/etc/ssl/certs:/etc/ssl/certs/extra"
+            {{- end }}
             {{- if .Values.redis.enabled }}
             - name: REDIS_URL
               value: {{ include "opencode-rc.redisUrl" . | quote }}
@@ -86,10 +90,22 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.extraCACerts }}
+          volumeMounts:
+            - name: extra-ca-certs
+              mountPath: /etc/ssl/certs/extra
+              readOnly: true
+          {{- end }}
           {{- with .Values.tunneler.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- if .Values.extraCACerts }}
+      volumes:
+        - name: extra-ca-certs
+          configMap:
+            name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
+      {{- end }}
       {{- with .Values.tunneler.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

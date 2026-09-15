@@ -85,6 +85,15 @@ oidcMock:
 
 tlsInsecureSkipVerify: false
 
+# Extra CA certificates to trust (PEM format). Each key becomes a cert file.
+# Example:
+#   extraCACerts:
+#     internal-ca.crt: |
+#       -----BEGIN CERTIFICATE-----
+#       MIIDxTCC...
+#       -----END CERTIFICATE-----
+extraCACerts: {}
+
 oidc:
   issuer: ""
   clientId: "opencode-rc"

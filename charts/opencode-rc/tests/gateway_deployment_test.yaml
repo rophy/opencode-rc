@@ -217,3 +217,51 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: true
+
+  - it: does not set TLS_INSECURE_SKIP_VERIFY by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_INSECURE_SKIP_VERIFY
+            value: "true"
+
+  - it: sets TLS_INSECURE_SKIP_VERIFY when enabled
+    set:
+      tlsInsecureSkipVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_INSECURE_SKIP_VERIFY
+            value: "true"
+
+  - it: does not mount extra CA certs by default
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].volumeMounts
+      - isNull:
+          path: spec.template.spec.volumes
+
+  - it: mounts extra CA certs and sets SSL_CERT_DIR
+    set:
+      extraCACerts:
+        internal-ca.crt: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_DIR
+            value: "/etc/ssl/certs:/etc/ssl/certs/extra"
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: extra-ca-certs
+            mountPath: /etc/ssl/certs/extra
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: extra-ca-certs
+            configMap:
+              name: RELEASE-NAME-opencode-rc-extra-ca-certs
