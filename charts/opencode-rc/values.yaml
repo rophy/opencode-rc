@@ -68,6 +68,7 @@ redis:
   containerSecurityContext: {}
 
 oidcMock:
+  issuer: ""  # External URL for oidc-mock (e.g. https://oidc-mock.corp.example.com). Defaults to internal service URL.
   image:
     registry: ""
     repository: ghcr.io/rophy/oidc-mock
