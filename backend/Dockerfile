@@ -17,7 +17,7 @@ COPY backend/*.go ./
 COPY backend/VERSION ./
 ARG COVER=false
 RUN if [ "$COVER" = "true" ]; then \
-      CGO_ENABLED=0 go build -cover -ldflags "-X main.version=$(cat VERSION)" -o /opencode-rc .; \
+      CGO_ENABLED=0 go build -cover -covermode=atomic -ldflags "-X main.version=$(cat VERSION)" -o /opencode-rc .; \
     else \
       CGO_ENABLED=0 go build -ldflags "-X main.version=$(cat VERSION)" -o /opencode-rc .; \
     fi

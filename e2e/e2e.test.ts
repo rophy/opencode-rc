@@ -305,6 +305,29 @@ describe("api error handling", () => {
   });
 });
 
+describe("coverage endpoint", () => {
+  beforeAll(async () => {
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
+  });
+
+  it("gateway /debug/coverage returns tar", async () => {
+    const res = await fetch(`${GATEWAY_URL}/debug/coverage`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/x-tar");
+    const body = await res.arrayBuffer();
+    expect(body.byteLength).toBeGreaterThan(0);
+  });
+
+  it("tunneler /debug/coverage returns tar", async () => {
+    const res = await fetch(`${TUNNELER_URL}/debug/coverage`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/x-tar");
+    const body = await res.arrayBuffer();
+    expect(body.byteLength).toBeGreaterThan(0);
+  });
+});
+
 describe("tunnel auth", () => {
   beforeAll(async () => {
     await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
