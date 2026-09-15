@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -170,9 +171,13 @@ func (m *muxConn) proxyHTTPRequest(w http.ResponseWriter, r *http.Request, downs
 	stream := m.openStream()
 	defer m.removeStream(stream.id)
 
-	// Build request headers
+	// Build request headers (strip Accept-Encoding so local server
+	// returns uncompressed responses through the tunnel)
 	hdrs := make(map[string]string)
 	for k := range r.Header {
+		if strings.EqualFold(k, "Accept-Encoding") {
+			continue
+		}
 		hdrs[k] = r.Header.Get(k)
 	}
 	hdrs["X-Opencode-Directory"] = directory

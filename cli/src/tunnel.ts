@@ -45,22 +45,67 @@ export function decodeFrameHeader(data: ArrayBuffer): {
   };
 }
 
-export async function proxyToLocal(
+// Pending requests waiting for body data
+const pendingRequests = new Map<
+  number,
+  { req: RequestHeaders; bodyChunks: Uint8Array[]; localUrl: string; ws: WebSocket }
+>();
+
+export function handleBodyFrame(streamId: number, type: number, payload: Uint8Array): void {
+  const pending = pendingRequests.get(streamId);
+  if (!pending) return;
+
+  if (type === FRAME_DATA) {
+    pending.bodyChunks.push(payload);
+  } else if (type === FRAME_END) {
+    pendingRequests.delete(streamId);
+    const totalLen = pending.bodyChunks.reduce((sum, c) => sum + c.length, 0);
+    const body = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const chunk of pending.bodyChunks) {
+      body.set(chunk, offset);
+      offset += chunk.length;
+    }
+    doProxyToLocal(pending.ws, streamId, pending.req, pending.localUrl, body);
+  }
+}
+
+export function proxyToLocal(
   ws: WebSocket,
   streamId: number,
   req: RequestHeaders,
   localUrl: string
+): void {
+  if (req.hasBody) {
+    pendingRequests.set(streamId, { req, bodyChunks: [], localUrl, ws });
+  } else {
+    doProxyToLocal(ws, streamId, req, localUrl, undefined);
+  }
+}
+
+async function doProxyToLocal(
+  ws: WebSocket,
+  streamId: number,
+  req: RequestHeaders,
+  localUrl: string,
+  body: Uint8Array | undefined
 ): Promise<void> {
   const url = new URL(req.path, localUrl);
 
   try {
+    const fwdHeaders = { ...req.headers };
+    delete fwdHeaders["accept-encoding"];
+    delete fwdHeaders["Accept-Encoding"];
+
     const resp = await fetch(url.toString(), {
       method: req.method,
-      headers: req.headers,
+      headers: fwdHeaders,
+      body: body ? Buffer.from(body) : undefined,
     });
 
     const respHeaders: Record<string, string> = {};
     resp.headers.forEach((v, k) => {
+      if (k === "content-encoding" || k === "transfer-encoding" || k === "content-length") return;
       respHeaders[k] = v;
     });
 
@@ -84,7 +129,6 @@ export async function proxyToLocal(
 
     ws.send(encodeFrame(streamId, FRAME_END));
   } catch (err) {
-    // Send error response
     const errResp: ResponseHeaders = {
       status: 502,
       headers: { "content-type": "text/plain" },
@@ -175,6 +219,8 @@ export async function startTunnel(
         const json = new TextDecoder().decode(frame.payload);
         const req: RequestHeaders = JSON.parse(json);
         proxyToLocal(ws, frame.streamId, req, localUrl);
+      } else if (frame.type === FRAME_DATA || frame.type === FRAME_END) {
+        handleBodyFrame(frame.streamId, frame.type, frame.payload);
       }
     });
 
