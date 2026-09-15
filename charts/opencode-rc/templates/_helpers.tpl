@@ -89,7 +89,7 @@ OIDC Issuer — explicit value, or oidc-mock service URL in local profile.
 {{- if .Values.oidc.issuer -}}
   {{- .Values.oidc.issuer -}}
 {{- else if eq .Values.profile "local" -}}
-  http://{{ include "opencode-rc.fullname" . }}-oidc-mock:8080
+  {{- .Values.oidcMock.issuer | default (printf "http://%s-oidc-mock:8080" (include "opencode-rc.fullname" .)) -}}
 {{- else -}}
   {{- fail "oidc.issuer is required when profile is production" -}}
 {{- end -}}
