@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/oauth2"
 )
 
 var version = "dev"
@@ -34,6 +36,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\nUsage: opencode-rc <gateway|tunneler>\n", os.Args[1])
 		os.Exit(1)
 	}
+}
+
+func contextWithTLS(ctx context.Context, insecure bool) context.Context {
+	if !insecure {
+		return ctx
+	}
+	slog.Warn("TLS certificate verification disabled")
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: transport}
+	// go-oidc and oauth2 both read the HTTP client from context
+	ctx = oidc.ClientContext(ctx, client)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+	return ctx
 }
 
 func connectRedis(ctx context.Context, redisURL string) (*redis.Client, SessionStore) {
@@ -58,7 +75,7 @@ func runGateway() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
+	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
 	_, store := connectRedis(ctx, cfg.RedisURL)
 
 	var oidcProvider *OIDCProvider
@@ -97,7 +114,7 @@ func runTunneler() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
+	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
 	_, store := connectRedis(ctx, cfg.RedisURL)
 
 	var provider *oidc.Provider

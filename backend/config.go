@@ -9,18 +9,19 @@ import (
 )
 
 type Config struct {
-	Port             int
-	OIDCIssuer       string
-	OIDCClientID     string
-	OIDCClientSecret string
-	OIDCCLIClientID  string
-	OIDCRedirectURI  string
-	WebUIDir         string
-	CookieSecret     []byte
-	CookieDomain     string
-	SecureCookies    bool
-	RedisURL         string
-	PodIP            string
+	Port                  int
+	OIDCIssuer            string
+	OIDCClientID          string
+	OIDCClientSecret      string
+	OIDCCLIClientID       string
+	OIDCRedirectURI       string
+	WebUIDir              string
+	CookieSecret          []byte
+	CookieDomain          string
+	SecureCookies         bool
+	RedisURL              string
+	PodIP                 string
+	TLSInsecureSkipVerify bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -70,18 +71,21 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("REDIS_URL is required")
 	}
 
+	tlsInsecure := os.Getenv("TLS_INSECURE_SKIP_VERIFY") == "true"
+
 	return &Config{
-		Port:             port,
-		OIDCIssuer:       issuer,
-		OIDCClientID:     clientID,
-		OIDCClientSecret: clientSecret,
-		OIDCCLIClientID:  cliClientID,
-		OIDCRedirectURI:  redirectURI,
-		WebUIDir:         webUIDir,
-		CookieSecret:     secret,
-		CookieDomain:     os.Getenv("COOKIE_DOMAIN"),
-		SecureCookies:    secureCookies,
-		RedisURL:         redisURL,
-		PodIP:            os.Getenv("POD_IP"),
+		Port:                  port,
+		OIDCIssuer:            issuer,
+		OIDCClientID:          clientID,
+		OIDCClientSecret:      clientSecret,
+		OIDCCLIClientID:       cliClientID,
+		OIDCRedirectURI:       redirectURI,
+		WebUIDir:              webUIDir,
+		CookieSecret:          secret,
+		CookieDomain:          os.Getenv("COOKIE_DOMAIN"),
+		SecureCookies:         secureCookies,
+		RedisURL:              redisURL,
+		PodIP:                 os.Getenv("POD_IP"),
+		TLSInsecureSkipVerify: tlsInsecure,
 	}, nil
 }

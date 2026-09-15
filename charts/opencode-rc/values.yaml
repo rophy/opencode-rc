@@ -83,6 +83,8 @@ oidcMock:
   securityContext: {}
   containerSecurityContext: {}
 
+tlsInsecureSkipVerify: false
+
 oidc:
   issuer: ""
   clientId: "opencode-rc"
