@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
-const GATEWAY_URL = "http://gateway:8080";
-const TUNNELER_URL = "http://tunneler:9090";
-const OIDC_URL = "http://oidc-mock:8080";
+const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:8080";
+const TUNNELER_URL = process.env.TUNNELER_URL ?? "http://opencode-rc-tunneler:9090";
+const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 const OIDC_CLIENT_ID = process.env.GATEWAY_OIDC_CLIENT_ID ?? "opencode-rc";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 

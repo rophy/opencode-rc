@@ -13,7 +13,8 @@ backend/        # Go — builds `opencode-rc` binary with two subcommands:
                 #   `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
-e2e/            # Docker Compose test environment
+e2e/            # Kind + Skaffold e2e test environment
+charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for web/)
 docs/           # Design docs
 ```
@@ -66,26 +67,30 @@ cd web && bun run dev
 
 Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
 
-## Docker Compose
+## E2E Tests
+
+E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build images and deploy the actual Helm chart. This ensures the chart is tested end-to-end.
 
 ```bash
-# Full stack
-docker compose --profile rc up -d --build
+# Run all tests (vitest + playwright)
+./e2e/run.sh
 
-# With rc-web UI
-WEBUI_HOST_DIR=$(cd web/dist && pwd) \
-  docker compose --profile rc up -d --build
+# Run only vitest
+./e2e/run.sh --vitest
 
-# Run e2e tests (requires stack to be running)
-docker compose exec -T dev-machine sh -c "cd /e2e && npx vitest run"
+# Run only playwright
+./e2e/run.sh --playwright
 
-# Run e2e tests with coverage collection
-./e2e/coverage.sh
+# Keep cluster after tests (for debugging)
+./e2e/run.sh --no-teardown
 ```
 
-No ports are exposed to the host. All services are internal to the Docker network.
-E2e tests run inside the `dev-machine` container via Vitest, using the `e2e/` dir mounted read-only at `/e2e`.
-For manual browser access, exec into the dev-machine container.
+The test environment deploys:
+- The Helm chart (gateway, tunneler, redis, oidc-mock) with `local` profile
+- An aimock service (mock AI backend)
+- A dev-machine pod (Playwright image with CLI + test runner)
+
+Tests run inside the dev-machine pod via `kubectl exec`.
 
 ## npm Publishing (CLI)
 
@@ -99,4 +104,4 @@ The CLI (`cli/`) is published to npm as `opencode-rc` using **npm trusted publis
 
 ## Kubectl
 
-This project uses `kind-kind` kubectl context for local development.
+This project uses `kind-opencode-rc-e2e` kubectl context for e2e tests and `kind-kind` for local development.

@@ -22,6 +22,9 @@ RUN npx tsc
 WORKDIR /e2e
 COPY e2e/package.json e2e/package-lock.json ./
 RUN npm install
+COPY e2e/tsconfig.json e2e/vitest.config.ts e2e/playwright.config.ts ./
+COPY e2e/e2e.test.ts ./
+COPY e2e/playwright/ ./playwright/
 
 WORKDIR /project
 ENTRYPOINT ["node", "/cli/dist/index.js"]

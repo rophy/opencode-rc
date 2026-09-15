@@ -1,0 +1,39 @@
+apiVersion: skaffold/v4beta12
+kind: Config
+metadata:
+  name: opencode-rc-e2e
+build:
+  local:
+    push: false
+  artifacts:
+    - image: opencode-rc-backend
+      context: ..
+      docker:
+        dockerfile: backend/Dockerfile
+    - image: dev-machine
+      context: ..
+      docker:
+        dockerfile: cli/Dockerfile
+manifests:
+  rawYaml:
+    - k8s/aimock.yaml
+    - k8s/dev-machine.yaml
+deploy:
+  kubectl: {}
+  helm:
+    releases:
+      - name: opencode-rc
+        chartPath: ../charts/opencode-rc
+        setValues:
+          fullnameOverride: opencode-rc
+          gateway.image.pullPolicy: Never
+          tunneler.image.pullPolicy: Never
+          oidcMock.image.pullPolicy: IfNotPresent
+          redis.image.pullPolicy: IfNotPresent
+        setValueTemplates:
+          gateway.image.registry: ""
+          gateway.image.repository: "{{.IMAGE_REPO_opencode_rc_backend}}"
+          gateway.image.tag: "{{.IMAGE_TAG_opencode_rc_backend}}"
+          tunneler.image.registry: ""
+          tunneler.image.repository: "{{.IMAGE_REPO_opencode_rc_backend}}"
+          tunneler.image.tag: "{{.IMAGE_TAG_opencode_rc_backend}}"
