@@ -3,11 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ui": "npx playwright test --config playwright.config.ts"
   },
   "devDependencies": {
     "vitest": "^4.1.11",
     "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@playwright/test": "1.52.0"
   }
 }
