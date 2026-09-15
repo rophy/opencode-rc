@@ -103,18 +103,42 @@ export interface TunnelHandle {
   close(): void;
 }
 
-export function startTunnel(
+export async function startTunnel(
   config: Config,
   idToken: string,
   sessionID: string,
   localUrl: string,
   directory: string
 ): Promise<TunnelHandle> {
+  const baseUrl = config.gatewayUrl.replace(/\/$/, "");
+  const tunnelPath = `/gateway/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}`;
+
+  // Pre-flight: attempt a plain HTTP request to surface auth/network errors
+  // before the opaque WebSocket upgrade failure.
+  try {
+    const resp = await fetch(`${baseUrl}${tunnelPath}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    // A working tunneler returns 400 "Not a websocket request" — that's expected.
+    // Anything else (401, 403, 502, etc.) is a real error worth reporting.
+    if (resp.status !== 400) {
+      const body = await resp.text().catch(() => "");
+      if (resp.status >= 400) {
+        const msg = `Tunnel pre-flight failed: ${resp.status} ${resp.statusText}${body ? " — " + body.trim() : ""}`;
+        console.error(msg);
+        throw new Error(msg);
+      }
+    }
+  } catch (err: any) {
+    if (err.message?.startsWith("Tunnel pre-flight")) throw err;
+    console.error(`Tunnel pre-flight network error: ${err.message} (url: ${baseUrl}${tunnelPath})`);
+    throw err;
+  }
+
   return new Promise((resolve, reject) => {
-    const gatewayWsUrl = config.gatewayUrl
-      .replace(/^http/, "ws")
-      .replace(/\/$/, "");
-    const url = `${gatewayWsUrl}/gateway/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}`;
+    const gatewayWsUrl = baseUrl.replace(/^http/, "ws");
+    const url = `${gatewayWsUrl}${tunnelPath}`;
 
     const ws = new WebSocket(url, {
       headers: {
@@ -157,7 +181,7 @@ export function startTunnel(
 
     ws.addEventListener("error", (event: Event) => {
       const err = event as ErrorEvent;
-      console.error(`Tunnel error: ${err.message || "connection error"}`);
+      console.error(`Tunnel WebSocket error: ${err.message || "connection failed"}`);
       reject(new Error("tunnel connection failed"));
     });
 
