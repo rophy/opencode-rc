@@ -18,7 +18,7 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "ghcr.io/rophy/oidc-mock:20260913-34fdbaf"
       - equal:
-          path: spec.template.spec.containers[0].command
+          path: spec.template.spec.containers[0].args
           value: ["serve"]
 
   - it: is absent in production profile

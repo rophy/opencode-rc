@@ -10,7 +10,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-tunneler
       - equal:
-          path: spec.template.spec.containers[0].command
+          path: spec.template.spec.containers[0].args
           value: ["tunneler"]
       - equal:
           path: spec.template.spec.containers[0].image
