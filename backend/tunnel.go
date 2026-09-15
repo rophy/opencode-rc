@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -31,8 +32,8 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 			idToken, err = cliVerifier.Verify(r.Context(), rawToken)
 		}
 		if err != nil {
-			slog.Warn("tunnel auth failed", "error", err)
-			http.Error(w, "invalid token", http.StatusUnauthorized)
+			slog.Warn("tunnel auth failed", "error", err, "sessionId", r.URL.Query().Get("sessionId"), "remoteAddr", r.RemoteAddr)
+			http.Error(w, fmt.Sprintf("invalid token: %v", err), http.StatusUnauthorized)
 			return
 		}
 

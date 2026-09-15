@@ -38,6 +38,13 @@ async function loadFileConfig(): Promise<FileConfig> {
   }
 }
 
+function applyTLSInsecure() {
+  if (process.env.TLS_INSECURE_SKIP_VERIFY === "true" && process.env.NODE_TLS_REJECT_UNAUTHORIZED === undefined) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    console.warn("Warning: TLS certificate verification disabled");
+  }
+}
+
 async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
   const res = await fetch(
     `${issuer}/.well-known/openid-configuration`
@@ -51,6 +58,7 @@ async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
 }
 
 export async function loadConfig(): Promise<Config> {
+  applyTLSInsecure();
   const file = await loadFileConfig();
 
   const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
