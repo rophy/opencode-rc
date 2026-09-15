@@ -24,6 +24,18 @@ func (m *mockToken) Claims(v interface{}) error {
 	return json.Unmarshal([]byte(m.claims), v)
 }
 
+type badClaimsToken struct{}
+
+func (b *badClaimsToken) Claims(v interface{}) error {
+	return errors.New("claims parsing failed")
+}
+
+type badClaimsVerifier struct{}
+
+func (b *badClaimsVerifier) Verify(ctx context.Context, rawIDToken string) (ClaimsToken, error) {
+	return &badClaimsToken{}, nil
+}
+
 // mockVerifier is a TokenVerifier that returns fixed claims or an error,
 // regardless of the raw token passed in.
 type mockVerifier struct {
@@ -390,6 +402,290 @@ func TestCallbackHandlerMissingStateCookie(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestNewAuth(t *testing.T) {
+	oidcProvider := &OIDCProvider{
+		verifier: &mockVerifier{},
+		oauth2Config: oauth2.Config{
+			ClientID: "test-client",
+		},
+	}
+	a := NewAuth(oidcProvider, make([]byte, 32), "example.com", true)
+	if a == nil {
+		t.Fatal("expected non-nil Auth")
+	}
+	if a.domain != "example.com" {
+		t.Errorf("expected domain example.com, got %s", a.domain)
+	}
+	if !a.secureCookie {
+		t.Error("expected secureCookie true")
+	}
+}
+
+func TestMiddlewareRedirectsWithInvalidCookieValue(t *testing.T) {
+	a, _ := testAuth()
+	handler := a.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler should not be called")
+	}))
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_session", Value: "garbage-not-a-valid-cookie"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", rec.Code)
+	}
+}
+
+func TestRegistrationAuthMiddlewareSubFallback(t *testing.T) {
+	a := testAuthWithVerifier(&mockVerifier{claims: `{"email":"","sub":"sub-only-user"}`}, nil)
+
+	var gotUser string
+	handler := a.RegistrationAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = UserFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/register", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if gotUser != "sub-only-user" {
+		t.Errorf("expected sub-only-user, got %s", gotUser)
+	}
+}
+
+func TestCallbackHandlerSuccess(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"at","token_type":"Bearer","id_token":"mock-id-token"}`))
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &mockVerifier{claims: `{"email":"user@example.com","sub":"sub1","name":"Test User"}`},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d; body: %s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "/" {
+		t.Errorf("expected redirect to /, got %s", loc)
+	}
+
+	var sessionCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "orc_session" {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected orc_session cookie")
+	}
+}
+
+func TestCallbackHandlerExchangeFails(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &mockVerifier{},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestCallbackHandlerNoIdToken(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"at","token_type":"Bearer"}`))
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &mockVerifier{},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestCallbackHandlerVerifyFails(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"at","token_type":"Bearer","id_token":"mock-id-token"}`))
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &mockVerifier{err: errors.New("bad token")},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestCallbackHandlerSubFallback(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"at","token_type":"Bearer","id_token":"mock-id-token"}`))
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &mockVerifier{claims: `{"email":"","sub":"sub-only","name":"Sub User"}`},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCallbackHandlerClaimsError(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"at","token_type":"Bearer","id_token":"mock-id-token"}`))
+	}))
+	defer tokenSrv.Close()
+
+	secret := make([]byte, 32)
+	sc := securecookie.New(secret, nil)
+	sc.MaxAge(86400)
+	a := &Auth{
+		oidc: &OIDCProvider{
+			verifier: &badClaimsVerifier{},
+			oauth2Config: oauth2.Config{
+				ClientID: "test-client",
+				Endpoint: oauth2.Endpoint{
+					TokenURL: tokenSrv.URL,
+				},
+			},
+		},
+		cookie: sc,
+	}
+
+	req := httptest.NewRequest("GET", "/auth/callback?state=mystate&code=mycode", nil)
+	req.AddCookie(&http.Cookie{Name: "orc_state", Value: "mystate"})
+	rec := httptest.NewRecorder()
+	a.CallbackHandler(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for Claims error, got %d", rec.Code)
+	}
+}
+
+func TestRegistrationAuthMiddlewareClaimsError(t *testing.T) {
+	a := testAuthWithVerifier(&badClaimsVerifier{}, nil)
+	handler := a.RegistrationAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler should not be called")
+	}))
+
+	req := httptest.NewRequest("GET", "/register", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for Claims error, got %d", rec.Code)
 	}
 }
 

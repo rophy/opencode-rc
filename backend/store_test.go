@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func TestRedisStorePutGet(t *testing.T) {
@@ -133,6 +135,61 @@ func TestRedisStorePing(t *testing.T) {
 	store := testRedisStore(t)
 	if err := store.Ping(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRedisStoreGetCorruptData(t *testing.T) {
+	client := testRedisClient(t)
+	store := NewRedisStore(client, 10*time.Minute)
+	ctx := context.Background()
+
+	// Put corrupt data directly into Redis
+	client.Set(ctx, "orc:session:corrupt-sess", "not-valid-json{{{", 10*time.Minute)
+
+	_, _, err := store.Get(ctx, "corrupt-sess")
+	if err == nil {
+		t.Fatal("expected error for corrupt session data")
+	}
+}
+
+func TestRedisStoreListWithCorruptEntry(t *testing.T) {
+	client := testRedisClient(t)
+	store := NewRedisStore(client, 10*time.Minute)
+	ctx := context.Background()
+
+	// Add a valid session
+	store.Put(ctx, SessionMeta{ID: "good-sess", UserID: "alice@example.com"})
+
+	// Corrupt one entry directly
+	client.Set(ctx, "orc:session:bad-sess", "not-json{{{", 10*time.Minute)
+	client.SAdd(ctx, "orc:user-sessions:alice@example.com", "bad-sess")
+
+	sessions, err := store.List(ctx, "alice@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should only return the good session (corrupt one is skipped)
+	if len(sessions) != 1 {
+		t.Errorf("expected 1 valid session, got %d", len(sessions))
+	}
+}
+
+func TestRedisStoreBrokenConnection(t *testing.T) {
+	client := redis.NewClient(&redis.Options{Addr: "localhost:1"})
+	store := NewRedisStore(client, 10*time.Minute)
+	ctx := context.Background()
+
+	if err := store.Put(ctx, SessionMeta{ID: "s1", UserID: "u1"}); err == nil {
+		t.Error("expected error from Put on broken connection")
+	}
+	if _, _, err := store.Get(ctx, "s1"); err == nil {
+		t.Error("expected error from Get on broken connection")
+	}
+	if err := store.Delete(ctx, "s1"); err == nil {
+		t.Error("expected error from Delete on broken connection")
+	}
+	if _, err := store.List(ctx, "u1"); err == nil {
+		t.Error("expected error from List on broken connection")
 	}
 }
 

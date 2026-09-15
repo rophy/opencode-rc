@@ -94,3 +94,51 @@ func TestGatewayProxyNoTunnelerAddr(t *testing.T) {
 		t.Errorf("status = %d, want 502", rec.Code)
 	}
 }
+
+func TestGatewayProxyUserMismatch(t *testing.T) {
+	store := testRedisStore(t)
+	store.Put(context.Background(), SessionMeta{
+		ID:           "sess-1",
+		UserID:       "alice@example.com",
+		TunnelerAddr: "10.0.0.1:9090",
+	})
+
+	handler := GatewayProxyHandler(store)
+
+	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
+	ctx := context.WithValue(req.Context(), userContextKey, "bob@example.com")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 for user mismatch", rec.Code)
+	}
+}
+
+func TestGatewayProxyStoreError(t *testing.T) {
+	store := testBrokenStore(t)
+	handler := GatewayProxyHandler(store)
+
+	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestGatewayProxyInvalidPaths(t *testing.T) {
+	store := testRedisStore(t)
+	handler := GatewayProxyHandler(store)
+
+	for _, path := range []string{"/notS/foo", "/s/sess1"} {
+		req := httptest.NewRequest("GET", path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("path %s: expected 404, got %d", path, rec.Code)
+		}
+	}
+}

@@ -40,6 +40,40 @@ func TestTunnelHandlerInvalidToken(t *testing.T) {
 	}
 }
 
+func TestTunnelHandlerUpgradeFailure(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
+
+	// Send a normal HTTP request (not WebSocket) — upgrader.Upgrade will fail
+	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1&directory=/proj", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	// Upgrade fails because the request lacks proper WS upgrade headers
+	// The handler logs the error and returns without writing a response
+	// (gorilla upgrader writes a 400 Bad Request)
+	if rec.Code == http.StatusOK {
+		t.Error("expected non-200 for non-WebSocket request to tunnel handler")
+	}
+}
+
+func TestTunnelHandlerClaimsError(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090")
+
+	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
 func TestTunnelHandlerMissingSessionId(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
@@ -53,6 +87,73 @@ func TestTunnelHandlerMissingSessionId(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rec.Code)
 	}
+}
+
+func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+
+	primary := &mockVerifier{err: errors.New("wrong audience")}
+	cli := &mockVerifier{claims: `{"email":"cliuser@example.com","sub":"sub2"}`}
+	handler := TunnelHandler(primary, cli, reg, "10.0.0.1:9090")
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=cli-sess&directory=/proj"
+	header := http.Header{"Authorization": []string{"Bearer cli-token"}}
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer ws.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if m, ok := reg.GetMeta(t.Context(), "cli-sess"); ok {
+			if m.UserID != "cliuser@example.com" {
+				t.Errorf("expected cliuser@example.com, got %s", m.UserID)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("expected session to be registered via CLI verifier")
+}
+
+func TestTunnelHandlerSubFallback(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"","sub":"sub-only-user"}`}, nil, reg, "10.0.0.1:9090")
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=sub-sess&directory=/proj"
+	header := http.Header{"Authorization": []string{"Bearer valid-token"}}
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	defer ws.Close()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if m, ok := reg.GetMeta(t.Context(), "sub-sess"); ok {
+			if m.UserID != "sub-only-user" {
+				t.Errorf("expected sub-only-user, got %s", m.UserID)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("expected session to be registered with sub fallback")
 }
 
 func TestTunnelHandlerSuccess(t *testing.T) {
