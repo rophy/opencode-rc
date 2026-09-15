@@ -2,25 +2,30 @@
 set -euo pipefail
 
 # Run e2e tests against a kind cluster using the actual Helm chart.
+# Builds with coverage instrumentation and collects Go coverage after tests.
 #
-# Usage: ./e2e/run.sh [--vitest] [--playwright] [--no-teardown]
+# Usage: ./e2e/run.sh [--vitest] [--playwright] [--no-teardown] [--no-coverage]
 #
-# By default runs both vitest and playwright tests.
+# By default runs both vitest and playwright tests with coverage collection.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 CLUSTER_NAME="opencode-rc-e2e"
 NAMESPACE="default"
+COVER_DIR="$REPO_ROOT/.cover"
 RUN_VITEST=false
 RUN_PLAYWRIGHT=false
 TEARDOWN=true
+COVERAGE=true
 
 for arg in "$@"; do
   case "$arg" in
     --vitest) RUN_VITEST=true ;;
     --playwright) RUN_PLAYWRIGHT=true ;;
     --no-teardown) TEARDOWN=false ;;
+    --no-coverage) COVERAGE=false ;;
   esac
 done
 
@@ -175,6 +180,45 @@ if [ "$TEST_EXIT" -ne 0 ]; then
   kubectl logs deployment/opencode-rc-gateway -n "$NAMESPACE" --tail=50 || true
   kubectl logs deployment/opencode-rc-tunneler -n "$NAMESPACE" --tail=50 || true
   kubectl logs deployment/dev-machine -n "$NAMESPACE" --tail=50 || true
+fi
+
+if [ "$COVERAGE" = true ]; then
+  echo ""
+  echo "=== Collecting coverage ==="
+  rm -rf "$COVER_DIR"
+  mkdir -p "$COVER_DIR/raw"
+
+  kubectl exec "$DEV_POD" -n "$NAMESPACE" -- \
+    curl -sf http://opencode-rc-gateway:8080/debug/coverage > "$COVER_DIR/raw/gateway.tar"
+  if [ -s "$COVER_DIR/raw/gateway.tar" ]; then
+    mkdir -p "$COVER_DIR/raw/gateway"
+    tar xf "$COVER_DIR/raw/gateway.tar" -C "$COVER_DIR/raw/gateway"
+    echo "Gateway coverage collected"
+  else
+    echo "WARNING: No gateway coverage"
+  fi
+
+  kubectl exec "$DEV_POD" -n "$NAMESPACE" -- \
+    curl -sf http://opencode-rc-tunneler:9090/debug/coverage > "$COVER_DIR/raw/tunneler.tar"
+  if [ -s "$COVER_DIR/raw/tunneler.tar" ]; then
+    mkdir -p "$COVER_DIR/raw/tunneler"
+    tar xf "$COVER_DIR/raw/tunneler.tar" -C "$COVER_DIR/raw/tunneler"
+    echo "Tunneler coverage collected"
+  else
+    echo "WARNING: No tunneler coverage"
+  fi
+
+  echo ""
+  echo "=== Generating coverage report ==="
+  mkdir -p "$COVER_DIR/merged"
+  go tool covdata merge -i="$COVER_DIR/raw/gateway","$COVER_DIR/raw/tunneler" -o="$COVER_DIR/merged"
+  cd "$REPO_ROOT/backend"
+  go tool covdata textfmt -i="$COVER_DIR/merged" -o="$COVER_DIR/coverage.out"
+  go tool cover -func="$COVER_DIR/coverage.out" | tail -1
+  go tool cover -html="$COVER_DIR/coverage.out" -o="$COVER_DIR/coverage.html"
+  echo ""
+  echo "Coverage report: $COVER_DIR/coverage.html"
+  echo "Coverage data:   $COVER_DIR/coverage.out"
 fi
 
 exit $TEST_EXIT
