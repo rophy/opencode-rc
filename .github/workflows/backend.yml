@@ -86,6 +86,13 @@ jobs:
           kubectl create secret generic trusted-ca --from-file=ca.crt="$CERT_DIR/ca1.crt"
           rm -rf "$CERT_DIR"
 
+      - name: Pre-load external images into kind
+        run: |
+          for img in ghcr.io/copilotkit/aimock:1.42.0 nginx:1.27-alpine; do
+            docker pull "$img"
+            kind load docker-image "$img" --name opencode-rc-e2e
+          done
+
       - name: Build and deploy
         run: cd e2e && skaffold run -n default
 
