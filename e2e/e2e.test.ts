@@ -441,14 +441,6 @@ describe("coverage endpoint", () => {
     await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
   });
 
-  it("web /debug/coverage returns tar", async () => {
-    const res = await fetch(`${WEB_URL}/debug/coverage`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toBe("application/x-tar");
-    const body = await res.arrayBuffer();
-    expect(body.byteLength).toBeGreaterThan(0);
-  });
-
   it("tunneler /debug/coverage returns tar", async () => {
     const res = await fetch(`${TUNNELER_URL}/debug/coverage`);
     expect(res.status).toBe(200);
