@@ -1,0 +1,20 @@
+FROM oven/bun:1 AS web
+WORKDIR /src
+COPY vendor/opencode/package.json vendor/opencode/bun.lock vendor/opencode/
+COPY vendor/opencode/patches/ vendor/opencode/patches/
+COPY vendor/opencode/packages/ vendor/opencode/packages/
+RUN cd vendor/opencode && bun install --frozen-lockfile --ignore-scripts
+COPY web/package.json web/bun.lock web/
+RUN cd web && bun install --frozen-lockfile
+COPY web/ web/
+RUN cd web && OPENCODE_ROOT=/src/vendor/opencode bun run build
+
+FROM oven/bun:1-slim
+WORKDIR /app
+COPY api/package.json api/bun.lock* ./
+RUN bun install --production --frozen-lockfile 2>/dev/null || bun install --production
+COPY api/src/ src/
+COPY --from=web /src/web/dist /webui
+ENV WEBUI_DIR=/webui
+EXPOSE 8080
+CMD ["bun", "run", "src/index.ts"]

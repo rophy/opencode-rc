@@ -8,9 +8,8 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-backend/        # Go — builds `opencode-rc` binary with two subcommands:
-                #   `opencode-rc web` (stateless reverse proxy, auth, dashboard)
-                #   `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
+api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to tunneler
+backend/        # Go — `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Kind + Skaffold e2e test environment
@@ -49,14 +48,21 @@ cd vendor/opencode && bun install
 cd web && bun install && bun run build
 ```
 
-Output: `web/dist/` — static SPA served by the web server via `WEBUI_DIR`.
+Output: `web/dist/` — static SPA served by the api server via `WEBUI_DIR`.
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 
-### Backend
+### API Server
+
+```bash
+cd api && bun install && bun run src/index.ts
+```
+
+### Backend (Tunneler)
 
 ```bash
 cd backend && go build -o opencode-rc .
+./opencode-rc tunneler
 ```
 
 ### Dev server (web)

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'api/**'
       - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
@@ -13,6 +14,7 @@ on:
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
+      - 'api/**'
       - 'backend/**'
       - 'web/**'
       - 'vendor/opencode'
@@ -32,6 +34,16 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Build api image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: api/Dockerfile
+          push: false
+          tags: opencode-rc-api:test
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
       - name: Build backend image
         uses: docker/build-push-action@v7
@@ -166,14 +178,25 @@ jobs:
         id: check
         run: |
           VERSION=$(cat backend/VERSION | tr -d '[:space:]')
+          PUBLISH_BACKEND=true
+          PUBLISH_API=true
           if docker manifest inspect ghcr.io/${{ github.repository }}/backend:$VERSION > /dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "Version $VERSION already exists, skipping publish"
-          else
+            PUBLISH_BACKEND=false
+            echo "Backend $VERSION already exists"
+          fi
+          if docker manifest inspect ghcr.io/${{ github.repository }}/api:$VERSION > /dev/null 2>&1; then
+            PUBLISH_API=false
+            echo "API $VERSION already exists"
+          fi
+          if [ "$PUBLISH_BACKEND" = "true" ] || [ "$PUBLISH_API" = "true" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-            echo "Publishing version $VERSION"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "All images already exist, skipping publish"
           fi
+          echo "publish_backend=$PUBLISH_BACKEND" >> "$GITHUB_OUTPUT"
+          echo "publish_api=$PUBLISH_API" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.publish == 'true'
@@ -187,8 +210,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        if: steps.check.outputs.publish == 'true'
+      - name: Build and push api
+        if: steps.check.outputs.publish_api == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push backend
+        if: steps.check.outputs.publish_backend == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .

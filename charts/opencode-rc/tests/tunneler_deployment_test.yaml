@@ -9,9 +9,8 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-tunneler
-      - equal:
+      - isNull:
           path: spec.template.spec.containers[0].args
-          value: ["tunneler"]
       - equal:
           path: spec.template.spec.containers[0].image
           value: "ghcr.io/rophy/opencode-rc/backend:0.2.0"
