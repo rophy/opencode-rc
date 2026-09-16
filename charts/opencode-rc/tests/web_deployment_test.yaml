@@ -123,13 +123,13 @@ tests:
             name: REDIS_URL
             value: "redis://RELEASE-NAME-opencode-rc-redis:6379/0"
 
-  - it: sets TUNNELER_URL pointing to tunneler service
+  - it: sets GATEWAY_URL pointing to gateway service
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: TUNNELER_URL
-            value: "http://RELEASE-NAME-opencode-rc-tunneler:9090"
+            name: GATEWAY_URL
+            value: "http://RELEASE-NAME-opencode-rc-gateway:9090"
 
   - it: reads REDIS_URL from secret when redis disabled
     set:

@@ -205,7 +205,7 @@ func writeTestFrame(ws *websocket.Conn, streamID uint32, frameType byte, payload
 	ws.WriteMessage(websocket.BinaryMessage, msg)
 }
 
-func TestTunnelerProxyHTTP(t *testing.T) {
+func TestGatewayProxyHTTP(t *testing.T) {
 	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/session" {
 			t.Errorf("expected /api/session, got %s", r.URL.Path)
@@ -221,7 +221,7 @@ func TestTunnelerProxyHTTP(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -234,7 +234,7 @@ func TestTunnelerProxyHTTP(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxySSE(t *testing.T) {
+func TestGatewayProxySSE(t *testing.T) {
 	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -249,7 +249,7 @@ func TestTunnelerProxySSE(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/event", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -262,7 +262,7 @@ func TestTunnelerProxySSE(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxyQueryStringForwarding(t *testing.T) {
+func TestGatewayProxyQueryStringForwarding(t *testing.T) {
 	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawQuery != "foo=bar&baz=1" {
 			t.Errorf("expected query foo=bar&baz=1, got %s", r.URL.RawQuery)
@@ -277,7 +277,7 @@ func TestTunnelerProxyQueryStringForwarding(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session?foo=bar&baz=1", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -287,7 +287,7 @@ func TestTunnelerProxyQueryStringForwarding(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxyWithRequestBody(t *testing.T) {
+func TestGatewayProxyWithRequestBody(t *testing.T) {
 	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -303,7 +303,7 @@ func TestTunnelerProxyWithRequestBody(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("POST", "/proxy/sess1/api/session/prompt", strings.NewReader(`{"prompt":"hello"}`))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -316,12 +316,12 @@ func TestTunnelerProxyWithRequestBody(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxyNoTunnel(t *testing.T) {
+func TestGatewayProxyNoTunnel(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", nil)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -334,10 +334,10 @@ func TestTunnelerProxyNoTunnel(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxyInvalidPath(t *testing.T) {
+func TestGatewayProxyInvalidPath(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 
 	for _, path := range []string{"/notProxy/sess1/api/health", "/proxy/"} {
 		req := httptest.NewRequest("GET", path, nil)
@@ -350,10 +350,10 @@ func TestTunnelerProxyInvalidPath(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxySessionNotFound(t *testing.T) {
+func TestGatewayProxySessionNotFound(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 
 	req := httptest.NewRequest("GET", "/proxy/nonexistent/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -364,7 +364,7 @@ func TestTunnelerProxySessionNotFound(t *testing.T) {
 	}
 }
 
-func TestTunnelerProxyAddsDirectoryHeader(t *testing.T) {
+func TestGatewayProxyAddsDirectoryHeader(t *testing.T) {
 	backend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dir := r.Header.Get("X-Opencode-Directory")
 		if dir != "/home/user1/project" {
@@ -380,7 +380,7 @@ func TestTunnelerProxyAddsDirectoryHeader(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/home/user1/project", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

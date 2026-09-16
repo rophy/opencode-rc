@@ -21,7 +21,7 @@ beforeEach(() => {
   }
   delete process.env.PORT;
   delete process.env.WEBUI_DIR;
-  delete process.env.TUNNELER_URL;
+  delete process.env.GATEWAY_URL;
   delete process.env.COOKIE_DOMAIN;
   delete process.env.COOKIE_SECURE;
   delete process.env.TLS_INSECURE_SKIP_VERIFY;
@@ -60,7 +60,7 @@ describe("loadConfig", () => {
   it("defaults optional fields", () => {
     const config = loadConfig();
     expect(config.webUiDir).toBe("");
-    expect(config.tunnelerUrl).toBe("");
+    expect(config.gatewayUrl).toBe("");
     expect(config.cookieDomain).toBe("");
     expect(config.oidcClientSecret).toBe("");
     expect(config.oidcCliClientId).toBe("");

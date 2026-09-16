@@ -16,7 +16,7 @@ func TestRedisStorePutGet(t *testing.T) {
 		ID:           "sess-1",
 		UserID:       "alice@example.com",
 		Directory:    "/home/alice/project",
-		TunnelerAddr: "10.0.0.1:9090",
+		GatewayAddr: "10.0.0.1:9090",
 		CreatedAt:    time.Now().Truncate(time.Millisecond),
 	}
 
@@ -34,8 +34,8 @@ func TestRedisStorePutGet(t *testing.T) {
 	if got.UserID != "alice@example.com" {
 		t.Errorf("UserID = %q, want %q", got.UserID, "alice@example.com")
 	}
-	if got.TunnelerAddr != "10.0.0.1:9090" {
-		t.Errorf("TunnelerAddr = %q, want %q", got.TunnelerAddr, "10.0.0.1:9090")
+	if got.GatewayAddr != "10.0.0.1:9090" {
+		t.Errorf("GatewayAddr = %q, want %q", got.GatewayAddr, "10.0.0.1:9090")
 	}
 }
 

@@ -18,7 +18,7 @@ const config = {
   secureCookies: false,
   redisUrl: "redis://localhost:6379/0",
   webUiDir: "",
-  tunnelerUrl: "",
+  gatewayUrl: "",
   tlsInsecureSkipVerify: false,
 };
 

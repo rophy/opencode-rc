@@ -154,7 +154,7 @@ export async function startTunnel(
   localUrl: string,
   directory: string
 ): Promise<TunnelHandle> {
-  const baseUrl = config.tunnelerUrl.replace(/\/$/, "");
+  const baseUrl = config.gatewayUrl.replace(/\/$/, "");
   const tunnelPath = `/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}`;
 
   // Pre-flight: plain HTTP request to surface auth/network errors

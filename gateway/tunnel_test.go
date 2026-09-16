@@ -195,8 +195,8 @@ func TestTunnelHandlerSuccess(t *testing.T) {
 	if meta.Directory != "/proj" {
 		t.Errorf("expected /proj, got %s", meta.Directory)
 	}
-	if meta.TunnelerAddr != "10.0.0.1:9090" {
-		t.Errorf("expected 10.0.0.1:9090, got %s", meta.TunnelerAddr)
+	if meta.GatewayAddr != "10.0.0.1:9090" {
+		t.Errorf("expected 10.0.0.1:9090, got %s", meta.GatewayAddr)
 	}
 
 	if _, ok := reg.GetTunnel("test-sess"); !ok {

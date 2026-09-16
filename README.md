@@ -13,8 +13,8 @@ flowchart LR
         OC["opencode serve"]
     end
     subgraph K8s["Kubernetes"]
+        API["API Server"]
         GW["Gateway"]
-        TUN["Tunneler"]
         REDIS["Redis"]
     end
     subgraph Browser
@@ -22,30 +22,28 @@ flowchart LR
     end
 
     CLI -- starts --> OC
-    CLI -- "WebSocket tunnel (outbound)" --> TUN
-    TUN -- registers session --> REDIS
-    GW -- looks up session --> REDIS
-    WEB -- OIDC login --> GW
-    WEB -- "requests /s/{session}/*" --> GW
-    GW -- "proxy via tunnel" --> TUN
-    TUN -- "forwards to" --> OC
+    CLI -- "WebSocket tunnel (outbound)" --> GW
+    GW -- registers session --> REDIS
+    API -- looks up session --> REDIS
+    WEB -- OIDC login --> API
+    WEB -- "requests /s/{session}/*" --> API
+    API -- "proxy via tunnel" --> GW
+    GW -- "forwards to" --> OC
 ```
 
-1. Developer runs `opencode-rc` CLI — it authenticates via OIDC, starts `opencode serve`, and opens a WebSocket tunnel to the tunneler
-2. The tunneler registers the session in Redis and multiplexes browser traffic through the tunnel
-3. The gateway authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the tunneler
+1. Developer runs `opencode-rc` CLI — it authenticates via OIDC, starts `opencode serve`, and opens a WebSocket tunnel to the gateway
+2. The gateway registers the session in Redis and multiplexes browser traffic through the tunnel
+3. The API server authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the gateway
 4. The web UI provides a session picker and wraps the OpenCode web interface
 
 ## Components
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| Gateway | `backend/` (Go) | OIDC auth, session lookup, reverse proxy to tunneler, serves web UI |
-| Tunneler | `backend/` (Go) | WebSocket tunnel server, session registration, request multiplexing |
-| CLI | `cli/` (Node) | OIDC login via PKCE, starts opencode serve, maintains tunnel to tunneler |
+| API Server | `api/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
+| Gateway | `gateway/` (Go) | WebSocket tunnel server, session registration, request multiplexing |
+| CLI | `cli/` (Node) | OIDC login via PKCE, starts opencode serve, maintains tunnel to gateway |
 | Web UI | `web/` (SolidJS) | Session picker, user bar, wraps OpenCode's web interface |
-
-Gateway and tunneler are the same Go binary (`opencode-rc gateway` / `opencode-rc tunneler`).
 
 ## Deploy with Helm
 
@@ -90,7 +88,7 @@ The `existingSecret` must contain:
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
-| `tunneler.ingress.enabled` | `false` | Create Ingress for tunneler |
+| `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
 See [`charts/opencode-rc/values.yaml`](charts/opencode-rc/values.yaml) for all options.
@@ -123,7 +121,7 @@ Images to mirror:
 
 | Image | Tag |
 |-------|-----|
-| `ghcr.io/rophy/opencode-rc/backend` | `0.1.1` |
+| `ghcr.io/rophy/opencode-rc/gateway` | `0.1.1` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
 

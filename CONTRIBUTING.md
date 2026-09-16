@@ -3,8 +3,9 @@
 ## Project Structure
 
 ```
-backend/        # Go — single binary with two subcommands: gateway, tunneler
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
+api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to gateway
+gateway/        # Go — `opencode-rc gateway` (WebSocket tunnel, mux, Redis session registration)
+cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 web/            # SolidJS SPA — session picker + OpenCode web UI wrapper
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
@@ -33,10 +34,10 @@ git submodule update --init --recursive
 
 ## Building
 
-### Backend
+### Gateway
 
 ```bash
-cd backend && go build -o opencode-rc .
+cd gateway && go build -o opencode-rc .
 ```
 
 ### Web UI
@@ -46,7 +47,7 @@ cd vendor/opencode && bun install
 cd ../../web && bun install && bun run build
 ```
 
-Output: `web/dist/` — static SPA served by the gateway via `WEBUI_DIR`.
+Output: `web/dist/` — static SPA served by the api server via `WEBUI_DIR`.
 
 ### Web Dev Server
 
@@ -77,7 +78,7 @@ E2e tests run on a kind cluster using Skaffold to build images and deploy the ac
 ```
 
 The test environment deploys:
-- The Helm chart (gateway, tunneler, redis, oidc-mock) with `local` profile
+- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 
@@ -105,22 +106,18 @@ cd vendor/opencode && git fetch --tags && git checkout <new-tag>
 cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
-## Backend Environment Variables
+## Gateway Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PORT` | No | Listen port (default: 8080) |
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
-| `OIDC_CLIENT_ID` | Yes | Web OAuth client ID |
-| `OIDC_CLIENT_SECRET` | No | Web OAuth client secret |
-| `OIDC_CLI_CLIENT_ID` | No | CLI OAuth client ID (public, PKCE) |
+| `OIDC_CLIENT_ID` | Yes | CLI OAuth client ID (public, PKCE) |
 | `OIDC_REDIRECT_URI` | Yes | OAuth callback URL |
 | `COOKIE_SECRET` | Yes | 64-char hex string (32 bytes) for session cookie encryption |
 | `COOKIE_DOMAIN` | No | Cookie domain scope |
 | `COOKIE_SECURE` | No | Set to `false` for HTTP (default: `true`) |
-| `WEBUI_DIR` | No | Path to `web/dist/` directory |
 | `REDIS_URL` | Yes | Redis connection URL |
-| `POD_IP` | Yes (tunneler) | Pod IP for tunneler registration |
+| `POD_IP` | Yes | Pod IP for session registration |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
 
 ## npm Publishing (CLI)

@@ -167,13 +167,13 @@ func TestStatusRecorderHijack(t *testing.T) {
 	}
 }
 
-func TestSetupTunnelerRoutesHealthzDegraded(t *testing.T) {
+func TestSetupGatewayRoutesHealthzDegraded(t *testing.T) {
 	client := testRedisClient(t)
 	client.Close()
 	store := NewRedisStore(client, 10*time.Minute)
 	reg := NewTunnelRegistry(store)
 	mux := http.NewServeMux()
-	SetupTunnelerRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
+	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -187,11 +187,11 @@ func TestSetupTunnelerRoutesHealthzDegraded(t *testing.T) {
 	}
 }
 
-func TestSetupTunnelerRoutesHealthz(t *testing.T) {
+func TestSetupGatewayRoutesHealthz(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
 	mux := http.NewServeMux()
-	SetupTunnelerRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
+	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()

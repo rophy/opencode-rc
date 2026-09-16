@@ -181,7 +181,7 @@ describe("proxyToLocal", () => {
 
 function makeConfig(port: number): Config {
   return {
-    tunnelerUrl: `http://127.0.0.1:${port}`,
+    gatewayUrl: `http://127.0.0.1:${port}`,
     oidcIssuer: "http://issuer.test",
     oidcClientID: "client",
     oidcTokenEndpoint: "http://issuer.test/token",
@@ -405,8 +405,8 @@ describe("startTunnel pre-flight", () => {
     );
   });
 
-  it("passes through on 400 (expected from tunneler)", async () => {
-    // The actual tunneler returns 400 for non-websocket requests.
+  it("passes through on 400 (expected from gateway)", async () => {
+    // The actual gateway returns 400 for non-websocket requests.
     // Pre-flight should not reject on 400 — it proceeds to WebSocket.
     // We can't test the full WS path here, so just verify no throw from pre-flight
     // by checking it eventually fails on the WS upgrade (not the pre-flight).

@@ -26,8 +26,8 @@ func TestTunnelRegistryRegisterAndGetTunnel(t *testing.T) {
 	if !ok {
 		t.Fatal("expected metadata to exist")
 	}
-	if meta.TunnelerAddr != "10.0.0.1:9090" {
-		t.Errorf("TunnelerAddr = %q, want %q", meta.TunnelerAddr, "10.0.0.1:9090")
+	if meta.GatewayAddr != "10.0.0.1:9090" {
+		t.Errorf("GatewayAddr = %q, want %q", meta.GatewayAddr, "10.0.0.1:9090")
 	}
 }
 

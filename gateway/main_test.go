@@ -97,7 +97,7 @@ func testConfig(t *testing.T, redisURL, oidcIssuer string) *Config {
 	}
 }
 
-func TestSetupTunneler(t *testing.T) {
+func TestSetupGateway(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -112,16 +112,16 @@ func TestSetupTunneler(t *testing.T) {
 	cfg := testConfig(t, redisURL, oidcSrv.URL)
 	cfg.PodIP = "10.0.0.1"
 
-	handler, err := setupTunneler(context.Background(), cfg)
+	handler, err := setupGateway(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("setupTunneler failed: %v", err)
+		t.Fatalf("setupGateway failed: %v", err)
 	}
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 }
 
-func TestSetupTunnelerWithCLIClient(t *testing.T) {
+func TestSetupGatewayWithCLIClient(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -137,35 +137,35 @@ func TestSetupTunnelerWithCLIClient(t *testing.T) {
 	cfg.PodIP = "10.0.0.1"
 	cfg.OIDCCLIClientID = "cli-client"
 
-	handler, err := setupTunneler(context.Background(), cfg)
+	handler, err := setupGateway(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("setupTunneler failed: %v", err)
+		t.Fatalf("setupGateway failed: %v", err)
 	}
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 }
 
-func TestSetupTunnelerMissingPodIP(t *testing.T) {
+func TestSetupGatewayMissingPodIP(t *testing.T) {
 	cfg := testConfig(t, "redis://localhost:6379", "http://localhost")
 	cfg.PodIP = ""
 
-	_, err := setupTunneler(context.Background(), cfg)
+	_, err := setupGateway(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for missing PodIP")
 	}
 }
 
-func TestSetupTunnelerBadRedis(t *testing.T) {
+func TestSetupGatewayBadRedis(t *testing.T) {
 	cfg := testConfig(t, "redis://127.0.0.1:1", "http://localhost")
 
-	_, err := setupTunneler(context.Background(), cfg)
+	_, err := setupGateway(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for unreachable Redis")
 	}
 }
 
-func TestSetupTunnelerBadOIDC(t *testing.T) {
+func TestSetupGatewayBadOIDC(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -176,21 +176,21 @@ func TestSetupTunnelerBadOIDC(t *testing.T) {
 
 	cfg := testConfig(t, redisURL, "http://127.0.0.1:1")
 
-	_, err := setupTunneler(context.Background(), cfg)
+	_, err := setupGateway(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for unreachable OIDC")
 	}
 }
 
-func TestRunTunnelerBadConfig(t *testing.T) {
+func TestRunGatewayBadConfig(t *testing.T) {
 	t.Setenv("OIDC_ISSUER", "")
-	err := runTunneler()
+	err := runGateway()
 	if err == nil {
 		t.Fatal("expected error for bad config")
 	}
 }
 
-func TestRunTunnelerBadRedis(t *testing.T) {
+func TestRunGatewayBadRedis(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -202,7 +202,7 @@ func TestRunTunnelerBadRedis(t *testing.T) {
 	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
 	t.Setenv("POD_IP", "10.0.0.1")
 
-	err := runTunneler()
+	err := runGateway()
 	if err == nil {
 		t.Fatal("expected error")
 	}

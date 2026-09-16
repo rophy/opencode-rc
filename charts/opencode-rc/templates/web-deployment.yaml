@@ -85,8 +85,8 @@ spec:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: redis-url
             {{- end }}
-            - name: TUNNELER_URL
-              value: "http://{{ include "opencode-rc.fullname" . }}-tunneler:9090"
+            - name: GATEWAY_URL
+              value: "http://{{ include "opencode-rc.fullname" . }}-gateway:9090"
           {{- with .Values.web.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -25,7 +25,7 @@ func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, direct
 		ID:           sessionID,
 		UserID:       userID,
 		Directory:    directory,
-		TunnelerAddr: podAddr,
+		GatewayAddr: podAddr,
 		CreatedAt:    time.Now(),
 	}
 	if err := r.store.Put(ctx, meta); err != nil {

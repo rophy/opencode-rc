@@ -22,12 +22,12 @@ var version = "dev"
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
-	if len(os.Args) < 2 || os.Args[1] != "tunneler" {
-		fmt.Fprintf(os.Stderr, "Usage: opencode-rc tunneler\n")
+	if len(os.Args) < 2 || os.Args[1] != "gateway" {
+		fmt.Fprintf(os.Stderr, "Usage: opencode-rc gateway\n")
 		os.Exit(1)
 	}
 
-	if err := runTunneler(); err != nil {
+	if err := runGateway(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)
 	}
@@ -79,9 +79,9 @@ func discoverOIDC(ctx context.Context, issuer string, maxRetries int) (*oidc.Pro
 
 var oidcMaxRetries = 30
 
-func setupTunneler(ctx context.Context, cfg *Config) (http.Handler, error) {
+func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 	if cfg.PodIP == "" {
-		return nil, fmt.Errorf("POD_IP is required for tunneler")
+		return nil, fmt.Errorf("POD_IP is required for gateway")
 	}
 
 	_, store, err := connectRedis(ctx, cfg.RedisURL)
@@ -104,24 +104,24 @@ func setupTunneler(ctx context.Context, cfg *Config) (http.Handler, error) {
 	registry := NewTunnelRegistry(store)
 
 	mux := http.NewServeMux()
-	SetupTunnelerRoutes(mux, verifier, cliVerifier, registry, podAddr)
+	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr)
 	return requestLogger(mux), nil
 }
 
-func runTunneler() error {
+func runGateway() error {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
 
 	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
-	handler, err := setupTunneler(ctx, cfg)
+	handler, err := setupGateway(ctx, cfg)
 	if err != nil {
 		return err
 	}
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
-	slog.Info("tunneler starting", "version", version, "addr", addr)
+	slog.Info("gateway starting", "version", version, "addr", addr)
 	return listenAndServeGraceful(addr, handler, nil)
 }
 

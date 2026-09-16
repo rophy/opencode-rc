@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func TunnelerProxyHandler(registry *TunnelRegistry) http.Handler {
+func GatewayProxyHandler(registry *TunnelRegistry) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL: /proxy/{sessionID}/api/...
 		// Strip "/proxy/{sessionID}" prefix, pass the rest to the backend.

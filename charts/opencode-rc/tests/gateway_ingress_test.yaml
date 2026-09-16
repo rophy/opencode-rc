@@ -1,6 +1,6 @@
-suite: tunneler ingress
+suite: gateway ingress
 templates:
-  - templates/tunneler-ingress.yaml
+  - templates/gateway-ingress.yaml
 tests:
   - it: is disabled by default
     asserts:
@@ -9,8 +9,8 @@ tests:
 
   - it: renders with WebSocket annotations
     set:
-      tunneler.ingress.enabled: true
-      tunneler.ingress.host: tunneler.corp.example.com
+      gateway.ingress.enabled: true
+      gateway.ingress.host: gateway.corp.example.com
     asserts:
       - isKind:
           of: Ingress
@@ -22,16 +22,16 @@ tests:
           value: "3600"
       - equal:
           path: spec.rules[0].host
-          value: tunneler.corp.example.com
+          value: gateway.corp.example.com
       - equal:
           path: spec.rules[0].http.paths[0].backend.service.port.number
           value: 9090
 
   - it: merges user annotations with WebSocket defaults
     set:
-      tunneler.ingress.enabled: true
-      tunneler.ingress.host: tunneler.corp.example.com
-      tunneler.ingress.annotations:
+      gateway.ingress.enabled: true
+      gateway.ingress.host: gateway.corp.example.com
+      gateway.ingress.annotations:
         nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     asserts:
       - equal:
@@ -43,9 +43,9 @@ tests:
 
   - it: allows user to override WebSocket timeout
     set:
-      tunneler.ingress.enabled: true
-      tunneler.ingress.host: tunneler.corp.example.com
-      tunneler.ingress.annotations:
+      gateway.ingress.enabled: true
+      gateway.ingress.host: gateway.corp.example.com
+      gateway.ingress.annotations:
         nginx.ingress.kubernetes.io/proxy-read-timeout: "7200"
     asserts:
       - equal:
@@ -54,13 +54,13 @@ tests:
 
   - it: configures TLS
     set:
-      tunneler.ingress.enabled: true
-      tunneler.ingress.host: tunneler.corp.example.com
-      tunneler.ingress.tls:
-        - secretName: tunneler-tls
+      gateway.ingress.enabled: true
+      gateway.ingress.host: gateway.corp.example.com
+      gateway.ingress.tls:
+        - secretName: gateway-tls
           hosts:
-            - tunneler.corp.example.com
+            - gateway.corp.example.com
     asserts:
       - equal:
           path: spec.tls[0].secretName
-          value: tunneler-tls
+          value: gateway-tls

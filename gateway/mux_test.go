@@ -230,7 +230,7 @@ func TestProxyWebSocketUpgradeNon101(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "ws-sess", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 
 	req := httptest.NewRequest("GET", "/proxy/ws-sess/ws", nil)
 	req.Header.Set("Upgrade", "websocket")
@@ -333,7 +333,7 @@ func TestProxyHTTPRequestWithBody(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess-body", "/proj", "", mux)
 
-	handler := TunnelerProxyHandler(reg)
+	handler := GatewayProxyHandler(reg)
 	req := httptest.NewRequest("POST", "/proxy/sess-body/api/prompt", strings.NewReader(`{"msg":"hello"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
