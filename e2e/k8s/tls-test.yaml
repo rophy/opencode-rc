@@ -134,9 +134,8 @@ spec:
         app: tls-test-trusted
     spec:
       containers:
-        - name: web
+        - name: tunneler
           image: opencode-rc-backend
-          args: ["web"]
           env:
             - name: OIDC_ISSUER
               value: "https://https-trusted"
@@ -148,6 +147,10 @@ spec:
               value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             - name: REDIS_URL
               value: "redis://opencode-rc-redis:6379/1"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: SSL_CERT_DIR
               value: "/etc/ssl/certs:/etc/ssl/certs/extra"
           volumeMounts:
@@ -159,7 +162,7 @@ spec:
           secret:
             secretName: trusted-ca
 ---
-# Test pod: web WITHOUT the untrusted CA in SSL_CERT_DIR
+# Test pod: tunneler WITHOUT the untrusted CA in SSL_CERT_DIR
 # Should fail with x509 certificate error
 apiVersion: apps/v1
 kind: Deployment
@@ -176,9 +179,8 @@ spec:
         app: tls-test-untrusted
     spec:
       containers:
-        - name: web
+        - name: tunneler
           image: opencode-rc-backend
-          args: ["web"]
           env:
             - name: OIDC_ISSUER
               value: "https://https-untrusted"
@@ -190,6 +192,10 @@ spec:
               value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             - name: REDIS_URL
               value: "redis://opencode-rc-redis:6379/1"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: SSL_CERT_DIR
               value: "/etc/ssl/certs"
           # No extra CA volume mounted

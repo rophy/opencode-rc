@@ -1,4 +1,3 @@
-// main.go
 package main
 
 import (
@@ -23,22 +22,12 @@ var version = "dev"
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: opencode-rc <web|tunneler>\n")
+	if len(os.Args) < 2 || os.Args[1] != "tunneler" {
+		fmt.Fprintf(os.Stderr, "Usage: opencode-rc tunneler\n")
 		os.Exit(1)
 	}
 
-	var err error
-	switch os.Args[1] {
-	case "web":
-		err = runWeb()
-	case "tunneler":
-		err = runTunneler()
-	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\nUsage: opencode-rc <web|tunneler>\n", os.Args[1])
-		os.Exit(1)
-	}
-	if err != nil {
+	if err := runTunneler(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)
 	}
@@ -90,25 +79,6 @@ func discoverOIDC(ctx context.Context, issuer string, maxRetries int) (*oidc.Pro
 
 var oidcMaxRetries = 30
 
-func setupWeb(ctx context.Context, cfg *Config) (http.Handler, error) {
-	_, store, err := connectRedis(ctx, cfg.RedisURL)
-	if err != nil {
-		return nil, err
-	}
-
-	provider, err := discoverOIDC(ctx, cfg.OIDCIssuer, oidcMaxRetries)
-	if err != nil {
-		return nil, err
-	}
-
-	oidcProvider := newOIDCProviderFromProvider(provider, cfg)
-	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain, cfg.SecureCookies)
-
-	mux := http.NewServeMux()
-	SetupWebRoutes(mux, auth, store, cfg.WebUIDir)
-	return requestLogger(mux), nil
-}
-
 func setupTunneler(ctx context.Context, cfg *Config) (http.Handler, error) {
 	if cfg.PodIP == "" {
 		return nil, fmt.Errorf("POD_IP is required for tunneler")
@@ -136,23 +106,6 @@ func setupTunneler(ctx context.Context, cfg *Config) (http.Handler, error) {
 	mux := http.NewServeMux()
 	SetupTunnelerRoutes(mux, verifier, cliVerifier, registry, podAddr)
 	return requestLogger(mux), nil
-}
-
-func runWeb() error {
-	cfg, err := LoadConfig()
-	if err != nil {
-		return fmt.Errorf("config: %w", err)
-	}
-
-	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
-	handler, err := setupWeb(ctx, cfg)
-	if err != nil {
-		return err
-	}
-
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	slog.Info("web starting", "version", version, "addr", addr)
-	return listenAndServeGraceful(addr, handler, nil)
 }
 
 func runTunneler() error {

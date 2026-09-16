@@ -2,12 +2,46 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
+
+type mockToken struct {
+	claims string
+}
+
+func (m *mockToken) Claims(v interface{}) error {
+	return json.Unmarshal([]byte(m.claims), v)
+}
+
+type badClaimsToken struct{}
+
+func (b *badClaimsToken) Claims(v interface{}) error {
+	return errors.New("claims parsing failed")
+}
+
+type badClaimsVerifier struct{}
+
+func (b *badClaimsVerifier) Verify(ctx context.Context, rawIDToken string) (ClaimsToken, error) {
+	return &badClaimsToken{}, nil
+}
+
+type mockVerifier struct {
+	claims string
+	err    error
+}
+
+func (m *mockVerifier) Verify(ctx context.Context, rawIDToken string) (ClaimsToken, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &mockToken{claims: m.claims}, nil
+}
 
 func testRedisStore(t *testing.T) SessionStore {
 	t.Helper()

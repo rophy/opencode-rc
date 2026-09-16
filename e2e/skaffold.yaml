@@ -6,6 +6,10 @@ build:
   local:
     push: false
   artifacts:
+    - image: opencode-rc-api
+      context: ..
+      docker:
+        dockerfile: api/Dockerfile
     - image: opencode-rc-backend
       context: ..
       docker:
@@ -35,8 +39,8 @@ deploy:
           redis.image.pullPolicy: IfNotPresent
         setValueTemplates:
           web.image.registry: ""
-          web.image.repository: "{{.IMAGE_REPO_opencode_rc_backend}}"
-          web.image.tag: "{{.IMAGE_TAG_opencode_rc_backend}}"
+          web.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
+          web.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
           tunneler.image.registry: ""
           tunneler.image.repository: "{{.IMAGE_REPO_opencode_rc_backend}}"
           tunneler.image.tag: "{{.IMAGE_TAG_opencode_rc_backend}}"

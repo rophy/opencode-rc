@@ -37,7 +37,6 @@ spec:
         - name: web
           image: {{ include "opencode-rc.image" (dict "image" .Values.web.image "global" .Values.global) }}
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
-          args: ["web"]
           ports:
             - name: http
               containerPort: 8080
@@ -86,6 +85,8 @@ spec:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: redis-url
             {{- end }}
+            - name: TUNNELER_URL
+              value: "http://{{ include "opencode-rc.fullname" . }}-tunneler:9090"
           {{- with .Values.web.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

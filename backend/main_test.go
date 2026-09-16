@@ -97,59 +97,6 @@ func testConfig(t *testing.T, redisURL, oidcIssuer string) *Config {
 	}
 }
 
-func TestSetupWeb(t *testing.T) {
-	old := oidcMaxRetries
-	oidcMaxRetries = 1
-	defer func() { oidcMaxRetries = old }()
-
-	oidcSrv := mockOIDCServer(t)
-	defer oidcSrv.Close()
-
-	redisClient := testRedisClient(t)
-	redisURL := fmt.Sprintf("redis://%s", redisClient.Options().Addr)
-	redisClient.Close()
-
-	cfg := testConfig(t, redisURL, oidcSrv.URL)
-
-	handler, err := setupWeb(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("setupWeb failed: %v", err)
-	}
-	if handler == nil {
-		t.Fatal("expected non-nil handler")
-	}
-}
-
-func TestSetupWebBadRedis(t *testing.T) {
-	old := oidcMaxRetries
-	oidcMaxRetries = 1
-	defer func() { oidcMaxRetries = old }()
-
-	cfg := testConfig(t, "redis://127.0.0.1:1", "http://localhost")
-
-	_, err := setupWeb(context.Background(), cfg)
-	if err == nil {
-		t.Fatal("expected error for unreachable Redis")
-	}
-}
-
-func TestSetupWebBadOIDC(t *testing.T) {
-	old := oidcMaxRetries
-	oidcMaxRetries = 1
-	defer func() { oidcMaxRetries = old }()
-
-	redisClient := testRedisClient(t)
-	redisURL := fmt.Sprintf("redis://%s", redisClient.Options().Addr)
-	redisClient.Close()
-
-	cfg := testConfig(t, redisURL, "http://127.0.0.1:1")
-
-	_, err := setupWeb(context.Background(), cfg)
-	if err == nil {
-		t.Fatal("expected error for unreachable OIDC")
-	}
-}
-
 func TestSetupTunneler(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
@@ -232,31 +179,6 @@ func TestSetupTunnelerBadOIDC(t *testing.T) {
 	_, err := setupTunneler(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for unreachable OIDC")
-	}
-}
-
-func TestRunWebBadConfig(t *testing.T) {
-	t.Setenv("OIDC_ISSUER", "")
-	err := runWeb()
-	if err == nil {
-		t.Fatal("expected error for missing config")
-	}
-}
-
-func TestRunWebBadRedis(t *testing.T) {
-	old := oidcMaxRetries
-	oidcMaxRetries = 1
-	defer func() { oidcMaxRetries = old }()
-
-	t.Setenv("OIDC_ISSUER", "http://127.0.0.1:1")
-	t.Setenv("OIDC_CLIENT_ID", "test")
-	t.Setenv("OIDC_REDIRECT_URI", "http://localhost/callback")
-	t.Setenv("COOKIE_SECRET", hex.EncodeToString(make([]byte, 32)))
-	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
-
-	err := runWeb()
-	if err == nil {
-		t.Fatal("expected error")
 	}
 }
 

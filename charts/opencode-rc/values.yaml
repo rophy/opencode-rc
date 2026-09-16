@@ -10,7 +10,7 @@ fullnameOverride: ""
 web:
   image:
     registry: ""
-    repository: ghcr.io/rophy/opencode-rc/backend
+    repository: ghcr.io/rophy/opencode-rc/api
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
