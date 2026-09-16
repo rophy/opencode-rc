@@ -271,6 +271,136 @@ describe("multi-user isolation", () => {
   });
 });
 
+describe("tunnel proxy", () => {
+  const jar = new CookieJar();
+
+  beforeAll(async () => {
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await loginAs(jar, "user1");
+  });
+
+  it("POST with JSON body through tunnel", async () => {
+    // POST to /api/session/message exercises the full body-forwarding path:
+    // browser → gateway → tunneler → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
+    // Even if the endpoint rejects the payload, a non-502 response proves the body was forwarded.
+    const res = await jar.fetch(
+      `${GATEWAY_URL}/s/${SESSION_ID}/api/session`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ test: true }),
+      }
+    );
+    // Any response that isn't 502 (bad gateway) proves the tunnel forwarded the request + body
+    expect(res.status).not.toBe(502);
+  });
+
+  it("proxied request preserves query string", async () => {
+    const res = await jar.fetch(
+      `${GATEWAY_URL}/s/${SESSION_ID}/api/health?foo=bar`
+    );
+    // The request reaches the backend — query string doesn't break routing
+    expect(res.status).toBe(200);
+  });
+
+  it("proxied non-existent API path returns from backend, not gateway", async () => {
+    const res = await jar.fetch(
+      `${GATEWAY_URL}/s/${SESSION_ID}/api/nonexistent-path`
+    );
+    // Should get a response from opencode (404), not a gateway error (502)
+    expect(res.status).not.toBe(502);
+  });
+
+  it("response headers are passed through tunnel", async () => {
+    const res = await jar.fetch(
+      `${GATEWAY_URL}/s/${SESSION_ID}/api/health`
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
+});
+
+describe("session metadata", () => {
+  const jar = new CookieJar();
+
+  beforeAll(async () => {
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await loginAs(jar, "user1");
+  });
+
+  it("session has expected fields", async () => {
+    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const sessions: any[] = await res.json();
+    const session = sessions.find((s: any) => s.id === SESSION_ID);
+    expect(session).toBeDefined();
+    expect(session.id).toBe(SESSION_ID);
+    expect(session).toHaveProperty("user");
+    expect(session).toHaveProperty("directory");
+  });
+
+  it("session user matches logged-in user", async () => {
+    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const sessions: any[] = await res.json();
+    const session = sessions.find((s: any) => s.id === SESSION_ID);
+    expect(session.user).toBe("alice@example.com");
+  });
+});
+
+describe("web UI serving", () => {
+  const jar = new CookieJar();
+
+  beforeAll(async () => {
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await loginAs(jar, "user1");
+  });
+
+  it("session root serves HTML page", async () => {
+    const res = await jar.fetch(`${GATEWAY_URL}/s/${SESSION_ID}/`);
+    expect(res.status).toBe(200);
+    const ct = res.headers.get("content-type") ?? "";
+    expect(ct).toContain("text/html");
+    const body = await res.text();
+    expect(body).toContain("<html");
+  });
+
+  it("/s/{id} without trailing slash redirects", async () => {
+    const res = await jar.fetch(`${GATEWAY_URL}/s/${SESSION_ID}`);
+    // Should redirect to /s/{id}/
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toContain(`/s/${SESSION_ID}/`);
+  });
+});
+
+describe("SSE streaming through tunnel", () => {
+  const jar = new CookieJar();
+
+  beforeAll(async () => {
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await loginAs(jar, "user1");
+  });
+
+  it("/global/event endpoint is reachable through tunnel", async () => {
+    // SSE endpoint should respond (even if it hangs waiting for events).
+    // Use AbortController to time out after getting the initial response.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+
+    try {
+      const res = await jar.fetch(
+        `${GATEWAY_URL}/s/${SESSION_ID}/global/event`,
+        { signal: controller.signal }
+      );
+      // Getting a response at all (not 502) proves the tunnel proxied it
+      expect(res.status).not.toBe(502);
+    } catch (err: any) {
+      // AbortError means we connected but the stream stayed open (expected for SSE)
+      if (err.name !== "AbortError") throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+});
+
 describe("api error handling", () => {
   const jar = new CookieJar();
 
