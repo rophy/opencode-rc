@@ -59,6 +59,13 @@ else
 fi
 
 echo ""
+echo "=== Pre-loading external images into kind ==="
+for img in ghcr.io/copilotkit/aimock:1.42.0 nginx:1.27-alpine; do
+  docker pull "$img" 2>/dev/null || true
+  kind load docker-image "$img" --name "$CLUSTER_NAME" 2>/dev/null || true
+done
+
+echo ""
 echo "=== Generating TLS test certs ==="
 CERT_DIR=$(mktemp -d)
 # CA 1 (trusted) + server cert for https-trusted service
