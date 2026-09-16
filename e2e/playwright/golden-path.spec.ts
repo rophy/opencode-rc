@@ -37,10 +37,16 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   await sessionCard.click();
   await expect(page).toHaveURL(/\/s\/alice-dev\//);
 
+  // Wait for the opencode UI to load through the tunnel
+  await page.locator('button[aria-label="New session"]').first().waitFor({
+    state: "visible",
+    timeout: 30_000,
+  });
+
   // Create a new conversation
   await page.locator('button[aria-label="New session"]').first().click();
   const tab = page.locator('[data-slot="titlebar-tab-item"]').last();
-  await expect(tab).toBeVisible({ timeout: 5_000 });
+  await expect(tab).toBeVisible({ timeout: 10_000 });
   await tab.locator('[data-slot="tab-link"]').click();
 
   // Wait for the prompt input to appear (opencode UI fully loaded)
