@@ -72,6 +72,14 @@ function serveStatic(webUiDir: string, subpath: string): Response {
   return new Response(file);
 }
 
+export function serveStaticFile(webUiDir: string, urlPath: string): Response {
+  const filePath = join(resolve(webUiDir), urlPath.replace(/^\//, ""));
+  if (!existsSync(filePath)) {
+    return new Response("not found", { status: 404 });
+  }
+  return new Response(Bun.file(filePath));
+}
+
 export function rootWebUiHandler(webUiDir: string) {
   return (c: Context<AuthEnv>) => {
     const filePath = join(resolve(webUiDir), "index.html");

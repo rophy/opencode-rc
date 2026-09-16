@@ -5,7 +5,7 @@ import { loadConfig } from "./config.js";
 import { discoverOIDC, createProvider } from "./oidc.js";
 import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
 import { SessionStore } from "./store.js";
-import { sessionHandler, rootWebUiHandler } from "./webui.js";
+import { sessionHandler, rootWebUiHandler, serveStaticFile } from "./webui.js";
 
 const version = process.env.VERSION ?? "dev";
 
@@ -55,7 +55,7 @@ app.get("/api/me", auth, (c) => {
 app.get("/gateway/sessions", auth, async (c) => {
   const userId = c.get("userId");
   const sessions = await store.list(userId);
-  return c.json(sessions);
+  return c.json(sessions.map((s) => ({ ...s, user: s.userId })));
 });
 
 // Session routes: /s/:sessionId/*
@@ -64,6 +64,13 @@ app.all("/s/:sessionId", auth, (c) => {
 });
 
 app.all("/s/:sessionId/*", auth, sessionHandler(store, config.webUiDir));
+
+// Static assets from SPA build
+if (config.webUiDir) {
+  app.get("/assets/*", auth, (c) => {
+    return serveStaticFile(config.webUiDir, c.req.path);
+  });
+}
 
 // Root: serve web UI or fallback dashboard
 if (config.webUiDir) {
