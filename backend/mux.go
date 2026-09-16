@@ -23,7 +23,7 @@ const (
 	frameRST             byte = 0x05
 )
 
-// requestHeaders is sent gateway → CLI to start a new proxied request.
+// requestHeaders is sent web → CLI to start a new proxied request.
 type requestHeaders struct {
 	Method  string            `json:"method"`
 	Path    string            `json:"path"`
@@ -31,7 +31,7 @@ type requestHeaders struct {
 	HasBody bool              `json:"hasBody"`
 }
 
-// responseHeaders is sent CLI → gateway with the proxied response.
+// responseHeaders is sent CLI → web with the proxied response.
 type responseHeaders struct {
 	Status  int               `json:"status"`
 	Headers map[string]string `json:"headers"`

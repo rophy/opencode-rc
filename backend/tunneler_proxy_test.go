@@ -80,7 +80,7 @@ func testTunnel(t *testing.T, backend http.Handler) (*muxConn, func()) {
 		}
 	}))
 
-	// Connect gateway-side muxConn to the WS server
+	// Connect server-side muxConn to the WS server
 	wsURL := "ws" + strings.TrimPrefix(wsSrv.URL, "http")
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestGatewayProxyReverseToTunneler(t *testing.T) {
+func TestWebProxyReverseToTunneler(t *testing.T) {
 	tunneler := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/proxy/sess-1/") {
 			w.Write([]byte("from tunneler"))
@@ -26,7 +26,7 @@ func TestGatewayProxyReverseToTunneler(t *testing.T) {
 		TunnelerAddr: tunneler.Listener.Addr().String(),
 	})
 
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -40,9 +40,9 @@ func TestGatewayProxyReverseToTunneler(t *testing.T) {
 	}
 }
 
-func TestGatewayProxySessionNotFound(t *testing.T) {
+func TestWebProxySessionNotFound(t *testing.T) {
 	store := testRedisStore(t)
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/nonexistent/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -53,7 +53,7 @@ func TestGatewayProxySessionNotFound(t *testing.T) {
 	}
 }
 
-func TestGatewayProxyQueryStringForwarding(t *testing.T) {
+func TestWebProxyQueryStringForwarding(t *testing.T) {
 	tunneler := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("query=" + r.URL.RawQuery))
 	}))
@@ -66,7 +66,7 @@ func TestGatewayProxyQueryStringForwarding(t *testing.T) {
 		TunnelerAddr: tunneler.Listener.Addr().String(),
 	})
 
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/sess-1/api/session?foo=bar", nil)
 	rec := httptest.NewRecorder()
@@ -77,14 +77,14 @@ func TestGatewayProxyQueryStringForwarding(t *testing.T) {
 	}
 }
 
-func TestGatewayProxyNoTunnelerAddr(t *testing.T) {
+func TestWebProxyNoTunnelerAddr(t *testing.T) {
 	store := testRedisStore(t)
 	store.Put(context.Background(), SessionMeta{
 		ID:     "sess-1",
 		UserID: "alice@example.com",
 	})
 
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -95,7 +95,7 @@ func TestGatewayProxyNoTunnelerAddr(t *testing.T) {
 	}
 }
 
-func TestGatewayProxyUserMismatch(t *testing.T) {
+func TestWebProxyUserMismatch(t *testing.T) {
 	store := testRedisStore(t)
 	store.Put(context.Background(), SessionMeta{
 		ID:           "sess-1",
@@ -103,7 +103,7 @@ func TestGatewayProxyUserMismatch(t *testing.T) {
 		TunnelerAddr: "10.0.0.1:9090",
 	})
 
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
 	ctx := context.WithValue(req.Context(), userContextKey, "bob@example.com")
@@ -116,9 +116,9 @@ func TestGatewayProxyUserMismatch(t *testing.T) {
 	}
 }
 
-func TestGatewayProxyStoreError(t *testing.T) {
+func TestWebProxyStoreError(t *testing.T) {
 	store := testBrokenStore(t)
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	req := httptest.NewRequest("GET", "/s/sess-1/api/health", nil)
 	rec := httptest.NewRecorder()
@@ -129,9 +129,9 @@ func TestGatewayProxyStoreError(t *testing.T) {
 	}
 }
 
-func TestGatewayProxyInvalidPaths(t *testing.T) {
+func TestWebProxyInvalidPaths(t *testing.T) {
 	store := testRedisStore(t)
-	handler := GatewayProxyHandler(store)
+	handler := WebProxyHandler(store)
 
 	for _, path := range []string{"/notS/foo", "/s/sess1"} {
 		req := httptest.NewRequest("GET", path, nil)

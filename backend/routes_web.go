@@ -2,7 +2,7 @@ package main
 
 import "net/http"
 
-func SetupGatewayRoutes(mux *http.ServeMux, auth *Auth, store SessionStore, webUIDir string) {
+func SetupWebRoutes(mux *http.ServeMux, auth *Auth, store SessionStore, webUIDir string) {
 	mux.HandleFunc("/debug/coverage", CoverageHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		status := "ok"

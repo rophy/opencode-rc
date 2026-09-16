@@ -117,7 +117,7 @@ spec:
     - port: 443
       targetPort: 443
 ---
-# Test pod: gateway with trusted CA in SSL_CERT_DIR
+# Test pod: web with trusted CA in SSL_CERT_DIR
 # Should fail with OIDC discovery error (404), NOT x509
 apiVersion: apps/v1
 kind: Deployment
@@ -134,9 +134,9 @@ spec:
         app: tls-test-trusted
     spec:
       containers:
-        - name: gateway
+        - name: web
           image: opencode-rc-backend
-          args: ["gateway"]
+          args: ["web"]
           env:
             - name: OIDC_ISSUER
               value: "https://https-trusted"
@@ -159,7 +159,7 @@ spec:
           secret:
             secretName: trusted-ca
 ---
-# Test pod: gateway WITHOUT the untrusted CA in SSL_CERT_DIR
+# Test pod: web WITHOUT the untrusted CA in SSL_CERT_DIR
 # Should fail with x509 certificate error
 apiVersion: apps/v1
 kind: Deployment
@@ -176,9 +176,9 @@ spec:
         app: tls-test-untrusted
     spec:
       containers:
-        - name: gateway
+        - name: web
           image: opencode-rc-backend
-          args: ["gateway"]
+          args: ["web"]
           env:
             - name: OIDC_ISSUER
               value: "https://https-untrusted"

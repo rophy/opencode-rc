@@ -14,7 +14,7 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   // --- Step 1: Verify CLI tunnel is connected ---
   // The dev-machine pod runs `opencode-rc` CLI which authenticates via OIDC
   // and establishes a WebSocket tunnel to the tunneler. We verify this by
-  // checking that the session appears in the gateway's session list.
+  // checking that the session appears in the web server's session list.
 
   // --- Step 2: User opens web UI and logs in via OIDC ---
   await page.goto("/");
@@ -58,7 +58,7 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   await page.keyboard.type("Hello, are you there?");
   await page.locator('[data-action="prompt-submit"]').click();
 
-  // Wait for the AI response to appear (routed through gateway → tunneler → tunnel → CLI → aimock)
+  // Wait for the AI response to appear (routed through web → tunneler → tunnel → CLI → aimock)
   await expect(page.locator("body")).toContainText("Hello from aimock", {
     timeout: 30_000,
   });

@@ -1,4 +1,3 @@
-// gateway/routes.go
 package main
 
 import (

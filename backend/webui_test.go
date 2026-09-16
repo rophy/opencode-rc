@@ -1,4 +1,4 @@
-// gateway/webui_test.go
+// webui_test.go
 package main
 
 import (

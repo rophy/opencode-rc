@@ -97,7 +97,7 @@ func testConfig(t *testing.T, redisURL, oidcIssuer string) *Config {
 	}
 }
 
-func TestSetupGateway(t *testing.T) {
+func TestSetupWeb(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -111,29 +111,29 @@ func TestSetupGateway(t *testing.T) {
 
 	cfg := testConfig(t, redisURL, oidcSrv.URL)
 
-	handler, err := setupGateway(context.Background(), cfg)
+	handler, err := setupWeb(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("setupGateway failed: %v", err)
+		t.Fatalf("setupWeb failed: %v", err)
 	}
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 }
 
-func TestSetupGatewayBadRedis(t *testing.T) {
+func TestSetupWebBadRedis(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
 
 	cfg := testConfig(t, "redis://127.0.0.1:1", "http://localhost")
 
-	_, err := setupGateway(context.Background(), cfg)
+	_, err := setupWeb(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for unreachable Redis")
 	}
 }
 
-func TestSetupGatewayBadOIDC(t *testing.T) {
+func TestSetupWebBadOIDC(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -144,7 +144,7 @@ func TestSetupGatewayBadOIDC(t *testing.T) {
 
 	cfg := testConfig(t, redisURL, "http://127.0.0.1:1")
 
-	_, err := setupGateway(context.Background(), cfg)
+	_, err := setupWeb(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error for unreachable OIDC")
 	}
@@ -235,15 +235,15 @@ func TestSetupTunnelerBadOIDC(t *testing.T) {
 	}
 }
 
-func TestRunGatewayBadConfig(t *testing.T) {
+func TestRunWebBadConfig(t *testing.T) {
 	t.Setenv("OIDC_ISSUER", "")
-	err := runGateway()
+	err := runWeb()
 	if err == nil {
 		t.Fatal("expected error for missing config")
 	}
 }
 
-func TestRunGatewayBadRedis(t *testing.T) {
+func TestRunWebBadRedis(t *testing.T) {
 	old := oidcMaxRetries
 	oidcMaxRetries = 1
 	defer func() { oidcMaxRetries = old }()
@@ -254,7 +254,7 @@ func TestRunGatewayBadRedis(t *testing.T) {
 	t.Setenv("COOKIE_SECRET", hex.EncodeToString(make([]byte, 32)))
 	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
 
-	err := runGateway()
+	err := runWeb()
 	if err == nil {
 		t.Fatal("expected error")
 	}
