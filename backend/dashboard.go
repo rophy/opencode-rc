@@ -1,4 +1,3 @@
-// gateway/dashboard.go
 package main
 
 import (

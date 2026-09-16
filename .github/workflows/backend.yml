@@ -96,8 +96,8 @@ jobs:
       - name: Build and deploy
         run: cd e2e && skaffold run -n default
 
-      - name: Wait for gateway
-        run: kubectl wait --for=condition=Available deployment/opencode-rc-gateway --timeout=120s
+      - name: Wait for web
+        run: kubectl wait --for=condition=Available deployment/opencode-rc-web --timeout=120s
 
       - name: Wait for dev-machine
         run: kubectl wait --for=condition=Available deployment/dev-machine --timeout=120s
@@ -127,24 +127,24 @@ jobs:
         run: |
           DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
           for i in $(seq 1 60); do
-            if kubectl exec "$DEV_POD" -- curl -sf http://opencode-rc-gateway:8080/healthz > /dev/null 2>&1; then
+            if kubectl exec "$DEV_POD" -- curl -sf http://opencode-rc-web:8080/healthz > /dev/null 2>&1; then
               break
             fi
             sleep 2
           done
           kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
+            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
 
       - name: Run playwright e2e tests
         run: |
           DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
           kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 npx playwright test --config playwright.config.ts"
+            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 npx playwright test --config playwright.config.ts"
 
       - name: Show logs on failure
         if: failure()
         run: |
-          kubectl logs deployment/opencode-rc-gateway --tail=50 || true
+          kubectl logs deployment/opencode-rc-web --tail=50 || true
           kubectl logs deployment/opencode-rc-tunneler --tail=50 || true
           kubectl logs deployment/dev-machine --tail=50 || true
           kubectl logs deployment/tls-test-trusted --tail=20 || true

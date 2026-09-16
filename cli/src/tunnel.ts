@@ -180,8 +180,8 @@ export async function startTunnel(
   }
 
   return new Promise((resolve, reject) => {
-    const gatewayWsUrl = baseUrl.replace(/^http/, "ws");
-    const url = `${gatewayWsUrl}${tunnelPath}`;
+    const wsUrl = baseUrl.replace(/^http/, "ws");
+    const url = `${wsUrl}${tunnelPath}`;
 
     const ws = new WebSocket(url, {
       headers: {
@@ -192,7 +192,7 @@ export async function startTunnel(
     ws.binaryType = "arraybuffer";
 
     ws.addEventListener("open", () => {
-      console.log("Tunnel established to gateway");
+      console.log("Tunnel established");
       resolve({
         close() {
           ws.close();

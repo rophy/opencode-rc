@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func GatewayProxyHandler(store SessionStore) http.Handler {
+func WebProxyHandler(store SessionStore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if !strings.HasPrefix(path, "/s/") {

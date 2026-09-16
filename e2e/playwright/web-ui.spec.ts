@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 async function loginAs(page: import("@playwright/test").Page, name: string) {
   await page.goto("/");
-  // Gateway redirects to /auth/login
+  // Web server redirects to /auth/login
   await page.waitForURL("**/auth/login");
   // Click the OIDC sign-in link
   await page.locator("a.btn", { hasText: "Sign in with OIDC" }).click();

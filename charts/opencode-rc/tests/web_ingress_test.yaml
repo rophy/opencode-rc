@@ -1,6 +1,6 @@
-suite: gateway ingress
+suite: web ingress
 templates:
-  - templates/gateway-ingress.yaml
+  - templates/web-ingress.yaml
 tests:
   - it: is disabled by default
     asserts:
@@ -9,8 +9,8 @@ tests:
 
   - it: renders when enabled with host
     set:
-      gateway.ingress.enabled: true
-      gateway.ingress.host: opencode.corp.example.com
+      web.ingress.enabled: true
+      web.ingress.host: opencode.corp.example.com
     asserts:
       - isKind:
           of: Ingress
@@ -19,16 +19,16 @@ tests:
           value: opencode.corp.example.com
       - equal:
           path: spec.rules[0].http.paths[0].backend.service.name
-          value: RELEASE-NAME-opencode-rc-gateway
+          value: RELEASE-NAME-opencode-rc-web
       - equal:
           path: spec.rules[0].http.paths[0].backend.service.port.number
           value: 8080
 
   - it: sets ingressClassName
     set:
-      gateway.ingress.enabled: true
-      gateway.ingress.host: opencode.corp.example.com
-      gateway.ingress.className: nginx
+      web.ingress.enabled: true
+      web.ingress.host: opencode.corp.example.com
+      web.ingress.className: nginx
     asserts:
       - equal:
           path: spec.ingressClassName
@@ -36,9 +36,9 @@ tests:
 
   - it: applies annotations
     set:
-      gateway.ingress.enabled: true
-      gateway.ingress.host: opencode.corp.example.com
-      gateway.ingress.annotations:
+      web.ingress.enabled: true
+      web.ingress.host: opencode.corp.example.com
+      web.ingress.annotations:
         nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     asserts:
       - equal:
@@ -47,9 +47,9 @@ tests:
 
   - it: configures TLS
     set:
-      gateway.ingress.enabled: true
-      gateway.ingress.host: opencode.corp.example.com
-      gateway.ingress.tls:
+      web.ingress.enabled: true
+      web.ingress.host: opencode.corp.example.com
+      web.ingress.tls:
         - secretName: opencode-tls
           hosts:
             - opencode.corp.example.com

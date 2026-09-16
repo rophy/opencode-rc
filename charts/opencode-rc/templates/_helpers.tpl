@@ -48,7 +48,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Build image reference from component image config.
-Usage: {{ include "opencode-rc.image" (dict "image" .Values.gateway.image "global" .Values.global) }}
+Usage: {{ include "opencode-rc.image" (dict "image" .Values.web.image "global" .Values.global) }}
 */}}
 {{- define "opencode-rc.image" -}}
 {{- $registry := .image.registry -}}
@@ -96,19 +96,19 @@ OIDC Issuer — explicit value, or oidc-mock service URL in local profile.
 {{- end }}
 
 {{/*
-OIDC Redirect URI — explicit value, or auto-derived from gateway ingress, or fallback to service.
+OIDC Redirect URI — explicit value, or auto-derived from web ingress, or fallback to service.
 */}}
 {{- define "opencode-rc.redirectUri" -}}
 {{- if .Values.oidc.redirectUri -}}
   {{- .Values.oidc.redirectUri -}}
-{{- else if and .Values.gateway.ingress.enabled .Values.gateway.ingress.host -}}
-  {{- if .Values.gateway.ingress.tls -}}
-    https://{{ .Values.gateway.ingress.host }}/auth/callback
+{{- else if and .Values.web.ingress.enabled .Values.web.ingress.host -}}
+  {{- if .Values.web.ingress.tls -}}
+    https://{{ .Values.web.ingress.host }}/auth/callback
   {{- else -}}
-    http://{{ .Values.gateway.ingress.host }}/auth/callback
+    http://{{ .Values.web.ingress.host }}/auth/callback
   {{- end -}}
 {{- else -}}
-  http://{{ include "opencode-rc.fullname" . }}-gateway:8080/auth/callback
+  http://{{ include "opencode-rc.fullname" . }}-web:8080/auth/callback
 {{- end -}}
 {{- end }}
 

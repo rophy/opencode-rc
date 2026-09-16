@@ -1,4 +1,3 @@
-// gateway/webui.go
 package main
 
 import (
@@ -28,7 +27,7 @@ func WebUIHandler(webUIDir string) http.Handler {
 }
 
 func SessionWebUIOrProxy(store SessionStore, webUIDir string) http.Handler {
-	proxy := GatewayProxyHandler(store)
+	proxy := WebProxyHandler(store)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path

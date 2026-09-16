@@ -170,11 +170,11 @@ func TestStatusRecorderHijack(t *testing.T) {
 	}
 }
 
-func TestSetupGatewayRoutesHealthz(t *testing.T) {
+func TestSetupWebRoutesHealthz(t *testing.T) {
 	store := testRedisStore(t)
 	a, _ := testAuth()
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, a, store, "")
+	SetupWebRoutes(mux, a, store, "")
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -188,11 +188,11 @@ func TestSetupGatewayRoutesHealthz(t *testing.T) {
 	}
 }
 
-func TestSetupGatewayRoutesLoginPage(t *testing.T) {
+func TestSetupWebRoutesLoginPage(t *testing.T) {
 	store := testRedisStore(t)
 	a, _ := testAuth()
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, a, store, "")
+	SetupWebRoutes(mux, a, store, "")
 
 	req := httptest.NewRequest("GET", "/auth/login", nil)
 	rec := httptest.NewRecorder()
@@ -206,11 +206,11 @@ func TestSetupGatewayRoutesLoginPage(t *testing.T) {
 	}
 }
 
-func TestSetupGatewayRoutesRootRedirectsToLogin(t *testing.T) {
+func TestSetupWebRoutesRootRedirectsToLogin(t *testing.T) {
 	store := testRedisStore(t)
 	a, _ := testAuth()
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, a, store, "")
+	SetupWebRoutes(mux, a, store, "")
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
@@ -221,13 +221,13 @@ func TestSetupGatewayRoutesRootRedirectsToLogin(t *testing.T) {
 	}
 }
 
-func TestSetupGatewayRoutesHealthzDegraded(t *testing.T) {
+func TestSetupWebRoutesHealthzDegraded(t *testing.T) {
 	client := testRedisClient(t)
 	client.Close() // close to make Ping fail
 	store := NewRedisStore(client, 10*time.Minute)
 	a, _ := testAuth()
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, a, store, "")
+	SetupWebRoutes(mux, a, store, "")
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -241,14 +241,14 @@ func TestSetupGatewayRoutesHealthzDegraded(t *testing.T) {
 	}
 }
 
-func TestSetupGatewayRoutesWithWebUIDir(t *testing.T) {
+func TestSetupWebRoutesWithWebUIDir(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>web</html>"), 0644)
 
 	store := testRedisStore(t)
 	a, sc := testAuth()
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, a, store, dir)
+	SetupWebRoutes(mux, a, store, dir)
 
 	// Auth-protected root should serve WebUIHandler instead of DashboardHandler
 	data := sessionData{

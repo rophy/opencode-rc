@@ -2,25 +2,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "opencode-rc.fullname" . }}-gateway
+  name: {{ include "opencode-rc.fullname" . }}-web
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
-    app.kubernetes.io/component: gateway
+    app.kubernetes.io/component: web
 spec:
-  replicas: {{ .Values.gateway.replicas }}
+  replicas: {{ .Values.web.replicas }}
   selector:
     matchLabels:
       {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: gateway
+      app.kubernetes.io/component: web
   template:
     metadata:
       labels:
         {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: gateway
-        {{- with .Values.gateway.podLabels }}
+        app.kubernetes.io/component: web
+        {{- with .Values.web.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.gateway.podAnnotations }}
+      {{- with .Values.web.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -29,15 +29,15 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.gateway.securityContext }}
+      {{- with .Values.web.securityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: gateway
-          image: {{ include "opencode-rc.image" (dict "image" .Values.gateway.image "global" .Values.global) }}
-          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
-          args: ["gateway"]
+        - name: web
+          image: {{ include "opencode-rc.image" (dict "image" .Values.web.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          args: ["web"]
           ports:
             - name: http
               containerPort: 8080
@@ -86,7 +86,7 @@ spec:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: redis-url
             {{- end }}
-          {{- with .Values.gateway.resources }}
+          {{- with .Values.web.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -96,7 +96,7 @@ spec:
               mountPath: /etc/ssl/certs/extra
               readOnly: true
           {{- end }}
-          {{- with .Values.gateway.containerSecurityContext }}
+          {{- with .Values.web.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -106,15 +106,15 @@ spec:
           configMap:
             name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
       {{- end }}
-      {{- with .Values.gateway.nodeSelector }}
+      {{- with .Values.web.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.gateway.affinity }}
+      {{- with .Values.web.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.gateway.tolerations }}
+      {{- with .Values.web.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

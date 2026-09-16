@@ -1,4 +1,3 @@
-// gateway/auth_test.go
 package main
 
 import (

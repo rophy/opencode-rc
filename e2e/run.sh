@@ -105,8 +105,8 @@ echo "=== Building and deploying ==="
 skaffold run -n "$NAMESPACE"
 
 echo ""
-echo "=== Waiting for gateway to be healthy ==="
-kubectl wait --for=condition=Available deployment/opencode-rc-gateway --timeout=120s -n "$NAMESPACE"
+echo "=== Waiting for web to be healthy ==="
+kubectl wait --for=condition=Available deployment/opencode-rc-web --timeout=120s -n "$NAMESPACE"
 
 echo ""
 echo "=== Waiting for dev-machine to be ready ==="
@@ -117,13 +117,13 @@ DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.na
 echo ""
 echo "=== Waiting for tunnel to establish ==="
 for i in $(seq 1 60); do
-  if kubectl exec "$DEV_POD" -n "$NAMESPACE" -- curl -sf http://opencode-rc-gateway:8080/healthz >/dev/null 2>&1; then
-    echo "Gateway reachable from dev-machine"
+  if kubectl exec "$DEV_POD" -n "$NAMESPACE" -- curl -sf http://opencode-rc-web:8080/healthz >/dev/null 2>&1; then
+    echo "Web server reachable from dev-machine"
     break
   fi
   if [ "$i" -eq 60 ]; then
-    echo "ERROR: gateway not reachable after 60 attempts"
-    kubectl logs deployment/opencode-rc-gateway -n "$NAMESPACE" --tail=30
+    echo "ERROR: web server not reachable after 60 attempts"
+    kubectl logs deployment/opencode-rc-web -n "$NAMESPACE" --tail=30
     kubectl logs deployment/dev-machine -n "$NAMESPACE" --tail=30
     exit 1
   fi
@@ -171,20 +171,20 @@ if [ "$RUN_VITEST" = true ]; then
   echo ""
   echo "=== Running vitest e2e tests ==="
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- sh -c \
-    "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$?
+    "cd /e2e && WEB_URL=http://opencode-rc-web:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$?
 fi
 
 if [ "$RUN_PLAYWRIGHT" = true ]; then
   echo ""
   echo "=== Running playwright e2e tests ==="
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- sh -c \
-    "cd /e2e && GATEWAY_URL=http://opencode-rc-gateway:8080 npx playwright test --config playwright.config.ts" || TEST_EXIT=$?
+    "cd /e2e && WEB_URL=http://opencode-rc-web:8080 npx playwright test --config playwright.config.ts" || TEST_EXIT=$?
 fi
 
 if [ "$TEST_EXIT" -ne 0 ]; then
   echo ""
   echo "=== Logs on failure ==="
-  kubectl logs deployment/opencode-rc-gateway -n "$NAMESPACE" --tail=50 || true
+  kubectl logs deployment/opencode-rc-web -n "$NAMESPACE" --tail=50 || true
   kubectl logs deployment/opencode-rc-tunneler -n "$NAMESPACE" --tail=50 || true
   kubectl logs deployment/dev-machine -n "$NAMESPACE" --tail=50 || true
 fi
@@ -196,13 +196,13 @@ if [ "$COVERAGE" = true ]; then
   mkdir -p "$COVER_DIR/raw"
 
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- \
-    curl -sf http://opencode-rc-gateway:8080/debug/coverage > "$COVER_DIR/raw/gateway.tar"
-  if [ -s "$COVER_DIR/raw/gateway.tar" ]; then
-    mkdir -p "$COVER_DIR/raw/gateway"
-    tar xf "$COVER_DIR/raw/gateway.tar" -C "$COVER_DIR/raw/gateway"
-    echo "Gateway coverage collected"
+    curl -sf http://opencode-rc-web:8080/debug/coverage > "$COVER_DIR/raw/web.tar"
+  if [ -s "$COVER_DIR/raw/web.tar" ]; then
+    mkdir -p "$COVER_DIR/raw/web"
+    tar xf "$COVER_DIR/raw/web.tar" -C "$COVER_DIR/raw/web"
+    echo "Web coverage collected"
   else
-    echo "WARNING: No gateway coverage"
+    echo "WARNING: No web coverage"
   fi
 
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- \
@@ -218,7 +218,7 @@ if [ "$COVERAGE" = true ]; then
   echo ""
   echo "=== Generating coverage report ==="
   mkdir -p "$COVER_DIR/merged"
-  go tool covdata merge -i="$COVER_DIR/raw/gateway","$COVER_DIR/raw/tunneler" -o="$COVER_DIR/merged"
+  go tool covdata merge -i="$COVER_DIR/raw/web","$COVER_DIR/raw/tunneler" -o="$COVER_DIR/merged"
   cd "$REPO_ROOT/backend"
   go tool covdata textfmt -i="$COVER_DIR/merged" -o="$COVER_DIR/coverage.out"
   go tool cover -func="$COVER_DIR/coverage.out" | tail -1

@@ -1,4 +1,3 @@
-// gateway/oidc.go
 package main
 
 import (

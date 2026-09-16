@@ -7,7 +7,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-gateway:
+web:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/backend

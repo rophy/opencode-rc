@@ -9,7 +9,7 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 
 ```
 backend/        # Go — builds `opencode-rc` binary with two subcommands:
-                #   `opencode-rc gateway` (stateless reverse proxy, auth, dashboard)
+                #   `opencode-rc web` (stateless reverse proxy, auth, dashboard)
                 #   `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
@@ -49,11 +49,11 @@ cd vendor/opencode && bun install
 cd web && bun install && bun run build
 ```
 
-Output: `web/dist/` — static SPA served by the gateway via `WEBUI_DIR`.
+Output: `web/dist/` — static SPA served by the web server via `WEBUI_DIR`.
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 
-### Gateway
+### Backend
 
 ```bash
 cd backend && go build -o opencode-rc .
@@ -91,7 +91,7 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
 
 The test environment deploys:
-- The Helm chart (gateway, tunneler, redis, oidc-mock) with `local` profile
+- The Helm chart (web, tunneler, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 

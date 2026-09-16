@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
-const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:8080";
+const WEB_URL = process.env.WEB_URL ?? "http://opencode-rc-web:8080";
 const TUNNELER_URL = process.env.TUNNELER_URL ?? "http://opencode-rc-tunneler:9090";
 const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
-const OIDC_CLIENT_ID = process.env.GATEWAY_OIDC_CLIENT_ID ?? "opencode-rc";
+const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 
 async function waitFor(
@@ -58,7 +58,7 @@ class CookieJar {
 }
 
 async function loginAs(jar: CookieJar, sub: string): Promise<void> {
-  const startRes = await jar.fetch(`${GATEWAY_URL}/auth/start`);
+  const startRes = await jar.fetch(`${WEB_URL}/auth/start`);
   const redirectUrl = startRes.headers.get("location")!;
   const url = new URL(redirectUrl);
 
@@ -86,12 +86,12 @@ describe("opencode-rc e2e", () => {
 
   beforeAll(async () => {
     await waitFor("oidc-mock", `${OIDC_URL}/.well-known/openid-configuration`, 30);
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
   });
 
-  it("gateway /healthz returns ok", async () => {
-    const res = await fetch(`${GATEWAY_URL}/healthz`);
+  it("web /healthz returns ok", async () => {
+    const res = await fetch(`${WEB_URL}/healthz`);
     const body = await res.json();
     expect(body.status).toBe("ok");
   });
@@ -102,8 +102,8 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("gateway /auth/login shows login page", async () => {
-    const res = await fetch(`${GATEWAY_URL}/auth/login`);
+  it("web /auth/login shows login page", async () => {
+    const res = await fetch(`${WEB_URL}/auth/login`);
     const text = await res.text();
     expect(text).toContain("Sign in with OIDC");
   });
@@ -114,7 +114,7 @@ describe("opencode-rc e2e", () => {
   });
 
   it("dashboard accessible with session cookie", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/`);
+    const res = await jar.fetch(`${WEB_URL}/`);
     expect(res.status).toBe(200);
   });
 
@@ -122,7 +122,7 @@ describe("opencode-rc e2e", () => {
     let sessions: any[] = [];
     for (let i = 0; i < 60; i++) {
       try {
-        const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+        const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
         sessions = await res.json();
         if (sessions.length >= 1) break;
       } catch {}
@@ -132,13 +132,13 @@ describe("opencode-rc e2e", () => {
   });
 
   it("session visible in dashboard", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions = await res.json();
     expect(sessions.length).toBeGreaterThanOrEqual(1);
   });
 
   it("expected session found by ID", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const found = sessions.some((s: any) => s.id === SESSION_ID);
     expect(found).toBe(true);
@@ -149,7 +149,7 @@ describe("opencode-rc e2e", () => {
     for (let i = 0; i < 30; i++) {
       try {
         const res = await jar.fetch(
-          `${GATEWAY_URL}/s/${SESSION_ID}/api/health`
+          `${WEB_URL}/s/${SESSION_ID}/api/health`
         );
         body = await res.json();
         if (body) break;
@@ -161,14 +161,14 @@ describe("opencode-rc e2e", () => {
 
   it("proxied /api/session returns JSON", async () => {
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/session`
+      `${WEB_URL}/s/${SESSION_ID}/api/session`
     );
     const body = await res.json();
     expect(body).toBeTruthy();
   });
 
   it("/api/me returns user info", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/api/me`);
+    const res = await jar.fetch(`${WEB_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("alice@example.com");
   });
@@ -176,17 +176,17 @@ describe("opencode-rc e2e", () => {
 
 describe("auth edge cases", () => {
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
   });
 
   it("unauthenticated /api/me redirects to login", async () => {
-    const res = await fetch(`${GATEWAY_URL}/api/me`, { redirect: "manual" });
+    const res = await fetch(`${WEB_URL}/api/me`, { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/auth/login");
   });
 
   it("unauthenticated /gateway/sessions redirects to login", async () => {
-    const res = await fetch(`${GATEWAY_URL}/gateway/sessions`, {
+    const res = await fetch(`${WEB_URL}/gateway/sessions`, {
       redirect: "manual",
     });
     expect(res.status).toBe(302);
@@ -194,14 +194,14 @@ describe("auth edge cases", () => {
   });
 
   it("unauthenticated / redirects to login", async () => {
-    const res = await fetch(`${GATEWAY_URL}/`, { redirect: "manual" });
+    const res = await fetch(`${WEB_URL}/`, { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/auth/login");
   });
 
   it("unauthenticated session proxy redirects to login", async () => {
     const res = await fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/health`,
+      `${WEB_URL}/s/${SESSION_ID}/api/health`,
       { redirect: "manual" }
     );
     expect(res.status).toBe(302);
@@ -212,14 +212,14 @@ describe("auth edge cases", () => {
     const jar = new CookieJar();
     await loginAs(jar, "user1");
 
-    const meRes = await jar.fetch(`${GATEWAY_URL}/api/me`);
+    const meRes = await jar.fetch(`${WEB_URL}/api/me`);
     expect(meRes.status).toBe(200);
 
-    const logoutRes = await jar.fetch(`${GATEWAY_URL}/auth/logout`);
+    const logoutRes = await jar.fetch(`${WEB_URL}/auth/logout`);
     expect(logoutRes.status).toBe(302);
     expect(logoutRes.headers.get("location")).toBe("/");
 
-    const afterRes = await jar.fetch(`${GATEWAY_URL}/api/me`);
+    const afterRes = await jar.fetch(`${WEB_URL}/api/me`);
     expect(afterRes.status).toBe(302);
     expect(afterRes.headers.get("location")).toBe("/auth/login");
   });
@@ -230,34 +230,34 @@ describe("multi-user isolation", () => {
   const bobJar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(aliceJar, "user1");
     await loginAs(bobJar, "user2");
   });
 
   it("alice /api/me returns alice", async () => {
-    const res = await aliceJar.fetch(`${GATEWAY_URL}/api/me`);
+    const res = await aliceJar.fetch(`${WEB_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("alice@example.com");
     expect(body.name).toBe("Alice");
   });
 
   it("bob /api/me returns bob", async () => {
-    const res = await bobJar.fetch(`${GATEWAY_URL}/api/me`);
+    const res = await bobJar.fetch(`${WEB_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("bob@example.com");
     expect(body.name).toBe("Bob");
   });
 
   it("alice sees her own sessions", async () => {
-    const res = await aliceJar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await aliceJar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     expect(sessions.length).toBeGreaterThanOrEqual(1);
     expect(sessions.some((s) => s.id === SESSION_ID)).toBe(true);
   });
 
   it("bob does not see alice's sessions", async () => {
-    const res = await bobJar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await bobJar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const hasAlice = sessions.some((s) => s.id === SESSION_ID);
     expect(hasAlice).toBe(false);
@@ -265,7 +265,7 @@ describe("multi-user isolation", () => {
 
   it("bob cannot proxy to alice's session", async () => {
     const res = await bobJar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/health`
+      `${WEB_URL}/s/${SESSION_ID}/api/health`
     );
     expect(res.status).toBe(404);
   });
@@ -275,45 +275,45 @@ describe("tunnel proxy", () => {
   const jar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(jar, "user1");
   });
 
   it("POST with JSON body through tunnel", async () => {
     // POST to /api/session/message exercises the full body-forwarding path:
-    // browser → gateway → tunneler → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
+    // browser → web → tunneler → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
     // Even if the endpoint rejects the payload, a non-502 response proves the body was forwarded.
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/session`,
+      `${WEB_URL}/s/${SESSION_ID}/api/session`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ test: true }),
       }
     );
-    // Any response that isn't 502 (bad gateway) proves the tunnel forwarded the request + body
+    // Any response that isn't 502 proves the tunnel forwarded the request + body
     expect(res.status).not.toBe(502);
   });
 
   it("proxied request preserves query string", async () => {
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/health?foo=bar`
+      `${WEB_URL}/s/${SESSION_ID}/api/health?foo=bar`
     );
     // The request reaches the backend — query string doesn't break routing
     expect(res.status).toBe(200);
   });
 
-  it("proxied non-existent API path returns from backend, not gateway", async () => {
+  it("proxied non-existent API path returns from backend, not web", async () => {
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/nonexistent-path`
+      `${WEB_URL}/s/${SESSION_ID}/api/nonexistent-path`
     );
-    // Should get a response from opencode (404), not a gateway error (502)
+    // Should get a response from opencode (404), not a web server error (502)
     expect(res.status).not.toBe(502);
   });
 
   it("response headers are passed through tunnel", async () => {
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/${SESSION_ID}/api/health`
+      `${WEB_URL}/s/${SESSION_ID}/api/health`
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/json");
@@ -324,12 +324,12 @@ describe("session metadata", () => {
   const jar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(jar, "user1");
   });
 
   it("session has expected fields", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const session = sessions.find((s: any) => s.id === SESSION_ID);
     expect(session).toBeDefined();
@@ -339,7 +339,7 @@ describe("session metadata", () => {
   });
 
   it("session user matches logged-in user", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const session = sessions.find((s: any) => s.id === SESSION_ID);
     expect(session.user).toBe("alice@example.com");
@@ -350,12 +350,12 @@ describe("web UI serving", () => {
   const jar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(jar, "user1");
   });
 
   it("session root serves HTML page", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/s/${SESSION_ID}/`);
+    const res = await jar.fetch(`${WEB_URL}/s/${SESSION_ID}/`);
     expect(res.status).toBe(200);
     const ct = res.headers.get("content-type") ?? "";
     expect(ct).toContain("text/html");
@@ -364,7 +364,7 @@ describe("web UI serving", () => {
   });
 
   it("/s/{id} without trailing slash redirects", async () => {
-    const res = await jar.fetch(`${GATEWAY_URL}/s/${SESSION_ID}`);
+    const res = await jar.fetch(`${WEB_URL}/s/${SESSION_ID}`);
     // Should redirect to /s/{id}/
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain(`/s/${SESSION_ID}/`);
@@ -375,7 +375,7 @@ describe("SSE streaming through tunnel", () => {
   const jar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(jar, "user1");
   });
 
@@ -387,7 +387,7 @@ describe("SSE streaming through tunnel", () => {
 
     try {
       const res = await jar.fetch(
-        `${GATEWAY_URL}/s/${SESSION_ID}/global/event`,
+        `${WEB_URL}/s/${SESSION_ID}/global/event`,
         { signal: controller.signal }
       );
       // Getting a response at all (not 502) proves the tunnel proxied it
@@ -405,12 +405,12 @@ describe("api error handling", () => {
   const jar = new CookieJar();
 
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await loginAs(jar, "user1");
   });
 
   it("healthz includes version field", async () => {
-    const res = await fetch(`${GATEWAY_URL}/healthz`);
+    const res = await fetch(`${WEB_URL}/healthz`);
     const body = await res.json();
     expect(body).toHaveProperty("version");
     expect(typeof body.version).toBe("string");
@@ -418,7 +418,7 @@ describe("api error handling", () => {
 
   it("invalid session ID returns 404", async () => {
     const res = await jar.fetch(
-      `${GATEWAY_URL}/s/nonexistent-session/api/health`
+      `${WEB_URL}/s/nonexistent-session/api/health`
     );
     expect(res.status).toBe(404);
   });
@@ -437,12 +437,12 @@ describe("api error handling", () => {
 
 describe("coverage endpoint", () => {
   beforeAll(async () => {
-    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
+    await waitFor("web", `${WEB_URL}/healthz`, 30);
     await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
   });
 
-  it("gateway /debug/coverage returns tar", async () => {
-    const res = await fetch(`${GATEWAY_URL}/debug/coverage`);
+  it("web /debug/coverage returns tar", async () => {
+    const res = await fetch(`${WEB_URL}/debug/coverage`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/x-tar");
     const body = await res.arrayBuffer();

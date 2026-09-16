@@ -1,4 +1,3 @@
-// gateway/config.go
 package main
 
 import (

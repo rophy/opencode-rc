@@ -1,4 +1,4 @@
-// gateway/dashboard_test.go
+// dashboard_test.go
 package main
 
 import (
