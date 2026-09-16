@@ -11,7 +11,7 @@ gateway:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/backend
-    tag: "0.1.1"
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
@@ -33,7 +33,7 @@ tunneler:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/backend
-    tag: "0.1.1"
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
