@@ -22,11 +22,6 @@ var version = "dev"
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
-	if len(os.Args) < 2 || os.Args[1] != "gateway" {
-		fmt.Fprintf(os.Stderr, "Usage: opencode-rc gateway\n")
-		os.Exit(1)
-	}
-
 	if err := runGateway(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)

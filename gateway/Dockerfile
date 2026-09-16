@@ -14,4 +14,4 @@ RUN if [ "$COVER" = "true" ]; then \
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /opencode-rc /opencode-rc
 EXPOSE 8080
-ENTRYPOINT ["/opencode-rc", "gateway"]
+ENTRYPOINT ["/opencode-rc"]
