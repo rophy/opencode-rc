@@ -8,13 +8,13 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to gateway
-gateway/        # Go — `opencode-rc gateway` (WebSocket tunnel, mux, Redis session registration)
+web/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, SPA serving, proxy to gateway
+gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
-web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
+ui/             # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
-vendor/opencode # Git submodule — upstream opencode source (build dependency for web/)
+vendor/opencode # Git submodule — upstream opencode source (build dependency for ui/)
 docs/           # Design docs
 ```
 
@@ -36,7 +36,7 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 
 ## Building
 
-### Web (rc-web)
+### UI (rc-web SPA)
 
 rc-web uses a custom Vite resolve plugin to compile against opencode source in the submodule.
 
@@ -45,30 +45,30 @@ rc-web uses a custom Vite resolve plugin to compile against opencode source in t
 cd vendor/opencode && bun install
 
 # Build rc-web
-cd web && bun install && bun run build
+cd ui && bun install && bun run build
 ```
 
-Output: `web/dist/` — static SPA served by the api server via `WEBUI_DIR`.
+Output: `ui/dist/` — static SPA served by the web server via `WEBUI_DIR`.
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 
-### API Server
+### Web Server
 
 ```bash
-cd api && bun install && bun run src/index.ts
+cd web && bun install && bun run src/index.ts
 ```
 
 ### Gateway
 
 ```bash
 cd gateway && go build -o opencode-rc .
-./opencode-rc gateway
+./opencode-rc
 ```
 
-### Dev server (web)
+### Dev server (UI)
 
 ```bash
-cd web && bun run dev
+cd ui && bun run dev
 ```
 
 Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
