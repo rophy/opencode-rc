@@ -63,7 +63,7 @@ spec:
           command: ["/bin/bash", "/config/entrypoint.sh"]
           args: ["node", "/cli/dist/index.js"]
           env:
-            - name: OPENCODE_RC_GATEWAY_URL
+            - name: OPENCODE_RC_TUNNELER_URL
               value: "http://opencode-rc-tunneler:9090"
             - name: OPENCODE_RC_SESSION_ID
               value: "alice-dev"
