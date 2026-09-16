@@ -1,0 +1,25 @@
+name: API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+  pull_request:
+    paths:
+      - 'api/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run test
