@@ -8,12 +8,12 @@ Web URL: http{{ if .Values.web.ingress.tls }}s{{ end }}://{{ .Values.web.ingress
 Web: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-web 8080:8080
 {{- end }}
 
-{{- if .Values.tunneler.ingress.enabled }}
-Tunneler URL: http{{ if .Values.tunneler.ingress.tls }}s{{ end }}://{{ .Values.tunneler.ingress.host }}
+{{- if .Values.gateway.ingress.enabled }}
+Gateway URL: http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}
 {{- else }}
-Tunneler: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-tunneler 9090:9090
+Gateway: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-gateway 9090:9090
 {{- end }}
 
 CLI setup:
   npm install -g opencode-rc
-  opencode-rc --gateway-url {{ if .Values.tunneler.ingress.enabled }}http{{ if .Values.tunneler.ingress.tls }}s{{ end }}://{{ .Values.tunneler.ingress.host }}{{ else }}http://localhost:9090{{ end }}
+  opencode-rc --gateway-url {{ if .Values.gateway.ingress.enabled }}http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}{{ else }}http://localhost:9090{{ end }}
