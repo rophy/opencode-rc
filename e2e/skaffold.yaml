@@ -10,10 +10,10 @@ build:
       context: ..
       docker:
         dockerfile: api/Dockerfile
-    - image: opencode-rc-backend
+    - image: opencode-rc-gateway
       context: ..
       docker:
-        dockerfile: backend/Dockerfile
+        dockerfile: gateway/Dockerfile
         buildArgs:
           COVER: "true"
     - image: dev-machine
@@ -34,13 +34,13 @@ deploy:
         setValues:
           fullnameOverride: opencode-rc
           web.image.pullPolicy: Never
-          tunneler.image.pullPolicy: Never
+          gateway.image.pullPolicy: Never
           oidcMock.image.pullPolicy: IfNotPresent
           redis.image.pullPolicy: IfNotPresent
         setValueTemplates:
           web.image.registry: ""
           web.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
           web.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
-          tunneler.image.registry: ""
-          tunneler.image.repository: "{{.IMAGE_REPO_opencode_rc_backend}}"
-          tunneler.image.tag: "{{.IMAGE_TAG_opencode_rc_backend}}"
+          gateway.image.registry: ""
+          gateway.image.repository: "{{.IMAGE_REPO_opencode_rc_gateway}}"
+          gateway.image.tag: "{{.IMAGE_TAG_opencode_rc_gateway}}"

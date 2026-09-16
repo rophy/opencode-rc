@@ -171,7 +171,7 @@ if [ "$RUN_VITEST" = true ]; then
   echo ""
   echo "=== Running vitest e2e tests ==="
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- sh -c \
-    "cd /e2e && WEB_URL=http://opencode-rc-web:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$?
+    "cd /e2e && WEB_URL=http://opencode-rc-web:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$?
 fi
 
 if [ "$RUN_PLAYWRIGHT" = true ]; then
@@ -185,7 +185,7 @@ if [ "$TEST_EXIT" -ne 0 ]; then
   echo ""
   echo "=== Logs on failure ==="
   kubectl logs deployment/opencode-rc-web -n "$NAMESPACE" --tail=50 || true
-  kubectl logs deployment/opencode-rc-tunneler -n "$NAMESPACE" --tail=50 || true
+  kubectl logs deployment/opencode-rc-gateway -n "$NAMESPACE" --tail=50 || true
   kubectl logs deployment/dev-machine -n "$NAMESPACE" --tail=50 || true
 fi
 
@@ -206,20 +206,20 @@ if [ "$COVERAGE" = true ]; then
   fi
 
   kubectl exec "$DEV_POD" -n "$NAMESPACE" -- \
-    curl -sf http://opencode-rc-tunneler:9090/debug/coverage > "$COVER_DIR/raw/tunneler.tar"
-  if [ -s "$COVER_DIR/raw/tunneler.tar" ]; then
-    mkdir -p "$COVER_DIR/raw/tunneler"
-    tar xf "$COVER_DIR/raw/tunneler.tar" -C "$COVER_DIR/raw/tunneler"
-    echo "Tunneler coverage collected"
+    curl -sf http://opencode-rc-gateway:9090/debug/coverage > "$COVER_DIR/raw/gateway.tar"
+  if [ -s "$COVER_DIR/raw/gateway.tar" ]; then
+    mkdir -p "$COVER_DIR/raw/gateway"
+    tar xf "$COVER_DIR/raw/gateway.tar" -C "$COVER_DIR/raw/gateway"
+    echo "Gateway coverage collected"
   else
-    echo "WARNING: No tunneler coverage"
+    echo "WARNING: No gateway coverage"
   fi
 
   echo ""
   echo "=== Generating coverage report ==="
   mkdir -p "$COVER_DIR/merged"
-  go tool covdata merge -i="$COVER_DIR/raw/web","$COVER_DIR/raw/tunneler" -o="$COVER_DIR/merged"
-  cd "$REPO_ROOT/backend"
+  go tool covdata merge -i="$COVER_DIR/raw/web","$COVER_DIR/raw/gateway" -o="$COVER_DIR/merged"
+  cd "$REPO_ROOT/gateway"
   go tool covdata textfmt -i="$COVER_DIR/merged" -o="$COVER_DIR/coverage.out"
   go tool cover -func="$COVER_DIR/coverage.out" | tail -1
   go tool cover -html="$COVER_DIR/coverage.out" -o="$COVER_DIR/coverage.html"

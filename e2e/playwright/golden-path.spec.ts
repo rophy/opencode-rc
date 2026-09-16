@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // Golden path: the most common user scenario end-to-end.
 //
-// 1. CLI runs opencode-rc, logs in via OIDC, connects tunnel to tunneler
+// 1. CLI runs opencode-rc, logs in via OIDC, connects tunnel to gateway
 //    (handled by the dev-machine pod — verified by session appearing in dashboard)
 // 2. User opens the web UI, logs in via OIDC, sees the connected session
 // 3. User clicks the session, opens the opencode UI, starts a conversation,
@@ -13,7 +13,7 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
 
   // --- Step 1: Verify CLI tunnel is connected ---
   // The dev-machine pod runs `opencode-rc` CLI which authenticates via OIDC
-  // and establishes a WebSocket tunnel to the tunneler. We verify this by
+  // and establishes a WebSocket tunnel to the gateway. We verify this by
   // checking that the session appears in the web server's session list.
 
   // --- Step 2: User opens web UI and logs in via OIDC ---
@@ -58,7 +58,7 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   await page.keyboard.type("Hello, are you there?");
   await page.locator('[data-action="prompt-submit"]').click();
 
-  // Wait for the AI response to appear (routed through web → tunneler → tunnel → CLI → aimock)
+  // Wait for the AI response to appear (routed through web → gateway → tunnel → CLI → aimock)
   await expect(page.locator("body")).toContainText("Hello from aimock", {
     timeout: 30_000,
   });

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface Config {
-  tunnelerUrl: string;
+  gatewayUrl: string;
   oidcIssuer: string;
   oidcClientID: string;
   oidcClientSecret?: string;
@@ -12,7 +12,7 @@ export interface Config {
 }
 
 interface FileConfig {
-  tunnelerUrl?: string;
+  gatewayUrl?: string;
   oidc?: {
     issuer?: string;
     clientId?: string;
@@ -61,8 +61,8 @@ export async function loadConfig(): Promise<Config> {
   applyTLSInsecure();
   const file = await loadFileConfig();
 
-  const tunnelerUrl = process.env.OPENCODE_RC_TUNNELER_URL || file.tunnelerUrl;
-  if (!tunnelerUrl) throw new Error("OPENCODE_RC_TUNNELER_URL is required (env or ~/.config/opencode/rc.json)");
+  const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
+  if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required (env or ~/.config/opencode/rc.json)");
 
   const oidcIssuer = process.env.OIDC_ISSUER || file.oidc?.issuer;
   if (!oidcIssuer) throw new Error("OIDC_ISSUER is required (env or ~/.config/opencode/rc.json)");
@@ -91,7 +91,7 @@ export async function loadConfig(): Promise<Config> {
   }
 
   return {
-    tunnelerUrl,
+    gatewayUrl,
     oidcIssuer,
     oidcClientID,
     oidcClientSecret,

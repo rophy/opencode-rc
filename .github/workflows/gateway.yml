@@ -1,27 +1,27 @@
-name: Backend
+name: Gateway
 
 on:
   push:
     branches: [main]
     paths:
       - 'api/**'
-      - 'backend/**'
+      - 'gateway/**'
       - 'web/**'
       - 'vendor/opencode'
       - 'e2e/**'
       - 'cli/**'
       - 'charts/**'
-      - '.github/workflows/backend.yml'
+      - '.github/workflows/gateway.yml'
   pull_request:
     paths:
       - 'api/**'
-      - 'backend/**'
+      - 'gateway/**'
       - 'web/**'
       - 'vendor/opencode'
       - 'e2e/**'
       - 'cli/**'
       - 'charts/**'
-      - '.github/workflows/backend.yml'
+      - '.github/workflows/gateway.yml'
   workflow_dispatch:
 
 jobs:
@@ -45,15 +45,15 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
-      - name: Build backend image
+      - name: Build gateway image
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: backend/Dockerfile
+          file: gateway/Dockerfile
           push: false
-          tags: opencode-rc-backend:test
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          tags: opencode-rc-gateway:test
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
 
   test:
     runs-on: ubuntu-latest
@@ -145,7 +145,7 @@ jobs:
             sleep 2
           done
           kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 TUNNELER_URL=http://opencode-rc-tunneler:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
+            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
 
       - name: Run playwright e2e tests
         run: |
@@ -157,7 +157,7 @@ jobs:
         if: failure()
         run: |
           kubectl logs deployment/opencode-rc-web --tail=50 || true
-          kubectl logs deployment/opencode-rc-tunneler --tail=50 || true
+          kubectl logs deployment/opencode-rc-gateway --tail=50 || true
           kubectl logs deployment/dev-machine --tail=50 || true
           kubectl logs deployment/tls-test-trusted --tail=20 || true
           kubectl logs deployment/tls-test-untrusted --tail=20 || true
@@ -177,25 +177,25 @@ jobs:
       - name: Check if version exists on ghcr.io
         id: check
         run: |
-          VERSION=$(cat backend/VERSION | tr -d '[:space:]')
-          PUBLISH_BACKEND=true
+          VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
+          PUBLISH_GATEWAY=true
           PUBLISH_API=true
-          if docker manifest inspect ghcr.io/${{ github.repository }}/backend:$VERSION > /dev/null 2>&1; then
-            PUBLISH_BACKEND=false
-            echo "Backend $VERSION already exists"
+          if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
+            PUBLISH_GATEWAY=false
+            echo "Gateway $VERSION already exists"
           fi
           if docker manifest inspect ghcr.io/${{ github.repository }}/api:$VERSION > /dev/null 2>&1; then
             PUBLISH_API=false
             echo "API $VERSION already exists"
           fi
-          if [ "$PUBLISH_BACKEND" = "true" ] || [ "$PUBLISH_API" = "true" ]; then
+          if [ "$PUBLISH_GATEWAY" = "true" ] || [ "$PUBLISH_API" = "true" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "All images already exist, skipping publish"
           fi
-          echo "publish_backend=$PUBLISH_BACKEND" >> "$GITHUB_OUTPUT"
+          echo "publish_gateway=$PUBLISH_GATEWAY" >> "$GITHUB_OUTPUT"
           echo "publish_api=$PUBLISH_API" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -223,23 +223,23 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
-      - name: Build and push backend
-        if: steps.check.outputs.publish_backend == 'true'
+      - name: Build and push gateway
+        if: steps.check.outputs.publish_gateway == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: backend/Dockerfile
+          file: gateway/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/backend:latest
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+            ghcr.io/${{ github.repository }}/gateway:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/gateway:latest
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag "backend/${{ steps.check.outputs.version }}"
-          git push origin "backend/${{ steps.check.outputs.version }}"
+          git tag "gateway/${{ steps.check.outputs.version }}"
+          git push origin "gateway/${{ steps.check.outputs.version }}"

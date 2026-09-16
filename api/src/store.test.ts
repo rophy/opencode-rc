@@ -64,7 +64,7 @@ describe("SessionStore", () => {
         id: "sess-1",
         userId: "alice@example.com",
         directory: "/home/alice/project",
-        tunnelerAddr: "tunneler:9090",
+        gatewayAddr: "gateway:9090",
         createdAt: "2026-01-01T00:00:00Z",
       });
       const result = await store.get("sess-1");
@@ -86,14 +86,14 @@ describe("SessionStore", () => {
         id: "sess-1",
         userId: "alice@example.com",
         directory: "/project-a",
-        tunnelerAddr: "t:9090",
+        gatewayAddr: "t:9090",
         createdAt: "2026-01-01T00:00:00Z",
       });
       redis.putSession({
         id: "sess-2",
         userId: "alice@example.com",
         directory: "/project-b",
-        tunnelerAddr: "t:9090",
+        gatewayAddr: "t:9090",
         createdAt: "2026-01-01T00:00:00Z",
       });
       const result = await store.list("alice@example.com");
@@ -107,7 +107,7 @@ describe("SessionStore", () => {
         id: "sess-1",
         userId: "alice@example.com",
         directory: "/project",
-        tunnelerAddr: "t:9090",
+        gatewayAddr: "t:9090",
         createdAt: "2026-01-01T00:00:00Z",
       });
       redis.addStaleRef("alice@example.com", "sess-gone");
@@ -125,7 +125,7 @@ describe("SessionStore", () => {
         id: "sess-1",
         userId: "alice@example.com",
         directory: "/project",
-        tunnelerAddr: "t:9090",
+        gatewayAddr: "t:9090",
         createdAt: "2026-01-01T00:00:00Z",
       });
       const result = await store.list("bob@example.com");

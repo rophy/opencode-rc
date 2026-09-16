@@ -4,10 +4,10 @@ import (
 	"net/http"
 )
 
-func SetupTunnelerRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) {
+func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) {
 	mux.HandleFunc("/debug/coverage", CoverageHandler())
 	mux.HandleFunc("/tunnel", TunnelHandler(verifier, cliVerifier, registry, podAddr))
-	mux.Handle("/proxy/", TunnelerProxyHandler(registry))
+	mux.Handle("/proxy/", GatewayProxyHandler(registry))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		status := "ok"
 		if err := registry.store.Ping(r.Context()); err != nil {

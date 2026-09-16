@@ -29,10 +29,10 @@ web:
     annotations: {}
     tls: []
 
-tunneler:
+gateway:
   image:
     registry: ""
-    repository: ghcr.io/rophy/opencode-rc/backend
+    repository: ghcr.io/rophy/opencode-rc/gateway
     tag: "0.2.0"
     pullPolicy: IfNotPresent
   replicas: 1

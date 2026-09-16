@@ -10,7 +10,7 @@ export interface Config {
   secureCookies: boolean;
   redisUrl: string;
   webUiDir: string;
-  tunnelerUrl: string;
+  gatewayUrl: string;
   tlsInsecureSkipVerify: boolean;
 }
 
@@ -41,7 +41,7 @@ export function loadConfig(): Config {
     secureCookies: process.env.COOKIE_SECURE !== "false",
     redisUrl: requireEnv("REDIS_URL"),
     webUiDir: process.env.WEBUI_DIR ?? "",
-    tunnelerUrl: process.env.TUNNELER_URL ?? "",
+    gatewayUrl: process.env.GATEWAY_URL ?? "",
     tlsInsecureSkipVerify: process.env.TLS_INSECURE_SKIP_VERIFY === "true",
   };
 }

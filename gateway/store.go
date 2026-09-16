@@ -13,7 +13,7 @@ type SessionMeta struct {
 	ID           string    `json:"id"`
 	UserID       string    `json:"userId"`
 	Directory    string    `json:"directory"`
-	TunnelerAddr string    `json:"tunnelerAddr"`
+	GatewayAddr string    `json:"gatewayAddr"`
 	CreatedAt    time.Time `json:"createdAt"`
 }
 

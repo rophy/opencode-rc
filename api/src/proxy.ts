@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import type { SessionStore } from "./store.js";
 import type { AuthEnv } from "./auth.js";
 
-export function proxyToTunneler(store: SessionStore) {
+export function proxyToGateway(store: SessionStore) {
   return async (c: Context<AuthEnv>) => {
     const sessionId = c.req.param("sessionId")!;
     const rest = c.req.path.replace(`/s/${sessionId}`, "") || "/";
@@ -17,11 +17,11 @@ export function proxyToTunneler(store: SessionStore) {
       return c.text("session not found", 404);
     }
 
-    if (!meta.tunnelerAddr) {
-      return c.text("session has no tunneler", 502);
+    if (!meta.gatewayAddr) {
+      return c.text("session has no gateway", 502);
     }
 
-    const target = `http://${meta.tunnelerAddr}/proxy/${sessionId}${rest}`;
+    const target = `http://${meta.gatewayAddr}/proxy/${sessionId}${rest}`;
     const url = new URL(target);
     url.search = new URL(c.req.url).search;
 

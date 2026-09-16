@@ -13,7 +13,7 @@ import {
 
 function baseConfig(overrides: Partial<Config> = {}): Config {
   return {
-    tunnelerUrl: "http://localhost",
+    gatewayUrl: "http://localhost",
     oidcIssuer: "http://localhost",
     oidcClientID: "test-client",
     oidcTokenEndpoint: "http://127.0.0.1:18950/token",

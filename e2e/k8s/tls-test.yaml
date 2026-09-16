@@ -134,8 +134,8 @@ spec:
         app: tls-test-trusted
     spec:
       containers:
-        - name: tunneler
-          image: opencode-rc-backend
+        - name: gateway
+          image: opencode-rc-gateway
           env:
             - name: OIDC_ISSUER
               value: "https://https-trusted"
@@ -162,7 +162,7 @@ spec:
           secret:
             secretName: trusted-ca
 ---
-# Test pod: tunneler WITHOUT the untrusted CA in SSL_CERT_DIR
+# Test pod: gateway WITHOUT the untrusted CA in SSL_CERT_DIR
 # Should fail with x509 certificate error
 apiVersion: apps/v1
 kind: Deployment
@@ -179,8 +179,8 @@ spec:
         app: tls-test-untrusted
     spec:
       containers:
-        - name: tunneler
-          image: opencode-rc-backend
+        - name: gateway
+          image: opencode-rc-gateway
           env:
             - name: OIDC_ISSUER
               value: "https://https-untrusted"

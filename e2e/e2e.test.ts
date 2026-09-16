@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 const WEB_URL = process.env.WEB_URL ?? "http://opencode-rc-web:8080";
-const TUNNELER_URL = process.env.TUNNELER_URL ?? "http://opencode-rc-tunneler:9090";
+const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:9090";
 const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
@@ -87,7 +87,7 @@ describe("opencode-rc e2e", () => {
   beforeAll(async () => {
     await waitFor("oidc-mock", `${OIDC_URL}/.well-known/openid-configuration`, 30);
     await waitFor("web", `${WEB_URL}/healthz`, 30);
-    await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
   it("web /healthz returns ok", async () => {
@@ -96,8 +96,8 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("tunneler /healthz returns ok", async () => {
-    const res = await fetch(`${TUNNELER_URL}/healthz`);
+  it("gateway /healthz returns ok", async () => {
+    const res = await fetch(`${GATEWAY_URL}/healthz`);
     const body = await res.json();
     expect(body.status).toBe("ok");
   });
@@ -281,7 +281,7 @@ describe("tunnel proxy", () => {
 
   it("POST with JSON body through tunnel", async () => {
     // POST to /api/session/message exercises the full body-forwarding path:
-    // browser → web → tunneler → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
+    // browser → web → gateway → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
     // Even if the endpoint rejects the payload, a non-502 response proves the body was forwarded.
     const res = await jar.fetch(
       `${WEB_URL}/s/${SESSION_ID}/api/session`,
@@ -438,11 +438,11 @@ describe("api error handling", () => {
 describe("coverage endpoint", () => {
   beforeAll(async () => {
     await waitFor("web", `${WEB_URL}/healthz`, 30);
-    await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
-  it("tunneler /debug/coverage returns tar", async () => {
-    const res = await fetch(`${TUNNELER_URL}/debug/coverage`);
+  it("gateway /debug/coverage returns tar", async () => {
+    const res = await fetch(`${GATEWAY_URL}/debug/coverage`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/x-tar");
     const body = await res.arrayBuffer();
@@ -452,23 +452,23 @@ describe("coverage endpoint", () => {
 
 describe("tunnel auth", () => {
   beforeAll(async () => {
-    await waitFor("tunneler", `${TUNNELER_URL}/healthz`, 30);
+    await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
-  it("tunneler /tunnel without auth returns 401", async () => {
-    const res = await fetch(`${TUNNELER_URL}/tunnel`);
+  it("gateway /tunnel without auth returns 401", async () => {
+    const res = await fetch(`${GATEWAY_URL}/tunnel`);
     expect(res.status).toBe(401);
   });
 
-  it("tunneler /tunnel with invalid bearer returns 401", async () => {
-    const res = await fetch(`${TUNNELER_URL}/tunnel`, {
+  it("gateway /tunnel with invalid bearer returns 401", async () => {
+    const res = await fetch(`${GATEWAY_URL}/tunnel`, {
       headers: { authorization: "Bearer invalid-token" },
     });
     expect(res.status).toBe(401);
   });
 
-  it("tunneler /tunnel with malformed auth header returns 401", async () => {
-    const res = await fetch(`${TUNNELER_URL}/tunnel`, {
+  it("gateway /tunnel with malformed auth header returns 401", async () => {
+    const res = await fetch(`${GATEWAY_URL}/tunnel`, {
       headers: { authorization: "NotBearer something" },
     });
     expect(res.status).toBe(401);

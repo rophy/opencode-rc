@@ -2,25 +2,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "opencode-rc.fullname" . }}-tunneler
+  name: {{ include "opencode-rc.fullname" . }}-gateway
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
-    app.kubernetes.io/component: tunneler
+    app.kubernetes.io/component: gateway
 spec:
-  replicas: {{ .Values.tunneler.replicas }}
+  replicas: {{ .Values.gateway.replicas }}
   selector:
     matchLabels:
       {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: tunneler
+      app.kubernetes.io/component: gateway
   template:
     metadata:
       labels:
         {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: tunneler
-        {{- with .Values.tunneler.podLabels }}
+        app.kubernetes.io/component: gateway
+        {{- with .Values.gateway.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.tunneler.podAnnotations }}
+      {{- with .Values.gateway.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -29,14 +29,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tunneler.securityContext }}
+      {{- with .Values.gateway.securityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: tunneler
-          image: {{ include "opencode-rc.image" (dict "image" .Values.tunneler.image "global" .Values.global) }}
-          imagePullPolicy: {{ .Values.tunneler.image.pullPolicy }}
+        - name: gateway
+          image: {{ include "opencode-rc.image" (dict "image" .Values.gateway.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 9090
@@ -85,7 +85,7 @@ spec:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: redis-url
             {{- end }}
-          {{- with .Values.tunneler.resources }}
+          {{- with .Values.gateway.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -95,7 +95,7 @@ spec:
               mountPath: /etc/ssl/certs/extra
               readOnly: true
           {{- end }}
-          {{- with .Values.tunneler.containerSecurityContext }}
+          {{- with .Values.gateway.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -105,15 +105,15 @@ spec:
           configMap:
             name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
       {{- end }}
-      {{- with .Values.tunneler.nodeSelector }}
+      {{- with .Values.gateway.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tunneler.affinity }}
+      {{- with .Values.gateway.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tunneler.tolerations }}
+      {{- with .Values.gateway.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

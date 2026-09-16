@@ -4,7 +4,7 @@ export interface SessionMeta {
   id: string;
   userId: string;
   directory: string;
-  tunnelerAddr: string;
+  gatewayAddr: string;
   createdAt: string;
 }
 

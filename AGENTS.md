@@ -8,9 +8,9 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to tunneler
-backend/        # Go — `opencode-rc tunneler` (WebSocket tunnel, mux, Redis session registration)
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to tunneler
+api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to gateway
+gateway/        # Go — `opencode-rc gateway` (WebSocket tunnel, mux, Redis session registration)
+cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 web/            # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
@@ -58,11 +58,11 @@ Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 cd api && bun install && bun run src/index.ts
 ```
 
-### Backend (Tunneler)
+### Gateway
 
 ```bash
-cd backend && go build -o opencode-rc .
-./opencode-rc tunneler
+cd gateway && go build -o opencode-rc .
+./opencode-rc gateway
 ```
 
 ### Dev server (web)
@@ -97,7 +97,7 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
 
 The test environment deploys:
-- The Helm chart (web, tunneler, redis, oidc-mock) with `local` profile
+- The Helm chart (web, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "opencode-rc.fullname" . }}-tunneler
+  name: {{ include "opencode-rc.fullname" . }}-gateway
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
-    app.kubernetes.io/component: tunneler
+    app.kubernetes.io/component: gateway
 spec:
   type: ClusterIP
   ports:
@@ -14,4 +14,4 @@ spec:
       name: http
   selector:
     {{- include "opencode-rc.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: tunneler
+    app.kubernetes.io/component: gateway

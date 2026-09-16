@@ -23,12 +23,12 @@ export function sessionHandler(store: SessionStore, webUiDir: string) {
       return serveStatic(webUiDir, rest);
     }
 
-    // Proxy to tunneler
-    if (!meta.tunnelerAddr) {
-      return c.text("session has no tunneler", 502);
+    // Proxy to gateway
+    if (!meta.gatewayAddr) {
+      return c.text("session has no gateway", 502);
     }
 
-    const target = `http://${meta.tunnelerAddr}/proxy/${sessionId}${rest}`;
+    const target = `http://${meta.gatewayAddr}/proxy/${sessionId}${rest}`;
     const url = new URL(target);
     url.search = new URL(c.req.url).search;
 

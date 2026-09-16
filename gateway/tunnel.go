@@ -16,7 +16,7 @@ var upgrader = websocket.Upgrader{
 
 // TunnelHandler upgrades a CLI connection to a WebSocket tunnel.
 // The CLI authenticates with a Bearer token and provides a sessionID.
-// The tunneler registers the session with the tunnel mux connection.
+// The gateway registers the session with the tunnel mux connection.
 func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Validate Bearer token
