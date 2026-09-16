@@ -14,7 +14,7 @@ tests:
           value: ["tunneler"]
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/rophy/opencode-rc/backend:0.1.1"
+          value: "ghcr.io/rophy/opencode-rc/backend:0.2.0"
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -37,7 +37,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/backend:0.1.1"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/backend:0.2.0"
 
   - it: reads secrets from existingSecret in production
     set:
