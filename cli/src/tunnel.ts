@@ -75,11 +75,11 @@ export function proxyToLocal(
   streamId: number,
   req: RequestHeaders,
   localUrl: string
-): void {
+): Promise<void> | void {
   if (req.hasBody) {
     pendingRequests.set(streamId, { req, bodyChunks: [], localUrl, ws });
   } else {
-    doProxyToLocal(ws, streamId, req, localUrl, undefined);
+    return doProxyToLocal(ws, streamId, req, localUrl, undefined);
   }
 }
 
