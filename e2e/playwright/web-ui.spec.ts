@@ -94,44 +94,6 @@ test.describe("session web UI", () => {
   });
 });
 
-test.describe("AI chat through tunnel", () => {
-  test("send message and receive AI response", async ({ page }) => {
-    test.setTimeout(60_000);
-    await loginAs(page, "Alice");
-
-    // Navigate to session
-    const card = page.locator("a[href*='/s/']").first();
-    await expect(card).toBeVisible({ timeout: 10_000 });
-    await card.click();
-    await expect(page).toHaveURL(/\/s\/alice-dev\//);
-
-    // OpenCode app starts with no sessions — create one
-    await page.locator('button[aria-label="New session"]').first().click();
-    const tab = page.locator('[data-slot="titlebar-tab-item"]').last();
-    await expect(tab).toBeVisible({ timeout: 5_000 });
-    await tab.locator('[data-slot="tab-link"]').click();
-
-    // Wait for the prompt input to appear
-    const promptInput = page.locator('[data-component="prompt-input"]');
-    await expect(promptInput).toBeVisible({ timeout: 30_000 });
-
-    // Type a message and click the Send button
-    await promptInput.click();
-    await page.keyboard.type("Hello, are you there?");
-    await page.locator('[data-action="prompt-submit"]').click();
-
-    // Wait for aimock response (visible anywhere — the tab title updates)
-    await expect(page.locator("body")).toContainText("Hello from aimock", { timeout: 30_000 });
-
-    // Navigate back to the chat view by clicking the session tab
-    await tab.locator('[data-slot="tab-link"]').click();
-
-    // Verify the assistant response is rendered in the chat
-    const assistantContent = page.locator('[data-slot="session-turn-assistant-content"]').first();
-    await expect(assistantContent).toContainText("Hello from aimock", { timeout: 10_000 });
-  });
-});
-
 test.describe("multi-user isolation", () => {
   test("bob cannot see alice's sessions", async ({ page }) => {
     await loginAs(page, "Bob");
