@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'api/**'
-      - 'gateway/**'
       - 'web/**'
+      - 'gateway/**'
+      - 'ui/**'
       - 'vendor/opencode'
       - 'e2e/**'
       - 'cli/**'
@@ -14,9 +14,9 @@ on:
       - '.github/workflows/gateway.yml'
   pull_request:
     paths:
-      - 'api/**'
-      - 'gateway/**'
       - 'web/**'
+      - 'gateway/**'
+      - 'ui/**'
       - 'vendor/opencode'
       - 'e2e/**'
       - 'cli/**'
@@ -35,15 +35,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build api image
+      - name: Build web image
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: api/Dockerfile
+          file: web/Dockerfile
           push: false
-          tags: opencode-rc-api:test
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
+          tags: opencode-rc-web:test
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
 
       - name: Build gateway image
         uses: docker/build-push-action@v7
@@ -179,16 +179,16 @@ jobs:
         run: |
           VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
           PUBLISH_GATEWAY=true
-          PUBLISH_API=true
+          PUBLISH_WEB=true
           if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
             PUBLISH_GATEWAY=false
             echo "Gateway $VERSION already exists"
           fi
-          if docker manifest inspect ghcr.io/${{ github.repository }}/api:$VERSION > /dev/null 2>&1; then
-            PUBLISH_API=false
-            echo "API $VERSION already exists"
+          if docker manifest inspect ghcr.io/${{ github.repository }}/web:$VERSION > /dev/null 2>&1; then
+            PUBLISH_WEB=false
+            echo "Web $VERSION already exists"
           fi
-          if [ "$PUBLISH_GATEWAY" = "true" ] || [ "$PUBLISH_API" = "true" ]; then
+          if [ "$PUBLISH_GATEWAY" = "true" ] || [ "$PUBLISH_WEB" = "true" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           else
@@ -196,7 +196,7 @@ jobs:
             echo "All images already exist, skipping publish"
           fi
           echo "publish_gateway=$PUBLISH_GATEWAY" >> "$GITHUB_OUTPUT"
-          echo "publish_api=$PUBLISH_API" >> "$GITHUB_OUTPUT"
+          echo "publish_web=$PUBLISH_WEB" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.publish == 'true'
@@ -210,18 +210,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push api
-        if: steps.check.outputs.publish_api == 'true'
+      - name: Build and push web
+        if: steps.check.outputs.publish_web == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: api/Dockerfile
+          file: web/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/api:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/api:latest
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
+            ghcr.io/${{ github.repository }}/web:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
 
       - name: Build and push gateway
         if: steps.check.outputs.publish_gateway == 'true'

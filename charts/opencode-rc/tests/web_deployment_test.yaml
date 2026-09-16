@@ -18,7 +18,7 @@ tests:
           path: spec.template.spec.containers[0].args
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/rophy/opencode-rc/api:0.2.0"
+          value: "ghcr.io/rophy/opencode-rc/web:0.2.0"
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -31,7 +31,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/api:0.2.0"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/web:0.2.0"
 
   - it: uses per-component registry
     set:
@@ -39,7 +39,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "my-registry.io/ghcr.io/rophy/opencode-rc/api:0.2.0"
+          value: "my-registry.io/ghcr.io/rophy/opencode-rc/web:0.2.0"
 
   - it: global registry overrides per-component
     set:
@@ -48,7 +48,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/api:0.2.0"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/web:0.2.0"
 
   - it: sets replicas from values
     set:

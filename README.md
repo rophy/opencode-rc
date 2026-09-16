@@ -40,10 +40,10 @@ flowchart LR
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| API Server | `api/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
+| Web Server | `web/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
 | Gateway | `gateway/` (Go) | WebSocket tunnel server, session registration, request multiplexing |
 | CLI | `cli/` (Node) | OIDC login via PKCE, starts opencode serve, maintains tunnel to gateway |
-| Web UI | `web/` (SolidJS) | Session picker, user bar, wraps OpenCode's web interface |
+| Web UI | `ui/` (SolidJS) | Session picker, user bar, wraps OpenCode's web interface |
 
 ## Deploy with Helm
 

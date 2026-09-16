@@ -3,13 +3,13 @@
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, proxy to gateway
-gateway/        # Go — `opencode-rc gateway` (WebSocket tunnel, mux, Redis session registration)
+web/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, SPA serving, proxy to gateway
+gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
-web/            # SolidJS SPA — session picker + OpenCode web UI wrapper
+ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
-vendor/opencode # Git submodule — upstream OpenCode source (build dependency for web/)
+vendor/opencode # Git submodule — upstream OpenCode source (build dependency for ui/)
 ```
 
 ## Prerequisites
@@ -44,15 +44,15 @@ cd gateway && go build -o opencode-rc .
 
 ```bash
 cd vendor/opencode && bun install
-cd ../../web && bun install && bun run build
+cd ../../ui && bun install && bun run build
 ```
 
-Output: `web/dist/` — static SPA served by the api server via `WEBUI_DIR`.
+Output: `ui/dist/` — static SPA served by the web server via `WEBUI_DIR`.
 
-### Web Dev Server
+### UI Dev Server
 
 ```bash
-cd web && bun run dev
+cd ui && bun run dev
 ```
 
 Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
@@ -78,7 +78,7 @@ E2e tests run on a kind cluster using Skaffold to build images and deploy the ac
 ```
 
 The test environment deploys:
-- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
+- The Helm chart (web, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 
