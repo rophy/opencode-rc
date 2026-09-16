@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,13 +28,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	var err error
 	switch os.Args[1] {
 	case "gateway":
-		runGateway()
+		err = runGateway()
 	case "tunneler":
-		runTunneler()
+		err = runTunneler()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\nUsage: opencode-rc <gateway|tunneler>\n", os.Args[1])
+		os.Exit(1)
+	}
+	if err != nil {
+		slog.Error("fatal", "error", err)
 		os.Exit(1)
 	}
 }
@@ -47,88 +53,75 @@ func contextWithTLS(ctx context.Context, insecure bool) context.Context {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Transport: transport}
-	// go-oidc and oauth2 both read the HTTP client from context
 	ctx = oidc.ClientContext(ctx, client)
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
 	return ctx
 }
 
-func connectRedis(ctx context.Context, redisURL string) (*redis.Client, SessionStore) {
+func connectRedis(ctx context.Context, redisURL string) (*redis.Client, SessionStore, error) {
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		slog.Error("invalid REDIS_URL", "error", err)
-		os.Exit(1)
+		return nil, nil, fmt.Errorf("invalid REDIS_URL: %w", err)
 	}
 	client := redis.NewClient(opt)
 	if err := client.Ping(ctx).Err(); err != nil {
-		slog.Error("redis connection failed", "error", err)
-		os.Exit(1)
+		client.Close()
+		return nil, nil, fmt.Errorf("redis connection failed: %w", err)
 	}
 	slog.Info("connected to Redis")
-	return client, NewRedisStore(client, 1*time.Hour)
+	return client, NewRedisStore(client, 1*time.Hour), nil
 }
 
-func runGateway() {
-	cfg, err := LoadConfig()
-	if err != nil {
-		slog.Error("config", "error", err)
-		os.Exit(1)
-	}
-
-	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
-	_, store := connectRedis(ctx, cfg.RedisURL)
-
-	var oidcProvider *OIDCProvider
-	for attempt := 1; attempt <= 30; attempt++ {
-		oidcProvider, err = NewOIDCProvider(ctx, cfg)
+func discoverOIDC(ctx context.Context, issuer string, maxRetries int) (*oidc.Provider, error) {
+	var err error
+	var provider *oidc.Provider
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		provider, err = oidc.NewProvider(ctx, issuer)
 		if err == nil {
-			break
+			return provider, nil
 		}
-		slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
-		time.Sleep(2 * time.Second)
+		if attempt < maxRetries {
+			slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
+			time.Sleep(2 * time.Second)
+		}
 	}
+	return nil, fmt.Errorf("oidc discovery failed after %d attempts: %w", maxRetries, err)
+}
+
+var oidcMaxRetries = 30
+
+func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
+	_, store, err := connectRedis(ctx, cfg.RedisURL)
 	if err != nil {
-		slog.Error("oidc discovery failed", "error", err)
-		os.Exit(1)
+		return nil, err
 	}
 
+	provider, err := discoverOIDC(ctx, cfg.OIDCIssuer, oidcMaxRetries)
+	if err != nil {
+		return nil, err
+	}
+
+	oidcProvider := newOIDCProviderFromProvider(provider, cfg)
 	auth := NewAuth(oidcProvider, cfg.CookieSecret, cfg.CookieDomain, cfg.SecureCookies)
 
 	mux := http.NewServeMux()
 	SetupGatewayRoutes(mux, auth, store, cfg.WebUIDir)
-
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	slog.Info("gateway starting", "version", version, "addr", addr)
-	listenAndServeGraceful(addr, requestLogger(mux))
+	return requestLogger(mux), nil
 }
 
-func runTunneler() {
-	cfg, err := LoadConfig()
-	if err != nil {
-		slog.Error("config", "error", err)
-		os.Exit(1)
-	}
-
+func setupTunneler(ctx context.Context, cfg *Config) (http.Handler, error) {
 	if cfg.PodIP == "" {
-		slog.Error("POD_IP is required for tunneler")
-		os.Exit(1)
+		return nil, fmt.Errorf("POD_IP is required for tunneler")
 	}
 
-	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
-	_, store := connectRedis(ctx, cfg.RedisURL)
-
-	var provider *oidc.Provider
-	for attempt := 1; attempt <= 30; attempt++ {
-		provider, err = oidc.NewProvider(ctx, cfg.OIDCIssuer)
-		if err == nil {
-			break
-		}
-		slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
-		time.Sleep(2 * time.Second)
-	}
+	_, store, err := connectRedis(ctx, cfg.RedisURL)
 	if err != nil {
-		slog.Error("oidc discovery failed", "error", err)
-		os.Exit(1)
+		return nil, err
+	}
+
+	provider, err := discoverOIDC(ctx, cfg.OIDCIssuer, oidcMaxRetries)
+	if err != nil {
+		return nil, err
 	}
 
 	verifier := idTokenVerifier{provider.Verifier(&oidc.Config{ClientID: cfg.OIDCClientID})}
@@ -142,31 +135,74 @@ func runTunneler() {
 
 	mux := http.NewServeMux()
 	SetupTunnelerRoutes(mux, verifier, cliVerifier, registry, podAddr)
-
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	slog.Info("tunneler starting", "version", version, "addr", addr, "podAddr", podAddr)
-	listenAndServeGraceful(addr, requestLogger(mux))
+	return requestLogger(mux), nil
 }
 
-func listenAndServeGraceful(addr string, handler http.Handler) {
+func runGateway() error {
+	cfg, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+
+	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
+	handler, err := setupGateway(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	slog.Info("gateway starting", "version", version, "addr", addr)
+	return listenAndServeGraceful(addr, handler, nil)
+}
+
+func runTunneler() error {
+	cfg, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+
+	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)
+	handler, err := setupTunneler(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	slog.Info("tunneler starting", "version", version, "addr", addr)
+	return listenAndServeGraceful(addr, handler, nil)
+}
+
+func listenAndServeGraceful(addr string, handler http.Handler, ln net.Listener) error {
 	srv := &http.Server{Addr: addr, Handler: handler}
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
-			os.Exit(1)
-		}
-	}()
+	listenErr := make(chan error, 1)
+	if ln != nil {
+		go func() {
+			listenErr <- srv.Serve(ln)
+		}()
+	} else {
+		go func() {
+			listenErr <- srv.ListenAndServe()
+		}()
+	}
 
-	<-done
-	slog.Info("shutting down")
+	select {
+	case <-done:
+		slog.Info("shutting down")
+	case err := <-listenErr:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("shutdown error", "error", err)
+		return fmt.Errorf("shutdown error: %w", err)
 	}
+	return nil
 }

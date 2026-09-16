@@ -42,6 +42,10 @@ func NewOIDCProvider(ctx context.Context, cfg *Config) (*OIDCProvider, error) {
 		return nil, err
 	}
 
+	return newOIDCProviderFromProvider(provider, cfg), nil
+}
+
+func newOIDCProviderFromProvider(provider *oidc.Provider, cfg *Config) *OIDCProvider {
 	oauth2Config := oauth2.Config{
 		ClientID:     cfg.OIDCClientID,
 		ClientSecret: cfg.OIDCClientSecret,
@@ -62,5 +66,5 @@ func NewOIDCProvider(ctx context.Context, cfg *Config) (*OIDCProvider, error) {
 		oauth2Config: oauth2Config,
 		verifier:     verifier,
 		cliVerifier:  cliVerifier,
-	}, nil
+	}
 }
