@@ -7,7 +7,6 @@ import (
 func SetupTunnelerRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) {
 	mux.HandleFunc("/debug/coverage", CoverageHandler())
 	mux.HandleFunc("/tunnel", TunnelHandler(verifier, cliVerifier, registry, podAddr))
-	mux.HandleFunc("/gateway/tunnel", TunnelHandler(verifier, cliVerifier, registry, podAddr))
 	mux.Handle("/proxy/", TunnelerProxyHandler(registry))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		status := "ok"

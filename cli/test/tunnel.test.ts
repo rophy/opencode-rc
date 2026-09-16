@@ -181,7 +181,7 @@ describe("proxyToLocal", () => {
 
 function makeConfig(port: number): Config {
   return {
-    gatewayUrl: `http://127.0.0.1:${port}`,
+    tunnelerUrl: `http://127.0.0.1:${port}`,
     oidcIssuer: "http://issuer.test",
     oidcClientID: "client",
     oidcTokenEndpoint: "http://issuer.test/token",

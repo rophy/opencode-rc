@@ -37,7 +37,7 @@ async function main() {
     process.cwd()
   );
 
-  console.log(`\nSession available at: ${config.gatewayUrl}/s/${sessionID}/`);
+  console.log(`\nSession "${sessionID}" connected.`);
   console.log("Press Ctrl+C to stop.\n");
 
   const shutdown = async () => {

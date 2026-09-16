@@ -33,7 +33,7 @@ afterEach(async () => {
 function setEnv(overrides: Record<string, string | undefined> = {}) {
   const defaults: Record<string, string | undefined> = {
     XDG_CONFIG_HOME: testDir,
-    OPENCODE_RC_GATEWAY_URL: undefined,
+    OPENCODE_RC_TUNNELER_URL: undefined,
     OIDC_ISSUER: undefined,
     OIDC_CLIENT_ID: undefined,
     OIDC_CLIENT_SECRET: undefined,
@@ -56,7 +56,7 @@ describe("loadConfig", () => {
     await writeFile(
       configPath,
       JSON.stringify({
-        gatewayUrl: "https://gw.example.com",
+        tunnelerUrl: "https://tunneler.example.com",
         oidc: {
           issuer: "http://mock-issuer",
           clientId: "my-client",
@@ -68,7 +68,7 @@ describe("loadConfig", () => {
     setEnv();
 
     const config = await loadConfig();
-    expect(config.gatewayUrl).toBe("https://gw.example.com");
+    expect(config.tunnelerUrl).toBe("https://tunneler.example.com");
     expect(config.oidcIssuer).toBe("http://mock-issuer");
     expect(config.oidcClientID).toBe("my-client");
     expect(config.oidcClientSecret).toBe("my-secret");
@@ -81,7 +81,7 @@ describe("loadConfig", () => {
     await writeFile(
       configPath,
       JSON.stringify({
-        gatewayUrl: "https://file-gw.example.com",
+        tunnelerUrl: "https://file-gw.example.com",
         oidc: {
           issuer: "http://file-issuer",
           clientId: "file-client",
@@ -90,44 +90,44 @@ describe("loadConfig", () => {
       })
     );
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://env-gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://env-gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
       OIDC_CLIENT_ID: "env-client",
       OIDC_CLIENT_SECRET: "env-secret",
     });
 
     const config = await loadConfig();
-    expect(config.gatewayUrl).toBe("https://env-gw.example.com");
+    expect(config.tunnelerUrl).toBe("https://env-gw.example.com");
     expect(config.oidcClientID).toBe("env-client");
     expect(config.oidcClientSecret).toBe("env-secret");
   });
 
   it("works with env vars only (no config file)", async () => {
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
       OIDC_CLIENT_ID: "my-client",
     });
     await rm(configPath, { force: true });
 
     const config = await loadConfig();
-    expect(config.gatewayUrl).toBe("https://gw.example.com");
+    expect(config.tunnelerUrl).toBe("https://gw.example.com");
     expect(config.oidcClientID).toBe("my-client");
     expect(config.oidcClientSecret).toBeUndefined();
   });
 
-  it("throws when gatewayUrl is missing", async () => {
+  it("throws when tunnelerUrl is missing", async () => {
     setEnv({
       OIDC_ISSUER: "http://mock-issuer",
       OIDC_CLIENT_ID: "my-client",
     });
 
-    await expect(loadConfig()).rejects.toThrow("OPENCODE_RC_GATEWAY_URL is required");
+    await expect(loadConfig()).rejects.toThrow("OPENCODE_RC_TUNNELER_URL is required");
   });
 
   it("throws when oidc issuer is missing", async () => {
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://gw.example.com",
       OIDC_CLIENT_ID: "my-client",
     });
 
@@ -136,7 +136,7 @@ describe("loadConfig", () => {
 
   it("throws when oidc client ID is missing", async () => {
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
     });
 
@@ -145,7 +145,7 @@ describe("loadConfig", () => {
 
   it("parses OIDC_CALLBACK_PORTS from env", async () => {
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
       OIDC_CLIENT_ID: "my-client",
       OIDC_CALLBACK_PORTS: "8400, 8401, 8402",
@@ -158,12 +158,12 @@ describe("loadConfig", () => {
   it("ignores malformed config file", async () => {
     await writeFile(configPath, "not json{{{");
     setEnv({
-      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OPENCODE_RC_TUNNELER_URL: "https://gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
       OIDC_CLIENT_ID: "my-client",
     });
 
     const config = await loadConfig();
-    expect(config.gatewayUrl).toBe("https://gw.example.com");
+    expect(config.tunnelerUrl).toBe("https://gw.example.com");
   });
 });
