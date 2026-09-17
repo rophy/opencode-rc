@@ -63,7 +63,7 @@ jobs:
       - name: Check if version exists on ghcr.io
         id: check
         run: |
-          VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
+          VERSION=$(node -p "require('./web/package.json').version")
           if docker manifest inspect ghcr.io/${{ github.repository }}/web:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "Web $VERSION already exists, skipping publish"
