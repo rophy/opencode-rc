@@ -4,47 +4,33 @@ on:
   push:
     branches: [main]
     paths:
-      - 'web/**'
       - 'gateway/**'
-      - 'ui/**'
-      - 'vendor/opencode'
-      - 'e2e/**'
-      - 'cli/**'
-      - 'charts/**'
       - '.github/workflows/gateway.yml'
   pull_request:
     paths:
-      - 'web/**'
       - 'gateway/**'
-      - 'ui/**'
-      - 'vendor/opencode'
-      - 'e2e/**'
-      - 'cli/**'
-      - 'charts/**'
       - '.github/workflows/gateway.yml'
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gateway/go.mod
+      - run: go test ./...
+
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: true
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-
-      - name: Build web image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: web/Dockerfile
-          push: false
-          tags: opencode-rc-web:test
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-
       - name: Build gateway image
         uses: docker/build-push-action@v7
         with:
@@ -55,115 +41,8 @@ jobs:
           cache-from: type=gha,scope=gateway
           cache-to: type=gha,mode=max,scope=gateway
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: opencode-rc-e2e
-          config: e2e/kind-config.yaml
-
-      - name: Install Skaffold
-        run: |
-          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
-          chmod +x skaffold
-          sudo mv skaffold /usr/local/bin/
-
-      - name: Generate TLS test certs
-        run: |
-          CERT_DIR=$(mktemp -d)
-          openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca1.key" -out "$CERT_DIR/ca1.crt" \
-            -days 1 -nodes -subj "/CN=Trusted CA" 2>/dev/null
-          openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv1.key" -out "$CERT_DIR/srv1.csr" \
-            -nodes -subj "/CN=https-trusted" \
-            -addext "subjectAltName=DNS:https-trusted,DNS:https-trusted.default.svc.cluster.local" 2>/dev/null
-          openssl x509 -req -in "$CERT_DIR/srv1.csr" -CA "$CERT_DIR/ca1.crt" -CAkey "$CERT_DIR/ca1.key" \
-            -CAcreateserial -out "$CERT_DIR/srv1.crt" -days 1 -copy_extensions copyall 2>/dev/null
-
-          openssl req -x509 -newkey rsa:2048 -keyout "$CERT_DIR/ca2.key" -out "$CERT_DIR/ca2.crt" \
-            -days 1 -nodes -subj "/CN=Untrusted CA" 2>/dev/null
-          openssl req -newkey rsa:2048 -keyout "$CERT_DIR/srv2.key" -out "$CERT_DIR/srv2.csr" \
-            -nodes -subj "/CN=https-untrusted" \
-            -addext "subjectAltName=DNS:https-untrusted,DNS:https-untrusted.default.svc.cluster.local" 2>/dev/null
-          openssl x509 -req -in "$CERT_DIR/srv2.csr" -CA "$CERT_DIR/ca2.crt" -CAkey "$CERT_DIR/ca2.key" \
-            -CAcreateserial -out "$CERT_DIR/srv2.crt" -days 1 -copy_extensions copyall 2>/dev/null
-
-          kubectl create secret tls tls-trusted --cert="$CERT_DIR/srv1.crt" --key="$CERT_DIR/srv1.key"
-          kubectl create secret tls tls-untrusted --cert="$CERT_DIR/srv2.crt" --key="$CERT_DIR/srv2.key"
-          kubectl create secret generic trusted-ca --from-file=ca.crt="$CERT_DIR/ca1.crt"
-          rm -rf "$CERT_DIR"
-
-      - name: Pre-load external images into kind
-        run: |
-          for img in ghcr.io/copilotkit/aimock:1.42.0 nginx:1.27-alpine; do
-            docker pull "$img"
-            kind load docker-image "$img" --name opencode-rc-e2e
-          done
-
-      - name: Build and deploy
-        run: cd e2e && skaffold run -n default
-
-      - name: Wait for web
-        run: kubectl wait --for=condition=Available deployment/opencode-rc-web --timeout=120s
-
-      - name: Wait for dev-machine
-        run: kubectl wait --for=condition=Available deployment/dev-machine --timeout=120s
-
-      - name: Validate SSL_CERT_DIR (TLS CA trust)
-        run: |
-          echo "Waiting for TLS test pods to attempt OIDC discovery..."
-          sleep 15
-          TRUSTED_LOGS=$(kubectl logs deployment/tls-test-trusted --tail=30 2>&1) || true
-          if echo "$TRUSTED_LOGS" | grep -qi "x509"; then
-            echo "FAIL: trusted endpoint got x509 error"
-            echo "$TRUSTED_LOGS"
-            exit 1
-          fi
-          echo "PASS: trusted endpoint - no x509 error"
-
-          UNTRUSTED_LOGS=$(kubectl logs deployment/tls-test-untrusted --tail=30 2>&1) || true
-          if echo "$UNTRUSTED_LOGS" | grep -qi "x509"; then
-            echo "PASS: untrusted endpoint - got x509 error as expected"
-          else
-            echo "FAIL: untrusted endpoint did not get x509 error"
-            echo "$UNTRUSTED_LOGS"
-            exit 1
-          fi
-
-      - name: Run vitest e2e tests
-        run: |
-          DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
-          for i in $(seq 1 60); do
-            if kubectl exec "$DEV_POD" -- curl -sf http://opencode-rc-web:8080/healthz > /dev/null 2>&1; then
-              break
-            fi
-            sleep 2
-          done
-          kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
-
-      - name: Run playwright e2e tests
-        run: |
-          DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
-          kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && WEB_URL=http://opencode-rc-web:8080 npx playwright test --config playwright.config.ts"
-
-      - name: Show logs on failure
-        if: failure()
-        run: |
-          kubectl logs deployment/opencode-rc-web --tail=50 || true
-          kubectl logs deployment/opencode-rc-gateway --tail=50 || true
-          kubectl logs deployment/dev-machine --tail=50 || true
-          kubectl logs deployment/tls-test-trusted --tail=20 || true
-          kubectl logs deployment/tls-test-untrusted --tail=20 || true
-
   publish:
-    needs: [build, test]
+    needs: [test, build]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -171,32 +50,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: true
 
       - name: Check if version exists on ghcr.io
         id: check
         run: |
           VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
-          PUBLISH_GATEWAY=true
-          PUBLISH_WEB=true
           if docker manifest inspect ghcr.io/${{ github.repository }}/gateway:$VERSION > /dev/null 2>&1; then
-            PUBLISH_GATEWAY=false
-            echo "Gateway $VERSION already exists"
-          fi
-          if docker manifest inspect ghcr.io/${{ github.repository }}/web:$VERSION > /dev/null 2>&1; then
-            PUBLISH_WEB=false
-            echo "Web $VERSION already exists"
-          fi
-          if [ "$PUBLISH_GATEWAY" = "true" ] || [ "$PUBLISH_WEB" = "true" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Gateway $VERSION already exists, skipping publish"
+          else
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "All images already exist, skipping publish"
           fi
-          echo "publish_gateway=$PUBLISH_GATEWAY" >> "$GITHUB_OUTPUT"
-          echo "publish_web=$PUBLISH_WEB" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.publish == 'true'
@@ -210,21 +75,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push web
-        if: steps.check.outputs.publish_web == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: web/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/web:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/web:latest
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
-
       - name: Build and push gateway
-        if: steps.check.outputs.publish_gateway == 'true'
+        if: steps.check.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
