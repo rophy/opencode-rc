@@ -67,7 +67,13 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 
 		mux := newMuxConn(ws)
 
-		registry.Register(r.Context(), userID, sessionID, directory, podAddr, mux)
+		if err := registry.Register(r.Context(), userID, sessionID, directory, podAddr, mux); err != nil {
+			slog.Warn("tunnel registration rejected", "session", sessionID, "user", userID, "error", err)
+			ws.WriteMessage(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session owned by another user"))
+			ws.Close()
+			return
+		}
 		slog.Info("tunnel established", "session", sessionID, "user", userID)
 
 		refreshCtx, cancelRefresh := context.WithCancel(context.Background())
@@ -77,7 +83,7 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 		<-mux.closed
 
 		cancelRefresh()
-		registry.Deregister(context.Background(), sessionID)
+		registry.Deregister(context.Background(), sessionID, mux)
 		slog.Info("tunnel closed", "session", sessionID, "user", userID)
 	}
 }

@@ -25,8 +25,15 @@ spec:
     - host: {{ .Values.gateway.ingress.host }}
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: /tunnel
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "opencode-rc.fullname" . }}-gateway
+                port:
+                  number: 9090
+          - path: /healthz
+            pathType: Exact
             backend:
               service:
                 name: {{ include "opencode-rc.fullname" . }}-gateway

@@ -20,6 +20,7 @@ type Config struct {
 	SecureCookies         bool
 	RedisURL              string
 	PodIP                 string
+	ProxySecret           string
 	TLSInsecureSkipVerify bool
 }
 

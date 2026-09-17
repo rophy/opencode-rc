@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -16,17 +17,22 @@ func NewTunnelRegistry(store SessionStore) *TunnelRegistry {
 	return &TunnelRegistry{store: store}
 }
 
-func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, directory, podAddr string, tunnel *muxConn) {
+func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, directory, podAddr string, tunnel *muxConn) error {
+	// Check ownership: reject if session belongs to a different user
+	if existing, ok, _ := r.store.Get(ctx, sessionID); ok && existing.UserID != userID {
+		return fmt.Errorf("session %s belongs to another user", sessionID)
+	}
+
 	if old, ok := r.tunnels.Load(sessionID); ok && old != nil {
 		old.(*muxConn).close()
 	}
 
 	meta := SessionMeta{
-		ID:           sessionID,
-		UserID:       userID,
-		Directory:    directory,
+		ID:          sessionID,
+		UserID:      userID,
+		Directory:   directory,
 		GatewayAddr: podAddr,
-		CreatedAt:    time.Now(),
+		CreatedAt:   time.Now(),
 	}
 	if err := r.store.Put(ctx, meta); err != nil {
 		slog.Error("failed to register session", "session", sessionID, "error", err)
@@ -34,10 +40,17 @@ func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, direct
 
 	r.tunnels.Store(sessionID, tunnel)
 	slog.Info("session registered", "session", sessionID, "user", userID, "addr", podAddr)
+	return nil
 }
 
-func (r *TunnelRegistry) Deregister(ctx context.Context, sessionID string) {
-	r.tunnels.Delete(sessionID)
+// Deregister removes a session only if the given tunnel still owns it.
+// This prevents a closing old tunnel from deleting a newer registration.
+func (r *TunnelRegistry) Deregister(ctx context.Context, sessionID string, tunnel *muxConn) {
+	// Compare-and-delete: only remove if the stored tunnel matches
+	if !r.tunnels.CompareAndDelete(sessionID, tunnel) {
+		slog.Info("session deregister skipped (superseded)", "session", sessionID)
+		return
+	}
 	if err := r.store.Delete(ctx, sessionID); err != nil {
 		slog.Error("failed to deregister session", "session", sessionID, "error", err)
 	}

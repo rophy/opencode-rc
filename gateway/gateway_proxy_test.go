@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -10,9 +13,26 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+var testCookieSecret = []byte("0123456789abcdef0123456789abcdef")
+
+func testCookie(uid, email, name string) *http.Cookie {
+	data := CookieSession{UID: uid, Email: email, Name: name, Exp: time.Now().Add(24 * time.Hour).Unix()}
+	jsonBytes, _ := json.Marshal(data)
+	payload := base64.RawURLEncoding.EncodeToString(jsonBytes)
+	mac := hmac.New(sha256.New, testCookieSecret)
+	mac.Write([]byte(payload))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return &http.Cookie{Name: "orc_session", Value: payload + "." + sig}
+}
+
+func addTestCookie(req *http.Request) {
+	req.AddCookie(testCookie("user1", "user1", "User One"))
+}
 
 // testTunnel sets up a WebSocket server, creates a muxConn, and runs a
 // goroutine that proxies tunnel requests to the given backend HTTP handler.
@@ -221,8 +241,9 @@ func TestGatewayProxyHTTP(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -249,8 +270,9 @@ func TestGatewayProxySSE(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/event", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -277,8 +299,9 @@ func TestGatewayProxyQueryStringForwarding(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session?foo=bar&baz=1", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -303,8 +326,9 @@ func TestGatewayProxyWithRequestBody(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("POST", "/proxy/sess1/api/session/prompt", strings.NewReader(`{"prompt":"hello"}`))
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -321,8 +345,9 @@ func TestGatewayProxyNoTunnel(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/proj", "", nil)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -337,7 +362,7 @@ func TestGatewayProxyNoTunnel(t *testing.T) {
 func TestGatewayProxyInvalidPath(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 
 	for _, path := range []string{"/notProxy/sess1/api/health", "/proxy/"} {
 		req := httptest.NewRequest("GET", path, nil)
@@ -353,9 +378,10 @@ func TestGatewayProxyInvalidPath(t *testing.T) {
 func TestGatewayProxySessionNotFound(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 
 	req := httptest.NewRequest("GET", "/proxy/nonexistent/api/health", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -380,8 +406,9 @@ func TestGatewayProxyAddsDirectoryHeader(t *testing.T) {
 	reg := NewTunnelRegistry(store)
 	reg.Register(t.Context(), "user1", "sess1", "/home/user1/project", "", mux)
 
-	handler := GatewayProxyHandler(reg)
+	handler := GatewayProxyHandler(reg, testCookieSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
+	addTestCookie(req)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

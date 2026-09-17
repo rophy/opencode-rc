@@ -38,7 +38,7 @@ func TestTunnelRegistryDeregister(t *testing.T) {
 
 	tunnel := &muxConn{closed: make(chan struct{})}
 	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
-	reg.Deregister(ctx, "sess-1")
+	reg.Deregister(ctx, "sess-1", tunnel)
 
 	_, ok := reg.GetTunnel("sess-1")
 	if ok {
@@ -180,7 +180,7 @@ func TestTunnelRegistryDeregisterStoreError(t *testing.T) {
 	reg.tunnels.Store("sess-err", tunnel)
 
 	// Should not panic even when store.Delete fails
-	reg.Deregister(context.Background(), "sess-err")
+	reg.Deregister(context.Background(), "sess-err", tunnel)
 
 	if _, ok := reg.GetTunnel("sess-err"); ok {
 		t.Fatal("expected tunnel to be removed from local map")
