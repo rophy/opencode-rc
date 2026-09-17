@@ -2,7 +2,7 @@
 
 Remote control for [OpenCode](https://github.com/anomalyco/opencode) in corporate environments.
 
-OpenCode RC lets developers run OpenCode on their machines while accessing it from a browser through a centralized gateway with OIDC authentication. A reverse WebSocket tunnel means dev machines don't need inbound network access — they connect outward to the gateway.
+OpenCode RC lets developers run OpenCode on their machines while accessing it from a browser through a centralized web server with OIDC authentication. A reverse WebSocket tunnel means dev machines don't need inbound network access — they connect outward to the gateway.
 
 ## Architecture
 
@@ -13,27 +13,27 @@ flowchart LR
         OC["opencode serve"]
     end
     subgraph K8s["Kubernetes"]
-        API["API Server"]
+        WEB["Web Server"]
         GW["Gateway"]
         REDIS["Redis"]
     end
     subgraph Browser
-        WEB["Web UI"]
+        UI["Web UI"]
     end
 
     CLI -- starts --> OC
     CLI -- "WebSocket tunnel (outbound)" --> GW
     GW -- registers session --> REDIS
-    API -- looks up session --> REDIS
-    WEB -- OIDC login --> API
-    WEB -- "requests /s/{session}/*" --> API
-    API -- "proxy via tunnel" --> GW
+    WEB -- looks up session --> REDIS
+    UI -- OIDC login --> WEB
+    UI -- "requests /s/{session}/*" --> WEB
+    WEB -- "proxy via tunnel" --> GW
     GW -- "forwards to" --> OC
 ```
 
 1. Developer runs `opencode-rc` CLI — it authenticates via OIDC, starts `opencode serve`, and opens a WebSocket tunnel to the gateway
 2. The gateway registers the session in Redis and multiplexes browser traffic through the tunnel
-3. The API server authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the gateway
+3. The web server authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the gateway
 4. The web UI provides a session picker and wraps the OpenCode web interface
 
 ## Components
@@ -52,7 +52,7 @@ flowchart LR
 - Kubernetes cluster
 - An OIDC provider (Keycloak, Dex, Azure AD, etc.)
 - Two OIDC clients configured:
-  - **Web client** (confidential): for browser login via the gateway. Redirect URI: `https://<gateway-host>/auth/callback`
+  - **Web client** (confidential): for browser login via the web server. Redirect URI: `https://<web-host>/auth/callback`
   - **CLI client** (public): for developer CLI login via PKCE. Redirect URI: `http://127.0.0.1:0/callback`
 
 ### Install
@@ -87,7 +87,7 @@ The `existingSecret` must contain:
 | `oidc.cookieDomain` | `""` | Cookie domain scope |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
-| `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
+| `web.ingress.enabled` | `false` | Create Ingress for web server |
 | `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
@@ -121,7 +121,8 @@ Images to mirror:
 
 | Image | Tag |
 |-------|-----|
-| `ghcr.io/rophy/opencode-rc/gateway` | `0.1.1` |
+| `ghcr.io/rophy/opencode-rc/web` | `0.3.0` |
+| `ghcr.io/rophy/opencode-rc/gateway` | `0.3.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
 
@@ -163,7 +164,3 @@ Environment variables override the config file — see the [CLI README](cli/READ
 | `OIDC_ISSUER` | OIDC provider URL |
 | `OIDC_CLIENT_ID` | CLI client ID |
 | `TLS_INSECURE_SKIP_VERIFY` | Set to `true` to skip TLS certificate verification |
-
-## License
-
-See [OpenCode](https://github.com/anomalyco/opencode) for upstream license terms.
