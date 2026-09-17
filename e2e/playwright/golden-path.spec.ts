@@ -44,9 +44,15 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   });
 
   // Create a new conversation
+  const tabsBefore = await page
+    .locator('[data-slot="titlebar-tab-item"]')
+    .count();
   await page.locator('button[aria-label="New session"]').first().click();
+  await expect(page.locator('[data-slot="titlebar-tab-item"]')).toHaveCount(
+    tabsBefore + 1,
+    { timeout: 30_000 },
+  );
   const tab = page.locator('[data-slot="titlebar-tab-item"]').last();
-  await expect(tab).toBeVisible({ timeout: 10_000 });
   await tab.locator('[data-slot="tab-link"]').click();
 
   // Wait for the prompt input to appear (opencode UI fully loaded)
