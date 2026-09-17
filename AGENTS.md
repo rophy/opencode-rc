@@ -11,7 +11,7 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 web/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, SPA serving, proxy to gateway
 gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
-ui/             # rc-web SPA — wraps @opencode-ai/app with session picker + user bar
+ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for ui/)

@@ -84,6 +84,12 @@ The test environment deploys:
 
 Tests run inside the dev-machine pod via `kubectl exec`.
 
+### Web Server Unit Tests
+
+```bash
+cd web && bun run test
+```
+
 ### CLI Unit Tests
 
 ```bash
