@@ -5,9 +5,15 @@ on:
     branches: [main]
     paths:
       - 'web/**'
+      - 'ui/**'
+      - 'vendor/opencode'
+      - '.github/workflows/web.yml'
   pull_request:
     paths:
       - 'web/**'
+      - 'ui/**'
+      - 'vendor/opencode'
+      - '.github/workflows/web.yml'
   workflow_dispatch:
 
 jobs:
@@ -23,3 +29,78 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build web image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: web/Dockerfile
+          push: false
+          tags: opencode-rc-web:test
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  publish:
+    needs: [test, build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Check if version exists on ghcr.io
+        id: check
+        run: |
+          VERSION=$(cat gateway/VERSION | tr -d '[:space:]')
+          if docker manifest inspect ghcr.io/${{ github.repository }}/web:$VERSION > /dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Web $VERSION already exists, skipping publish"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to ghcr.io
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web
+        if: steps.check.outputs.publish == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Tag release
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "web/${{ steps.check.outputs.version }}"
+          git push origin "web/${{ steps.check.outputs.version }}"
