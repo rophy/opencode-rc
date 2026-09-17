@@ -7,7 +7,8 @@ import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
 import { SessionStore } from "./store.js";
 import { sessionHandler, rootWebUiHandler, serveStaticFile } from "./webui.js";
 
-const version = process.env.VERSION ?? "dev";
+import pkg from "../package.json";
+const version = pkg.version;
 
 const config = loadConfig();
 
