@@ -11,7 +11,7 @@ web:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/web
-    tag: "0.3.0"
+    tag: "0.3.1"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
@@ -22,6 +22,9 @@ web:
   affinity: {}
   securityContext: {}
   containerSecurityContext: {}
+  service:
+    type: ClusterIP
+    nodePort: null
   ingress:
     enabled: false
     className: ""
@@ -33,7 +36,7 @@ gateway:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/gateway
-    tag: "0.3.0"
+    tag: "0.3.1"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
