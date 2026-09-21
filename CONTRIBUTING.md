@@ -126,6 +126,46 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 | `POD_IP` | Yes | Pod IP for session registration |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
 
+## Versioning
+
+All components share a single version number and must stay in sync.
+
+**Version locations:**
+
+| Component | File | Field |
+|-----------|------|-------|
+| Web | `web/package.json` | `version` |
+| UI | `ui/package.json` | `version` |
+| CLI | `cli/package.json` | `version` |
+| Gateway | `gateway/VERSION` | entire file |
+| Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` |
+
+The gateway binary reads its version at build time from `gateway/VERSION` via ldflags (`-X main.version=$(cat VERSION)`).
+
+**Bumping versions:**
+
+```bash
+# Example: bump to 0.4.0
+VERSION=0.4.0
+
+# Node packages
+cd web && npm version $VERSION --no-git-tag-version && cd ..
+cd ui && npm version $VERSION --no-git-tag-version && cd ..
+cd cli && npm version $VERSION --no-git-tag-version && cd ..
+
+# Gateway
+echo -n "$VERSION" > gateway/VERSION
+
+# Helm chart
+sed -i "s/^version: .*/version: $VERSION/" charts/opencode-rc/Chart.yaml
+sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/opencode-rc/Chart.yaml
+
+git add web/package.json ui/package.json cli/package.json gateway/VERSION charts/opencode-rc/Chart.yaml
+git commit -m "chore: bump version to $VERSION"
+```
+
+Follow [semver](https://semver.org/): patch for bug fixes, minor for new features, major for breaking changes.
+
 ## npm Publishing (CLI)
 
 The CLI is published to npm as `opencode-rc` using npm trusted publishing (OIDC).
