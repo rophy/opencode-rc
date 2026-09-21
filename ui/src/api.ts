@@ -18,12 +18,14 @@ export function setBaseUrl(url: string) {
   } catch {}
 }
 
-export function isConfigured(): boolean {
-  return getBaseUrl() !== "" || !isCapacitor()
-}
-
-export function isCapacitor(): boolean {
-  return typeof (window as any).Capacitor !== "undefined"
+export async function isConfigured(): Promise<boolean> {
+  if (getBaseUrl()) return true
+  try {
+    const res = await fetch("/healthz", { signal: AbortSignal.timeout(3000) })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 function apiUrl(path: string): string {

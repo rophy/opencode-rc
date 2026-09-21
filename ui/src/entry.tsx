@@ -46,7 +46,9 @@ function getSessionIdFromPath(): string | null {
 }
 
 function App() {
-  const [configured, setConfigured] = createSignal(isConfigured())
+  const [configCheck, { refetch: recheckConfig }] = createResource(isConfigured)
+  const [showConfig, setShowConfig] = createSignal(false)
+  const configured = () => !showConfig() && configCheck() === true
   const [user] = createResource(configured, async (ready) => {
     if (!ready) return null
     return fetchMe()
@@ -55,10 +57,10 @@ function App() {
 
   return (
     <Switch>
-      <Match when={!configured()}>
-        <ConfigScreen onSave={() => setConfigured(true)} />
+      <Match when={showConfig() || configCheck() === false}>
+        <ConfigScreen onSave={() => { setShowConfig(false); recheckConfig() }} />
       </Match>
-      <Match when={user.loading}>
+      <Match when={configCheck.loading || user.loading}>
         <div class="flex items-center justify-center h-dvh text-v2-text-tertiary">
           Loading...
         </div>
@@ -71,7 +73,7 @@ function App() {
         })()}
       </Match>
       <Match when={user() && !sessionId}>
-        <UserBar user={user()!} onSettings={() => setConfigured(false)} />
+        <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
         <SessionPicker user={user()!} />
       </Match>
       <Match when={user() && sessionId}>
@@ -119,7 +121,7 @@ function App() {
             <PlatformProvider value={platform}>
               <AppBaseProviders>
                 <div class="flex flex-col h-dvh">
-                  <UserBar user={user()!} onSettings={() => setConfigured(false)} />
+                  <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
                   <div class="flex-1 min-h-0 flex flex-col">
                     <AppInterface
                       defaultServer={serverKey}
