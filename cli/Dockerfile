@@ -1,6 +1,8 @@
 FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
-RUN apt-get update && apt-get install -y curl git jq openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl git jq openssl && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" \
+       -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
 
 # Install opencode
 RUN curl -fsSL https://opencode.ai/install | bash
@@ -23,8 +25,9 @@ WORKDIR /e2e
 COPY e2e/package.json e2e/package-lock.json ./
 RUN npm install
 COPY e2e/tsconfig.json e2e/vitest.config.ts e2e/playwright.config.ts ./
-COPY e2e/e2e.test.ts ./
+COPY e2e/*.test.ts ./
 COPY e2e/playwright/ ./playwright/
+COPY e2e/k8s/ ./k8s/
 
 WORKDIR /project
 ENTRYPOINT ["node", "/cli/dist/index.js"]

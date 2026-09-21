@@ -1,0 +1,114 @@
+# HTTPS servers for TLS CA trust tests.
+# Applied and deleted by tls-ca.test.ts — not managed by skaffold.
+# Secrets (tls-trusted, tls-untrusted, trusted-ca) are created by the test.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-https-conf
+data:
+  default.conf: |
+    server {
+      listen 443 ssl;
+      ssl_certificate /etc/nginx/certs/tls.crt;
+      ssl_certificate_key /etc/nginx/certs/tls.key;
+      location /.well-known/openid-configuration {
+        return 200 '{"issuer":"https://localhost"}';
+        add_header Content-Type application/json;
+      }
+      location / {
+        return 404 '{"error":"not found"}';
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: https-trusted
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: https-trusted
+  template:
+    metadata:
+      labels:
+        app: https-trusted
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 443
+          volumeMounts:
+            - name: certs
+              mountPath: /etc/nginx/certs
+              readOnly: true
+            - name: conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: tls-trusted
+        - name: conf
+          configMap:
+            name: nginx-https-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: https-trusted
+spec:
+  selector:
+    app: https-trusted
+  ports:
+    - port: 443
+      targetPort: 443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: https-untrusted
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: https-untrusted
+  template:
+    metadata:
+      labels:
+        app: https-untrusted
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 443
+          volumeMounts:
+            - name: certs
+              mountPath: /etc/nginx/certs
+              readOnly: true
+            - name: conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: tls-untrusted
+        - name: conf
+          configMap:
+            name: nginx-https-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: https-untrusted
+spec:
+  selector:
+    app: https-untrusted
+  ports:
+    - port: 443
+      targetPort: 443
