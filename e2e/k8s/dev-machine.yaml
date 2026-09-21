@@ -14,8 +14,13 @@ data:
     CODE_VERIFIER=$(openssl rand -base64 48 | tr -d '=/+\n' | head -c 43)
     CODE_CHALLENGE=$(printf '%s' "$CODE_VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -e | tr '+/' '-_' | tr -d '=')
 
+    AUTHORIZE_DATA="sub=${OIDC_USER_SUB:-user1}&client_id=${OIDC_CLIENT_ID}&redirect_uri=http://127.0.0.1:0/callback&state=docker&nonce=test&scope=openid+email+profile&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
+    if [ -n "${OIDC_PASSWORD:-}" ]; then
+      AUTHORIZE_DATA="${AUTHORIZE_DATA}&password=${OIDC_PASSWORD}"
+    fi
+
     AUTH_CODE_URL=$(curl -sf -o /dev/null -w "%{redirect_url}" -X POST \
-      -d "sub=${OIDC_USER_SUB:-user1}&client_id=${OIDC_CLIENT_ID}&redirect_uri=http://127.0.0.1:0/callback&state=docker&nonce=test&scope=openid+email+profile&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256" \
+      -d "$AUTHORIZE_DATA" \
       "${OIDC_URL}/authorize/callback")
     AUTH_CODE=$(echo "$AUTH_CODE_URL" | sed -n 's/.*code=\([^&]*\).*/\1/p')
 
