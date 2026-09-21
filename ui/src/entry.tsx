@@ -11,10 +11,11 @@ import {
 } from "@opencode-ai/app"
 import { Router, type BaseRouterProps } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
-import { fetchMe, isConfigured, getBaseUrl } from "./api"
+import { fetchMe, getBaseUrl } from "./api"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
 import { ConfigScreen } from "./config-screen"
+import { LoginScreen } from "./login-screen"
 
 const platform: Platform = {
   platform: "web",
@@ -46,10 +47,8 @@ function getSessionIdFromPath(): string | null {
 }
 
 function App() {
-  const [configCheck, { refetch: recheckConfig }] = createResource(isConfigured)
   const [showConfig, setShowConfig] = createSignal(false)
-  const configured = () => !showConfig() && configCheck() === true
-  const [user] = createResource(configured, async (ready) => {
+  const [user, { refetch: refetchUser }] = createResource(() => !showConfig(), async (ready) => {
     if (!ready) return null
     return fetchMe()
   })
@@ -57,20 +56,16 @@ function App() {
 
   return (
     <Switch>
-      <Match when={showConfig() || configCheck() === false}>
-        <ConfigScreen onSave={() => { setShowConfig(false); recheckConfig() }} />
+      <Match when={showConfig()}>
+        <ConfigScreen onSave={() => { setShowConfig(false); refetchUser() }} />
       </Match>
-      <Match when={configCheck.loading || user.loading}>
+      <Match when={user.loading}>
         <div class="flex items-center justify-center h-dvh text-v2-text-tertiary">
           Loading...
         </div>
       </Match>
       <Match when={user.error || !user()}>
-        {(() => {
-          const base = getBaseUrl()
-          window.location.href = base ? `${base}/auth/login` : "/auth/login"
-          return <div>Redirecting to login...</div>
-        })()}
+        <LoginScreen onSettings={() => setShowConfig(true)} />
       </Match>
       <Match when={user() && !sessionId}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
