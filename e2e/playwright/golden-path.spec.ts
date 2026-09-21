@@ -64,13 +64,17 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   await page.keyboard.type("Hello, are you there?");
   await page.locator('[data-action="prompt-submit"]').click();
 
+  // After sending, the URL must stay on the session route — not navigate
+  // back to the session list. Previously the Router base prop caused
+  // useLocation().pathname to include the /s/{id} prefix, which broke
+  // opencode's promoteDraft pathname check and triggered a fallback
+  // redirect to "/". Fixed in dd8dfe5.
+  await expect(page).toHaveURL(/\/s\/alice-dev\/server\//, { timeout: 30_000 });
+
   // Wait for the AI response to appear (routed through web → gateway → tunnel → CLI → aimock)
   await expect(page.locator("body")).toContainText("Hello from aimock", {
     timeout: 30_000,
   });
-
-  // Navigate back to the conversation view
-  await tab.locator('[data-slot="tab-link"]').click();
 
   // Verify the assistant response is rendered in the chat
   const assistantContent = page
