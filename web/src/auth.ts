@@ -18,15 +18,23 @@ export type AuthEnv = {
   };
 };
 
+function authFailed(c: any): Response {
+  const accept = c.req.raw.headers.get("accept") ?? "";
+  if (accept.includes("application/json") || c.req.path.startsWith("/api/") || c.req.path.startsWith("/gateway/")) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  return c.redirect("/auth/login");
+}
+
 export function authMiddleware(config: Config) {
   return createMiddleware<AuthEnv>(async (c, next) => {
     const cookieHeader = c.req.raw.headers.get("cookie") ?? "";
     const match = cookieHeader.match(/orc_session=([^;]+)/);
-    if (!match) return c.redirect("/auth/login");
+    if (!match) return authFailed(c);
 
     const data = decodeCookie(match[1], config.cookieSecret);
-    if (!data) return c.redirect("/auth/login");
-    if (Date.now() / 1000 > data.exp) return c.redirect("/auth/login");
+    if (!data) return authFailed(c);
+    if (Date.now() / 1000 > data.exp) return authFailed(c);
 
     c.set("userId", data.uid);
     c.set("session", data);

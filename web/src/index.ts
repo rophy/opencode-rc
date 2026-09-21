@@ -66,16 +66,16 @@ app.all("/s/:sessionId", auth, (c) => {
 
 app.all("/s/:sessionId/*", auth, sessionHandler(store, config.webUiDir));
 
-// Static assets from SPA build
+// Static assets from SPA build (no auth — SPA handles login flow)
 if (config.webUiDir) {
-  app.get("/assets/*", auth, (c) => {
+  app.get("/assets/*", (c) => {
     return serveStaticFile(config.webUiDir, c.req.path);
   });
 }
 
 // Root: serve web UI or fallback dashboard
 if (config.webUiDir) {
-  app.get("/", auth, rootWebUiHandler(config.webUiDir));
+  app.get("/", rootWebUiHandler(config.webUiDir));
 } else {
   app.get("/", auth, (c) => {
     return c.html(dashboardHTML);
