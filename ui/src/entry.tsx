@@ -1,5 +1,5 @@
 import { render } from "solid-js/web"
-import { createEffect, createResource, Match, Switch } from "solid-js"
+import { createEffect, createResource, createSignal, Match, Switch } from "solid-js"
 import {
   AppBaseProviders,
   AppInterface,
@@ -11,9 +11,10 @@ import {
 } from "@opencode-ai/app"
 import { Router, type BaseRouterProps } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
-import { fetchMe } from "./api"
+import { fetchMe, isConfigured, getBaseUrl } from "./api"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
+import { ConfigScreen } from "./config-screen"
 
 const platform: Platform = {
   platform: "web",
@@ -45,11 +46,18 @@ function getSessionIdFromPath(): string | null {
 }
 
 function App() {
-  const [user] = createResource(fetchMe)
+  const [configured, setConfigured] = createSignal(isConfigured())
+  const [user] = createResource(configured, async (ready) => {
+    if (!ready) return null
+    return fetchMe()
+  })
   const sessionId = getSessionIdFromPath()
 
   return (
     <Switch>
+      <Match when={!configured()}>
+        <ConfigScreen onSave={() => setConfigured(true)} />
+      </Match>
       <Match when={user.loading}>
         <div class="flex items-center justify-center h-dvh text-v2-text-tertiary">
           Loading...
@@ -57,12 +65,13 @@ function App() {
       </Match>
       <Match when={user.error || !user()}>
         {(() => {
-          window.location.href = "/auth/login"
+          const base = getBaseUrl()
+          window.location.href = base ? `${base}/auth/login` : "/auth/login"
           return <div>Redirecting to login...</div>
         })()}
       </Match>
       <Match when={user() && !sessionId}>
-        <UserBar user={user()!} />
+        <UserBar user={user()!} onSettings={() => setConfigured(false)} />
         <SessionPicker user={user()!} />
       </Match>
       <Match when={user() && sessionId}>
@@ -110,7 +119,7 @@ function App() {
             <PlatformProvider value={platform}>
               <AppBaseProviders>
                 <div class="flex flex-col h-dvh">
-                  <UserBar user={user()!} />
+                  <UserBar user={user()!} onSettings={() => setConfigured(false)} />
                   <div class="flex-1 min-h-0 flex flex-col">
                     <AppInterface
                       defaultServer={serverKey}

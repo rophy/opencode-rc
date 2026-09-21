@@ -1,5 +1,5 @@
 import { type Component, For, Show, createResource, createSignal } from "solid-js"
-import { fetchSessions, type UserInfo, type DevSession } from "./api"
+import { fetchSessions, getBaseUrl, type UserInfo, type DevSession } from "./api"
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
@@ -19,7 +19,7 @@ function directoryName(dir: string): string {
 function SessionCard(props: { session: DevSession }) {
   return (
     <a
-      href={`/s/${encodeURIComponent(props.session.id)}/`}
+      href={`${getBaseUrl()}/s/${encodeURIComponent(props.session.id)}/`}
       class="group flex items-start gap-3 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-3.5 transition-[background-color,border-color] duration-150 hover:bg-v2-background-bg-layer-01 hover:border-v2-border-border-muted"
     >
       <div class="flex size-8 shrink-0 items-center justify-center rounded-md bg-v2-background-bg-layer-03 text-v2-text-text-muted">
