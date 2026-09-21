@@ -102,10 +102,11 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("web /auth/login shows login page", async () => {
-    const res = await fetch(`${WEB_URL}/auth/login`);
+  it("web / serves SPA", async () => {
+    const res = await fetch(`${WEB_URL}/`);
+    expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).toContain("Sign in with OIDC");
+    expect(text).toContain("root");
   });
 
   it("OIDC login flow sets session cookie", async () => {
@@ -179,24 +180,23 @@ describe("auth edge cases", () => {
     await waitFor("web", `${WEB_URL}/healthz`, 30);
   });
 
-  it("unauthenticated /api/me redirects to login", async () => {
-    const res = await fetch(`${WEB_URL}/api/me`, { redirect: "manual" });
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+  it("unauthenticated /api/me returns 401", async () => {
+    const res = await fetch(`${WEB_URL}/api/me`);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("unauthorized");
   });
 
-  it("unauthenticated /gateway/sessions redirects to login", async () => {
-    const res = await fetch(`${WEB_URL}/gateway/sessions`, {
-      redirect: "manual",
-    });
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+  it("unauthenticated /gateway/sessions returns 401", async () => {
+    const res = await fetch(`${WEB_URL}/gateway/sessions`);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe("unauthorized");
   });
 
-  it("unauthenticated / redirects to login", async () => {
-    const res = await fetch(`${WEB_URL}/`, { redirect: "manual" });
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+  it("unauthenticated / serves SPA (auth handled client-side)", async () => {
+    const res = await fetch(`${WEB_URL}/`);
+    expect(res.status).toBe(200);
   });
 
   it("unauthenticated session proxy redirects to login", async () => {

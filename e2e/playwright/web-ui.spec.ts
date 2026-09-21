@@ -2,10 +2,10 @@ import { test, expect } from "@playwright/test";
 
 async function loginAs(page: import("@playwright/test").Page, name: string) {
   await page.goto("/");
-  // Web server redirects to /auth/login
-  await page.waitForURL("**/auth/login");
-  // Click the OIDC sign-in link
-  await page.locator("a.btn", { hasText: "Sign in with OIDC" }).click();
+  // SPA loads, detects 401 from /api/me, shows login screen
+  await page.waitForSelector("text=Sign in with OIDC");
+  // Click the OIDC sign-in button
+  await page.locator("button", { hasText: "Sign in with OIDC" }).click();
   // oidc-mock shows user selection
   await page.waitForURL("**/authorize**");
   await page.locator("button.user-card", { hasText: name }).click();
@@ -14,16 +14,19 @@ async function loginAs(page: import("@playwright/test").Page, name: string) {
 }
 
 test.describe("authentication", () => {
-  test("unauthenticated user is redirected to login page", async ({ page }) => {
+  test("unauthenticated user sees login screen", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveURL(/\/auth\/login/);
-    await expect(page.locator("a.btn", { hasText: "Sign in with OIDC" })).toBeVisible();
+    await expect(page.locator("button", { hasText: "Sign in with OIDC" })).toBeVisible();
   });
 
-  test("login page links to OIDC provider", async ({ page }) => {
-    await page.goto("/auth/login");
-    const link = page.locator("a.btn", { hasText: "Sign in with OIDC" });
-    await expect(link).toHaveAttribute("href", "/auth/start");
+  test("login button navigates to OIDC provider", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector("text=Sign in with OIDC");
+    const [response] = await Promise.all([
+      page.waitForNavigation(),
+      page.locator("button", { hasText: "Sign in with OIDC" }).click(),
+    ]);
+    expect(page.url()).toContain("/authorize");
   });
 
   test("login as alice via OIDC", async ({ page }) => {
@@ -32,10 +35,10 @@ test.describe("authentication", () => {
     await expect(page.getByText("alice", { exact: true }).first()).toBeVisible();
   });
 
-  test("logout redirects to login", async ({ page }) => {
+  test("logout redirects to login screen", async ({ page }) => {
     await loginAs(page, "Alice");
     await page.locator("button[title='Sign out']").click();
-    await expect(page).toHaveURL(/\/auth\/login/);
+    await expect(page.locator("button", { hasText: "Sign in with OIDC" })).toBeVisible();
   });
 });
 

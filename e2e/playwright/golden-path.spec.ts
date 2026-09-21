@@ -18,10 +18,10 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
 
   // --- Step 2: User opens web UI and logs in via OIDC ---
   await page.goto("/");
-  await page.waitForURL("**/auth/login");
-  await expect(page.locator("a.btn", { hasText: "Sign in with OIDC" })).toBeVisible();
+  // SPA loads, detects 401 from /api/me, shows login screen
+  await page.waitForSelector("text=Sign in with OIDC");
 
-  await page.locator("a.btn", { hasText: "Sign in with OIDC" }).click();
+  await page.locator("button", { hasText: "Sign in with OIDC" }).click();
   await page.waitForURL("**/authorize**");
   await page.locator("button.user-card", { hasText: "Alice" }).click();
 
