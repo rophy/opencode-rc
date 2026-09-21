@@ -88,14 +88,13 @@ oidcMock:
 
 tlsInsecureSkipVerify: false
 
-# Extra CA certificates to trust (PEM format). Each key becomes a cert file.
+# Extra CA certificates to trust (PEM bundle). Multiple certs can be concatenated.
 # Example:
-#   extraCACerts:
-#     internal-ca.crt: |
-#       -----BEGIN CERTIFICATE-----
-#       MIIDxTCC...
-#       -----END CERTIFICATE-----
-extraCACerts: {}
+#   extraCACerts: |
+#     -----BEGIN CERTIFICATE-----
+#     MIIDxTCC...
+#     -----END CERTIFICATE-----
+extraCACerts: ""
 
 oidc:
   issuer: ""

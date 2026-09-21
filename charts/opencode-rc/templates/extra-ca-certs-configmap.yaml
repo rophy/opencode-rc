@@ -6,8 +6,6 @@ metadata:
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
 data:
-  {{- range $name, $cert := .Values.extraCACerts }}
-  {{ $name }}: |
-    {{- $cert | nindent 4 }}
-  {{- end }}
+  ca-bundle.crt: |
+    {{- .Values.extraCACerts | nindent 4 }}
 {{- end }}

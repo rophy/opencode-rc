@@ -72,8 +72,8 @@ spec:
               value: "true"
             {{- end }}
             {{- if .Values.extraCACerts }}
-            - name: SSL_CERT_DIR
-              value: "/etc/ssl/certs:/etc/ssl/certs/extra"
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/etc/ssl/certs/extra/ca-bundle.crt"
             {{- end }}
             {{- if .Values.redis.enabled }}
             - name: REDIS_URL

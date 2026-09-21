@@ -13,7 +13,7 @@ tests:
           path: spec.template.spec.containers[0].args
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/rophy/opencode-rc/gateway:0.3.1"
+          value: "ghcr.io/rophy/opencode-rc/gateway:0.4.0"
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -36,7 +36,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/gateway:0.3.1"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/gateway:0.4.0"
 
   - it: reads secrets from existingSecret in production
     set:
@@ -110,16 +110,15 @@ tests:
       - isNull:
           path: spec.template.spec.volumes
 
-  - it: mounts extra CA certs and sets SSL_CERT_DIR
+  - it: mounts extra CA certs and sets SSL_CERT_FILE
     set:
-      extraCACerts:
-        internal-ca.crt: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"
+      extraCACerts: "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: SSL_CERT_DIR
-            value: "/etc/ssl/certs:/etc/ssl/certs/extra"
+            name: SSL_CERT_FILE
+            value: "/etc/ssl/certs/extra/ca-bundle.crt"
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:

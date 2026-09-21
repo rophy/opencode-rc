@@ -24,7 +24,6 @@ manifests:
   rawYaml:
     - k8s/aimock.yaml
     - k8s/dev-machine.yaml
-    - k8s/tls-test.yaml
 deploy:
   kubectl: {}
   helm:

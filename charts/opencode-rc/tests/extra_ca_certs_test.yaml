@@ -9,10 +9,9 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: renders ConfigMap with cert data
+  - it: renders ConfigMap with bundled cert data
     set:
-      extraCACerts:
-        internal-ca.crt: "-----BEGIN CERTIFICATE-----\nMIIDxTCC\n-----END CERTIFICATE-----"
+      extraCACerts: "-----BEGIN CERTIFICATE-----\nMIIDxTCC\n-----END CERTIFICATE-----"
     asserts:
       - isKind:
           of: ConfigMap
@@ -20,18 +19,16 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-extra-ca-certs
       - matchRegex:
-          path: data["internal-ca.crt"]
+          path: data["ca-bundle.crt"]
           pattern: "BEGIN CERTIFICATE"
 
-  - it: renders multiple certs
+  - it: renders multiple certs as single bundle
     set:
-      extraCACerts:
-        ca1.crt: "-----BEGIN CERTIFICATE-----\ncert1\n-----END CERTIFICATE-----"
-        ca2.crt: "-----BEGIN CERTIFICATE-----\ncert2\n-----END CERTIFICATE-----"
+      extraCACerts: "-----BEGIN CERTIFICATE-----\ncert1\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\ncert2\n-----END CERTIFICATE-----"
     asserts:
       - matchRegex:
-          path: data["ca1.crt"]
+          path: data["ca-bundle.crt"]
           pattern: "cert1"
       - matchRegex:
-          path: data["ca2.crt"]
+          path: data["ca-bundle.crt"]
           pattern: "cert2"
