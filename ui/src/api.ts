@@ -28,7 +28,7 @@ export async function isConfigured(): Promise<boolean> {
   }
 }
 
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   const base = getBaseUrl()
   return base ? `${base}${path}` : path
 }
