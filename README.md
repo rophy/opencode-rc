@@ -121,8 +121,8 @@ Images to mirror:
 
 | Image | Tag |
 |-------|-----|
-| `ghcr.io/rophy/opencode-rc/web` | `0.3.1` |
-| `ghcr.io/rophy/opencode-rc/gateway` | `0.3.1` |
+| `ghcr.io/rophy/opencode-rc/web` | `0.4.0` |
+| `ghcr.io/rophy/opencode-rc/gateway` | `0.4.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
 
