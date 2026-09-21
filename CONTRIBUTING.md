@@ -128,40 +128,42 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 
 ## Versioning
 
-All components share a single version number and must stay in sync.
+Server-side components (Web, UI, Gateway, Helm chart) share a version and are bumped together. CLI is versioned independently — only bump it when CLI code changes.
 
 **Version locations:**
 
-| Component | File | Field |
-|-----------|------|-------|
-| Web | `web/package.json` | `version` |
-| UI | `ui/package.json` | `version` |
-| CLI | `cli/package.json` | `version` |
-| Gateway | `gateway/VERSION` | entire file |
-| Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` |
+| Component | File | Field | Versioned with |
+|-----------|------|-------|----------------|
+| Web | `web/package.json` | `version` | Server |
+| UI | `ui/package.json` | `version` | Server |
+| Gateway | `gateway/VERSION` | entire file | Server |
+| Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` | Server |
+| CLI | `cli/package.json` | `version` | Independent |
 
 The gateway binary reads its version at build time from `gateway/VERSION` via ldflags (`-X main.version=$(cat VERSION)`).
 
-**Bumping versions:**
+**Bumping server version:**
 
 ```bash
 # Example: bump to 0.4.0
 VERSION=0.4.0
 
-# Node packages
 cd web && npm version $VERSION --no-git-tag-version && cd ..
 cd ui && npm version $VERSION --no-git-tag-version && cd ..
-cd cli && npm version $VERSION --no-git-tag-version && cd ..
-
-# Gateway
 echo -n "$VERSION" > gateway/VERSION
-
-# Helm chart
 sed -i "s/^version: .*/version: $VERSION/" charts/opencode-rc/Chart.yaml
 sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/opencode-rc/Chart.yaml
 
-git add web/package.json ui/package.json cli/package.json gateway/VERSION charts/opencode-rc/Chart.yaml
-git commit -m "chore: bump version to $VERSION"
+git add web/package.json ui/package.json gateway/VERSION charts/opencode-rc/Chart.yaml
+git commit -m "chore: bump server version to $VERSION"
+```
+
+**Bumping CLI version:**
+
+```bash
+cd cli && npm version $VERSION --no-git-tag-version && cd ..
+git add cli/package.json
+git commit -m "chore: bump CLI version to $VERSION"
 ```
 
 Follow [semver](https://semver.org/): patch for bug fixes, minor for new features, major for breaking changes.
