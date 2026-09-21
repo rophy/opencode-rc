@@ -3,18 +3,18 @@
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-unit-test: ## Run unit tests for backend and CLI with coverage
-	@echo "=== Backend unit tests ==="
-	@cd backend && go test -cover ./... 2>&1 | tee /tmp/backend-unit.log
+unit-test: ## Run unit tests for all packages with coverage
+	@echo "=== Gateway (Go) ==="
+	@cd gateway && go test -cover ./...
 	@echo ""
-	@echo "=== CLI unit tests ==="
-	@cd cli && npx vitest run --coverage 2>&1 | tee /tmp/cli-unit.log
+	@echo "=== Web (TypeScript) ==="
+	@cd web && npx vitest run --coverage
 	@echo ""
-	@echo "=== Coverage Summary ==="
-	@echo "Backend:"
-	@grep -E 'coverage:' /tmp/backend-unit.log || true
-	@echo "CLI:"
-	@grep -E '(All files|Statements)' /tmp/cli-unit.log | head -2 || true
+	@echo "=== CLI (TypeScript) ==="
+	@cd cli && npx vitest run --coverage
+	@echo ""
+	@echo "=== UI (SolidJS) ==="
+	@cd ui && npx vitest run --coverage
 
-e2e-test: ## Run e2e tests with coverage collection
-	./e2e/coverage.sh
+e2e-test: ## Run e2e tests (Kind + Skaffold)
+	./e2e/run.sh

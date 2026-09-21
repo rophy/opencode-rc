@@ -6,5 +6,6 @@ node_modules/
 dist/
 .playwright-mcp/
 .cover/
+coverage/
 LOCAL.md
 .local/

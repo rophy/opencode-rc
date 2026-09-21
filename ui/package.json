@@ -17,7 +17,10 @@
   "devDependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
+    "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4.1.11",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@vitest/coverage-v8": "5",
     "jsdom": "^30.1.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^7.0.2",
