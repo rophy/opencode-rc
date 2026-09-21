@@ -23,7 +23,7 @@ function authFailed(c: any): Response {
   if (accept.includes("application/json") || c.req.path.startsWith("/api/") || c.req.path.startsWith("/gateway/")) {
     return c.json({ error: "unauthorized" }, 401);
   }
-  return c.redirect("/auth/login");
+  return c.redirect("/");
 }
 
 export function authMiddleware(config: Config) {
@@ -44,10 +44,6 @@ export function authMiddleware(config: Config) {
 
 export function authRoutes(config: Config, provider: OIDCProvider) {
   const app = new Hono();
-
-  app.get("/auth/login", (c) => {
-    return c.html(loginPageHTML);
-  });
 
   app.get("/auth/start", (c) => {
     const state = generateState();
@@ -160,60 +156,3 @@ export function authRoutes(config: Config, provider: OIDCProvider) {
   return app;
 }
 
-const loginPageHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>opencode-rc</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f5f5f5;
-    color: #1a1a1a;
-  }
-  .card {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    padding: 2.5rem;
-    text-align: center;
-    max-width: 360px;
-    width: 100%;
-  }
-  h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-  p { font-size: 0.875rem; color: #666; margin-bottom: 1.5rem; }
-  .btn {
-    display: inline-block;
-    background: #1a1a1a;
-    color: #fff;
-    padding: 0.625rem 1.5rem;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: background 0.15s;
-  }
-  .btn:hover { background: #333; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #111; color: #e5e5e5; }
-    .card { background: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-    p { color: #999; }
-    .btn { background: #e5e5e5; color: #1a1a1a; }
-    .btn:hover { background: #ccc; }
-  }
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>opencode-rc</h1>
-  <p>Remote control for OpenCode</p>
-  <a class="btn" href="/auth/start">Sign in with OIDC</a>
-</div>
-</body>
-</html>`;

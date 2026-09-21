@@ -47,7 +47,7 @@ describe("authMiddleware", () => {
     const app = makeApp();
     const res = await app.request("/protected");
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("redirects when cookie has invalid signature", async () => {
@@ -56,7 +56,7 @@ describe("authMiddleware", () => {
       headers: { cookie: "orc_session=garbage.value" },
     });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("redirects when cookie is expired", async () => {
@@ -66,7 +66,7 @@ describe("authMiddleware", () => {
       headers: { cookie: `orc_session=${expired}` },
     });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("passes through with valid cookie", async () => {
