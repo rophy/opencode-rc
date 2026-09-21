@@ -48,16 +48,13 @@ function getSessionIdFromPath(): string | null {
 
 function App() {
   const [showConfig, setShowConfig] = createSignal(false)
-  const [user, { refetch: refetchUser }] = createResource(() => !showConfig(), async (ready) => {
-    if (!ready) return null
-    return fetchMe()
-  })
+  const [user, { refetch: refetchUser }] = createResource(fetchMe)
   const sessionId = getSessionIdFromPath()
 
   return (
     <Switch>
       <Match when={showConfig()}>
-        <ConfigScreen onSave={() => { setShowConfig(false); refetchUser() }} />
+        <ConfigScreen onSave={() => { setShowConfig(false); refetchUser() }} onCancel={() => setShowConfig(false)} />
       </Match>
       <Match when={user.loading}>
         <div class="flex items-center justify-center h-dvh text-v2-text-tertiary">

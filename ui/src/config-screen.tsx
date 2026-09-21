@@ -1,7 +1,7 @@
 import { type Component, createSignal } from "solid-js"
 import { getBaseUrl, setBaseUrl } from "./api"
 
-export const ConfigScreen: Component<{ onSave: () => void }> = (props) => {
+export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void }> = (props) => {
   const [url, setUrl] = createSignal(getBaseUrl())
   const [error, setError] = createSignal("")
   const [testing, setTesting] = createSignal(false)
@@ -52,7 +52,7 @@ export const ConfigScreen: Component<{ onSave: () => void }> = (props) => {
         </label>
         <input
           type="url"
-          placeholder="https://opencode-rc.example.com"
+          placeholder={window.location.origin}
           value={url()}
           onInput={(e) => { setUrl(e.currentTarget.value); setError("") }}
           onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
@@ -63,13 +63,23 @@ export const ConfigScreen: Component<{ onSave: () => void }> = (props) => {
           <p class="mt-2 text-[12px] text-red-500">{error()}</p>
         )}
 
-        <button
-          onClick={handleSave}
-          disabled={testing()}
-          class="mt-4 w-full rounded-md bg-v2-text-text-base text-v2-background-bg-deep px-4 py-2 text-[14px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer border-none"
-        >
-          {testing() ? "Connecting..." : "Connect"}
-        </button>
+        <div class="mt-4 flex gap-3">
+          {props.onCancel && (
+            <button
+              onClick={props.onCancel}
+              class="flex-1 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-4 py-2 text-[14px] font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-hover cursor-pointer"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={testing()}
+            class="flex-1 rounded-md bg-v2-text-text-base text-v2-background-bg-deep px-4 py-2 text-[14px] font-medium transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer border-none"
+          >
+            {testing() ? "Connecting..." : "Save"}
+          </button>
+        </div>
       </div>
     </div>
   )

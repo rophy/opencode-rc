@@ -17,14 +17,14 @@ describe("ConfigScreen", () => {
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
     expect(screen.getByText("Connect to Server")).toBeTruthy()
-    expect(screen.getByPlaceholderText("https://opencode-rc.example.com")).toBeTruthy()
-    expect(screen.getByText("Connect")).toBeTruthy()
+    expect(screen.getByPlaceholderText("http://localhost:3000")).toBeTruthy()
+    expect(screen.getByText("Save")).toBeTruthy()
   })
 
   it("shows error for empty URL", async () => {
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
-    await fireEvent.click(screen.getByText("Connect"))
+    await fireEvent.click(screen.getByText("Save"))
     expect(screen.getByText("Enter a server URL")).toBeTruthy()
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -32,9 +32,9 @@ describe("ConfigScreen", () => {
   it("shows error for invalid URL", async () => {
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
-    const input = screen.getByPlaceholderText("https://opencode-rc.example.com") as HTMLInputElement
+    const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
     await fireEvent.input(input, { target: { value: "not-a-url" } })
-    await fireEvent.click(screen.getByText("Connect"))
+    await fireEvent.click(screen.getByText("Save"))
     expect(screen.getByText("Invalid URL")).toBeTruthy()
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -43,9 +43,9 @@ describe("ConfigScreen", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network error"))
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
-    const input = screen.getByPlaceholderText("https://opencode-rc.example.com") as HTMLInputElement
+    const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
     await fireEvent.input(input, { target: { value: "https://example.com" } })
-    await fireEvent.click(screen.getByText("Connect"))
+    await fireEvent.click(screen.getByText("Save"))
     await vi.waitFor(() => {
       expect(screen.getByText(/Cannot reach server/)).toBeTruthy()
     })
@@ -56,20 +56,33 @@ describe("ConfigScreen", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok", { status: 200 }))
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
-    const input = screen.getByPlaceholderText("https://opencode-rc.example.com") as HTMLInputElement
+    const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
     await fireEvent.input(input, { target: { value: "https://rc.example.com" } })
-    await fireEvent.click(screen.getByText("Connect"))
+    await fireEvent.click(screen.getByText("Save"))
     await vi.waitFor(() => {
       expect(onSave).toHaveBeenCalledOnce()
     })
     expect(getBaseUrl()).toBe("https://rc.example.com")
   })
 
+  it("shows cancel button when onCancel provided", async () => {
+    const onCancel = vi.fn()
+    render(() => <ConfigScreen onSave={vi.fn()} onCancel={onCancel} />)
+    expect(screen.getByText("Cancel")).toBeTruthy()
+    await fireEvent.click(screen.getByText("Cancel"))
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it("hides cancel button when onCancel not provided", () => {
+    render(() => <ConfigScreen onSave={vi.fn()} />)
+    expect(screen.queryByText("Cancel")).toBeNull()
+  })
+
   it("pre-fills with existing base URL", () => {
     localStorage.setItem("opencode-rc-endpoint", "https://existing.example.com")
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
-    const input = screen.getByPlaceholderText("https://opencode-rc.example.com") as HTMLInputElement
+    const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
     expect(input.value).toBe("https://existing.example.com")
   })
 })
