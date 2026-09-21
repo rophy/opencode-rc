@@ -128,43 +128,25 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 
 ## Versioning
 
-Server-side components (Web, UI, Gateway, Helm chart) share a version and are bumped together. CLI is versioned independently — only bump it when CLI code changes.
+Each component is versioned independently. Only bump what changed.
 
 **Version locations:**
 
-| Component | File | Field | Versioned with |
-|-----------|------|-------|----------------|
-| Web | `web/package.json` | `version` | Server |
-| UI | `ui/package.json` | `version` | Server |
-| Gateway | `gateway/VERSION` | entire file | Server |
-| Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` | Server |
-| CLI | `cli/package.json` | `version` | Independent |
+| Component | File | Field |
+|-----------|------|-------|
+| Web | `web/package.json` | `version` |
+| UI | `ui/package.json` | `version` |
+| Gateway | `gateway/VERSION` | entire file (read at build time via ldflags) |
+| CLI | `cli/package.json` | `version` |
+| Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` |
+| Helm defaults | `charts/opencode-rc/values.yaml` | `web.image.tag` + `gateway.image.tag` |
 
-The gateway binary reads its version at build time from `gateway/VERSION` via ldflags (`-X main.version=$(cat VERSION)`).
+When bumping, update every location that references the changed version:
 
-**Bumping server version:**
-
-```bash
-# Example: bump to 0.4.0
-VERSION=0.4.0
-
-cd web && npm version $VERSION --no-git-tag-version && cd ..
-cd ui && npm version $VERSION --no-git-tag-version && cd ..
-echo -n "$VERSION" > gateway/VERSION
-sed -i "s/^version: .*/version: $VERSION/" charts/opencode-rc/Chart.yaml
-sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" charts/opencode-rc/Chart.yaml
-
-git add web/package.json ui/package.json gateway/VERSION charts/opencode-rc/Chart.yaml
-git commit -m "chore: bump server version to $VERSION"
-```
-
-**Bumping CLI version:**
-
-```bash
-cd cli && npm version $VERSION --no-git-tag-version && cd ..
-git add cli/package.json
-git commit -m "chore: bump CLI version to $VERSION"
-```
+- **Web or UI code changed** → bump `web/package.json`, `ui/package.json`, update `web.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
+- **Gateway code changed** → bump `gateway/VERSION`, update `gateway.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
+- **Chart-only change** (no image rebuild) → bump chart version in `Chart.yaml`, image tags stay as-is
+- **CLI code changed** → bump `cli/package.json`
 
 Follow [semver](https://semver.org/): patch for bug fixes, minor for new features, major for breaking changes.
 
