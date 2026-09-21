@@ -205,7 +205,7 @@ describe("auth edge cases", () => {
       { redirect: "manual" }
     );
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/auth/login");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("logout clears session and redirects", async () => {
@@ -220,8 +220,7 @@ describe("auth edge cases", () => {
     expect(logoutRes.headers.get("location")).toBe("/");
 
     const afterRes = await jar.fetch(`${WEB_URL}/api/me`);
-    expect(afterRes.status).toBe(302);
-    expect(afterRes.headers.get("location")).toBe("/auth/login");
+    expect(afterRes.status).toBe(401);
   });
 });
 
