@@ -21,6 +21,9 @@ unit-test: ## Run unit tests for all packages with coverage
 	@echo ""
 	@echo "=== UI (SolidJS) ==="
 	@cd ui && npx vitest run --coverage
+	@echo ""
+	@echo "=== Chart (helm unittest) ==="
+	@helm unittest charts/opencode-rc
 
 up: ## Create kind cluster and deploy e2e environment
 	@echo "=== Creating kind cluster ==="
