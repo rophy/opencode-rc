@@ -145,6 +145,7 @@ async function doProxyToLocal(
 
 export interface TunnelHandle {
   close(): void;
+  disconnected: Promise<void>;
 }
 
 export async function startTunnel(
@@ -190,6 +191,8 @@ export async function startTunnel(
     } as any);
 
     ws.binaryType = "arraybuffer";
+    let resolveDisconnected: () => void;
+    const disconnected = new Promise<void>((r) => { resolveDisconnected = r; });
 
     ws.addEventListener("open", () => {
       console.log("Tunnel established");
@@ -197,6 +200,7 @@ export async function startTunnel(
         close() {
           ws.close();
         },
+        disconnected,
       });
     });
 
@@ -232,6 +236,7 @@ export async function startTunnel(
 
     ws.addEventListener("close", () => {
       console.log("Tunnel closed");
+      resolveDisconnected();
     });
   });
 }
@@ -246,7 +251,7 @@ export async function startTunnelWithReconnect(
   let closed = false;
   let currentHandle: TunnelHandle | null = null;
 
-  async function connect() {
+  async function connectLoop(): Promise<void> {
     let backoff = 1000;
     while (!closed) {
       try {
@@ -258,22 +263,60 @@ export async function startTunnelWithReconnect(
           directory
         );
         backoff = 1000;
-        return currentHandle;
+        await currentHandle.disconnected;
+        if (!closed) {
+          console.log("Tunnel disconnected, will reconnect...");
+        }
       } catch {
+        if (closed) return;
+      }
+      if (!closed) {
         console.log(`Reconnecting in ${backoff / 1000}s...`);
         await new Promise((r) => setTimeout(r, backoff));
         backoff = Math.min(backoff * 2, 30000);
       }
     }
-    throw new Error("tunnel closed");
   }
 
-  const handle = await connect();
+  // Initial connection — throw on failure so caller sees it
+  let backoff = 1000;
+  while (!closed) {
+    try {
+      currentHandle = await startTunnel(
+        config,
+        idToken,
+        sessionID,
+        localUrl,
+        directory
+      );
+      break;
+    } catch (err) {
+      if (closed) throw new Error("tunnel closed");
+      console.log(`Reconnecting in ${backoff / 1000}s...`);
+      await new Promise((r) => setTimeout(r, backoff));
+      backoff = Math.min(backoff * 2, 30000);
+    }
+  }
+
+  if (!currentHandle) throw new Error("tunnel closed");
+
+  // After initial connect, run reconnection loop in background
+  currentHandle.disconnected.then(() => {
+    if (!closed) {
+      console.log("Tunnel disconnected, will reconnect...");
+      connectLoop();
+    }
+  });
+
+  let resolveOuter: () => void;
+  const outerDisconnected = new Promise<void>((r) => { resolveOuter = r; });
 
   return {
     close() {
       closed = true;
       currentHandle?.close();
+      resolveOuter();
     },
+    disconnected: outerDisconnected,
   };
 }

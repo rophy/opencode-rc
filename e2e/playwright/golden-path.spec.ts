@@ -43,6 +43,14 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
     timeout: 30_000,
   });
 
+  // Wait for AutoOpenProjects to fire — the project must appear in the
+  // Home page before "New session" can create a tab (openNewTab is a
+  // no-op when layout.projects.list() is empty).
+  await page
+    .locator('[data-component="home-project-row"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 30_000 });
+
   // Create a new conversation
   const tabsBefore = await page
     .locator('[data-slot="titlebar-tab-item"]')

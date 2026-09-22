@@ -237,12 +237,12 @@ spec:
   });
 
   it("gateway with SSL_CERT_FILE trusts private CA", () => {
-    const logs = waitForLogs("tls-test-trusted", /retry|fatal/i);
+    const logs = waitForLogs("tls-test-trusted", /connected to Redis|gateway starting/i);
     expect(logs).not.toMatch(/x509|unable to verify|self.signed/i);
   });
 
   it("web with NODE_EXTRA_CA_CERTS trusts private CA", () => {
-    const logs = waitForLogs("tls-test-web-trusted", /retry|fatal/i);
+    const logs = waitForLogs("tls-test-web-trusted", /OIDC discovery complete|web starting/i);
     expect(logs).not.toMatch(
       /x509|unable to verify|self.signed|UNABLE_TO_VERIFY/i
     );

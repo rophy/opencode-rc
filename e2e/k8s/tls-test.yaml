@@ -13,8 +13,8 @@ data:
       ssl_certificate /etc/nginx/certs/tls.crt;
       ssl_certificate_key /etc/nginx/certs/tls.key;
       location /.well-known/openid-configuration {
-        return 200 '{"issuer":"https://localhost"}';
-        add_header Content-Type application/json;
+        default_type application/json;
+        return 200 '{"issuer":"https://https-trusted","authorization_endpoint":"https://https-trusted/authorize","token_endpoint":"https://https-trusted/token","jwks_uri":"https://https-trusted/jwks"}';
       }
       location / {
         return 404 '{"error":"not found"}';

@@ -37,16 +37,16 @@ up: ## Create kind cluster and deploy e2e environment
 	@echo "=== Waiting for services ==="
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-web --timeout=120s
 	@$(KUBECTL) wait --for=condition=Available deployment/dev-machine --timeout=120s
-	@DEV_POD=$$($(KUBECTL) get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}'); \
-	echo "Waiting for tunnel..."; \
-	for i in $$(seq 1 120); do \
-		if $(KUBECTL) exec "$$DEV_POD" -- curl -sf http://opencode-rc-web:8080/healthz >/dev/null 2>&1; then \
-			echo "Web server reachable from dev-machine"; \
+	@echo "Waiting for tunnel establishment..."
+	@for i in $$(seq 1 120); do \
+		if $(KUBECTL) logs deployment/dev-machine --tail=10 2>/dev/null | grep -q 'Session.*connected\|Tunnel established'; then \
+			echo "Tunnel established"; \
 			break; \
 		fi; \
 		if [ "$$i" -eq 120 ]; then \
-			echo "ERROR: web server not reachable after 120 attempts"; \
+			echo "ERROR: tunnel not established after 240s"; \
 			$(KUBECTL) logs deployment/opencode-rc-web --tail=30; \
+			$(KUBECTL) logs deployment/opencode-rc-gateway --tail=30; \
 			$(KUBECTL) logs deployment/dev-machine --tail=30; \
 			exit 1; \
 		fi; \
