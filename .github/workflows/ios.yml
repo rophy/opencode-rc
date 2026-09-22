@@ -31,6 +31,16 @@ jobs:
       - name: Sync iOS project
         run: cd ui && npx cap sync ios
 
+      - name: Read iOS version
+        id: version
+        run: |
+          cd ui/ios/App/App.xcodeproj
+          MARKETING=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' project.pbxproj | head -1 | tr -d ' ')
+          BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' project.pbxproj | head -1 | tr -d ' ')
+          VERSION="${MARKETING}-${BUILD}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "iOS version: $VERSION"
+
       - name: Publish to releases/ios
         run: |
           cd /tmp
@@ -47,3 +57,15 @@ jobs:
           git commit -m "build: update iOS project from ${GITHUB_SHA::8}"
           git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push -f origin releases/ios
+
+      - name: Tag release
+        run: |
+          TAG="ios/${{ steps.version.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping"
+          else
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
