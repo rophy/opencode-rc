@@ -115,7 +115,7 @@ function App() {
           // rewrite those to the remote server.
           const passthroughPrefixes = ["/auth/", "/gateway/", "/healthz", "/assets/"]
           const originalFetch = globalThis.fetch.bind(globalThis)
-          globalThis.fetch = (input, init) => {
+          globalThis.fetch = async (input, init) => {
             let url: URL | undefined
             if (typeof input === "string") {
               url = new URL(input, location.origin)
@@ -138,7 +138,18 @@ function App() {
                 url = new URL(url.pathname + url.search + url.hash, serverOrigin)
               }
               if (input instanceof Request) {
-                return originalFetch(new Request(url, input), init)
+                const body = input.method !== "GET" && input.method !== "HEAD"
+                  ? await input.arrayBuffer()
+                  : undefined
+                return originalFetch(url.toString(), {
+                  method: input.method,
+                  headers: input.headers,
+                  body,
+                  credentials: input.credentials,
+                  redirect: input.redirect,
+                  signal: input.signal,
+                  ...init,
+                })
               }
               return originalFetch(url, init)
             }
