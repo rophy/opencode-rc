@@ -102,6 +102,13 @@ oidc:
   cliClientId: "opencode-rc-cli"
   redirectUri: ""
   cookieDomain: ""
+  # Override individual OIDC discovery endpoints (optional).
+  # Useful when internal/external URLs differ (e.g. browser reaches external
+  # authorization endpoint, server calls internal token endpoint).
+  issuerOverride: ""
+  authorizationEndpoint: ""
+  tokenEndpoint: ""
+  jwksUri: ""
 
 secrets:
   cookieSecret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

@@ -5,6 +5,10 @@ export interface Config {
   oidcClientSecret: string;
   oidcCliClientId: string;
   oidcRedirectUri: string;
+  oidcIssuerOverride: string;
+  oidcAuthorizationEndpoint: string;
+  oidcTokenEndpoint: string;
+  oidcJwksUri: string;
   cookieSecret: Uint8Array;
   cookieDomain: string;
   secureCookies: boolean;
@@ -36,6 +40,10 @@ export function loadConfig(): Config {
     oidcClientSecret: process.env.OIDC_CLIENT_SECRET ?? "",
     oidcCliClientId: process.env.OIDC_CLI_CLIENT_ID ?? "",
     oidcRedirectUri: requireEnv("OIDC_REDIRECT_URI"),
+    oidcIssuerOverride: process.env.OIDC_ISSUER_OVERRIDE ?? "",
+    oidcAuthorizationEndpoint: process.env.OIDC_AUTHORIZATION_ENDPOINT ?? "",
+    oidcTokenEndpoint: process.env.OIDC_TOKEN_ENDPOINT ?? "",
+    oidcJwksUri: process.env.OIDC_JWKS_URI ?? "",
     cookieSecret: new Uint8Array(secret),
     cookieDomain: process.env.COOKIE_DOMAIN ?? "",
     secureCookies: process.env.COOKIE_SECURE !== "false",

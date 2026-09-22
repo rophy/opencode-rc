@@ -14,6 +14,7 @@ export interface OIDCProvider {
 
 export async function discoverOIDC(
   issuer: string,
+  overrides?: Partial<OIDCDiscovery>,
   maxRetries = 30
 ): Promise<OIDCDiscovery> {
   let lastErr: Error | undefined;
@@ -25,7 +26,16 @@ export async function discoverOIDC(
       if (!res.ok) {
         throw new Error(`OIDC discovery: ${res.status} ${await res.text()}`);
       }
-      return await res.json();
+      const discovery: OIDCDiscovery = await res.json();
+      if (overrides) {
+        for (const [key, value] of Object.entries(overrides)) {
+          if (value) {
+            (discovery as any)[key] = value;
+            console.log(`OIDC discovery override: ${key}`);
+          }
+        }
+      }
+      return discovery;
     } catch (err) {
       lastErr = err as Error;
       if (i < maxRetries) {

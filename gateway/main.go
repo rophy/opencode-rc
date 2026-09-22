@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -56,20 +58,81 @@ func connectRedis(ctx context.Context, redisURL string) (*redis.Client, SessionS
 	return client, NewRedisStore(client, 1*time.Hour), nil
 }
 
-func discoverOIDC(ctx context.Context, issuer string, maxRetries int) (*oidc.Provider, error) {
-	var err error
-	var provider *oidc.Provider
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		provider, err = oidc.NewProvider(ctx, issuer)
-		if err == nil {
-			return provider, nil
+func discoverOIDC(ctx context.Context, cfg *Config, maxRetries int) (*oidc.Provider, error) {
+	hasOverrides := cfg.OIDCIssuerOverride != "" || cfg.OIDCAuthorizationEndpoint != "" ||
+		cfg.OIDCTokenEndpoint != "" || cfg.OIDCJwksURI != ""
+
+	if !hasOverrides {
+		var lastErr error
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			provider, err := oidc.NewProvider(ctx, cfg.OIDCIssuer)
+			if err == nil {
+				return provider, nil
+			}
+			lastErr = err
+			if attempt < maxRetries {
+				slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
+				time.Sleep(2 * time.Second)
+			}
 		}
-		if attempt < maxRetries {
-			slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
-			time.Sleep(2 * time.Second)
-		}
+		return nil, fmt.Errorf("oidc discovery failed after %d attempts: %w", maxRetries, lastErr)
 	}
-	return nil, fmt.Errorf("oidc discovery failed after %d attempts: %w", maxRetries, err)
+
+	// Fetch discovery JSON manually so we can apply overrides before constructing the provider.
+	httpClient := http.DefaultClient
+	if c, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		httpClient = c
+	}
+	discoveryURL := strings.TrimRight(cfg.OIDCIssuer, "/") + "/.well-known/openid-configuration"
+	var pc oidc.ProviderConfig
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		resp, err := httpClient.Get(discoveryURL)
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries {
+				slog.Warn("oidc discovery retry", "attempt", attempt, "error", err)
+				time.Sleep(2 * time.Second)
+			}
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("OIDC discovery: status %d", resp.StatusCode)
+			if attempt < maxRetries {
+				slog.Warn("oidc discovery retry", "attempt", attempt, "error", lastErr)
+				time.Sleep(2 * time.Second)
+			}
+			continue
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&pc); err != nil {
+			return nil, fmt.Errorf("OIDC discovery: decode: %w", err)
+		}
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("oidc discovery failed after %d attempts: %w", maxRetries, lastErr)
+	}
+
+	if cfg.OIDCIssuerOverride != "" {
+		pc.IssuerURL = cfg.OIDCIssuerOverride
+		slog.Info("OIDC discovery override: issuer")
+	}
+	if cfg.OIDCAuthorizationEndpoint != "" {
+		pc.AuthURL = cfg.OIDCAuthorizationEndpoint
+		slog.Info("OIDC discovery override: authorization_endpoint")
+	}
+	if cfg.OIDCTokenEndpoint != "" {
+		pc.TokenURL = cfg.OIDCTokenEndpoint
+		slog.Info("OIDC discovery override: token_endpoint")
+	}
+	if cfg.OIDCJwksURI != "" {
+		pc.JWKSURL = cfg.OIDCJwksURI
+		slog.Info("OIDC discovery override: jwks_uri")
+	}
+
+	return pc.NewProvider(ctx), nil
 }
 
 var oidcMaxRetries = 30
@@ -84,7 +147,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 		return nil, err
 	}
 
-	provider, err := discoverOIDC(ctx, cfg.OIDCIssuer, oidcMaxRetries)
+	provider, err := discoverOIDC(ctx, cfg, oidcMaxRetries)
 	if err != nil {
 		return nil, err
 	}

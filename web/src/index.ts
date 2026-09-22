@@ -25,7 +25,12 @@ console.log("Connected to Redis");
 const store = new SessionStore(redis);
 
 console.log("Discovering OIDC...");
-const discovery = await discoverOIDC(config.oidcIssuer);
+const discovery = await discoverOIDC(config.oidcIssuer, {
+  issuer: config.oidcIssuerOverride,
+  authorization_endpoint: config.oidcAuthorizationEndpoint,
+  token_endpoint: config.oidcTokenEndpoint,
+  jwks_uri: config.oidcJwksUri,
+});
 const provider = createProvider(discovery);
 console.log("OIDC discovery complete");
 

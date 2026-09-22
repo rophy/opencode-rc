@@ -27,6 +27,10 @@ beforeEach(() => {
   delete process.env.TLS_INSECURE_SKIP_VERIFY;
   delete process.env.OIDC_CLIENT_SECRET;
   delete process.env.OIDC_CLI_CLIENT_ID;
+  delete process.env.OIDC_ISSUER_OVERRIDE;
+  delete process.env.OIDC_AUTHORIZATION_ENDPOINT;
+  delete process.env.OIDC_TOKEN_ENDPOINT;
+  delete process.env.OIDC_JWKS_URI;
 });
 
 afterEach(() => {
@@ -64,8 +68,24 @@ describe("loadConfig", () => {
     expect(config.cookieDomain).toBe("");
     expect(config.oidcClientSecret).toBe("");
     expect(config.oidcCliClientId).toBe("");
+    expect(config.oidcIssuerOverride).toBe("");
+    expect(config.oidcAuthorizationEndpoint).toBe("");
+    expect(config.oidcTokenEndpoint).toBe("");
+    expect(config.oidcJwksUri).toBe("");
     expect(config.tlsInsecureSkipVerify).toBe(false);
     expect(config.secureCookies).toBe(true);
+  });
+
+  it("reads OIDC endpoint overrides from env", () => {
+    process.env.OIDC_ISSUER_OVERRIDE = "https://external.idp.example.com";
+    process.env.OIDC_AUTHORIZATION_ENDPOINT = "https://external.idp.example.com/authorize";
+    process.env.OIDC_TOKEN_ENDPOINT = "https://internal.idp.example.com/token";
+    process.env.OIDC_JWKS_URI = "https://internal.idp.example.com/jwks";
+    const config = loadConfig();
+    expect(config.oidcIssuerOverride).toBe("https://external.idp.example.com");
+    expect(config.oidcAuthorizationEndpoint).toBe("https://external.idp.example.com/authorize");
+    expect(config.oidcTokenEndpoint).toBe("https://internal.idp.example.com/token");
+    expect(config.oidcJwksUri).toBe("https://internal.idp.example.com/jwks");
   });
 
   it("sets secureCookies false when COOKIE_SECURE=false", () => {

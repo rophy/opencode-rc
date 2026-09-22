@@ -8,20 +8,24 @@ import (
 )
 
 type Config struct {
-	Port                  int
-	OIDCIssuer            string
-	OIDCClientID          string
-	OIDCClientSecret      string
-	OIDCCLIClientID       string
-	OIDCRedirectURI       string
-	WebUIDir              string
-	CookieSecret          []byte
-	CookieDomain          string
-	SecureCookies         bool
-	RedisURL              string
-	PodIP                 string
-	ProxySecret           string
-	TLSInsecureSkipVerify bool
+	Port                       int
+	OIDCIssuer                 string
+	OIDCIssuerOverride         string
+	OIDCAuthorizationEndpoint  string
+	OIDCTokenEndpoint          string
+	OIDCJwksURI                string
+	OIDCClientID               string
+	OIDCClientSecret           string
+	OIDCCLIClientID            string
+	OIDCRedirectURI            string
+	WebUIDir                   string
+	CookieSecret               []byte
+	CookieDomain               string
+	SecureCookies              bool
+	RedisURL                   string
+	PodIP                      string
+	ProxySecret                string
+	TLSInsecureSkipVerify      bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -74,18 +78,22 @@ func LoadConfig() (*Config, error) {
 	tlsInsecure := os.Getenv("TLS_INSECURE_SKIP_VERIFY") == "true"
 
 	return &Config{
-		Port:                  port,
-		OIDCIssuer:            issuer,
-		OIDCClientID:          clientID,
-		OIDCClientSecret:      clientSecret,
-		OIDCCLIClientID:       cliClientID,
-		OIDCRedirectURI:       redirectURI,
-		WebUIDir:              webUIDir,
-		CookieSecret:          secret,
-		CookieDomain:          os.Getenv("COOKIE_DOMAIN"),
-		SecureCookies:         secureCookies,
-		RedisURL:              redisURL,
-		PodIP:                 os.Getenv("POD_IP"),
-		TLSInsecureSkipVerify: tlsInsecure,
+		Port:                      port,
+		OIDCIssuer:                issuer,
+		OIDCIssuerOverride:        os.Getenv("OIDC_ISSUER_OVERRIDE"),
+		OIDCAuthorizationEndpoint: os.Getenv("OIDC_AUTHORIZATION_ENDPOINT"),
+		OIDCTokenEndpoint:         os.Getenv("OIDC_TOKEN_ENDPOINT"),
+		OIDCJwksURI:               os.Getenv("OIDC_JWKS_URI"),
+		OIDCClientID:              clientID,
+		OIDCClientSecret:          clientSecret,
+		OIDCCLIClientID:           cliClientID,
+		OIDCRedirectURI:           redirectURI,
+		WebUIDir:                  webUIDir,
+		CookieSecret:              secret,
+		CookieDomain:              os.Getenv("COOKIE_DOMAIN"),
+		SecureCookies:             secureCookies,
+		RedisURL:                  redisURL,
+		PodIP:                     os.Getenv("POD_IP"),
+		TLSInsecureSkipVerify:     tlsInsecure,
 	}, nil
 }

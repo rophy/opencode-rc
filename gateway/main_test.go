@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -63,7 +65,7 @@ func TestDiscoverOIDC(t *testing.T) {
 	srv := mockOIDCServer(t)
 	defer srv.Close()
 
-	provider, err := discoverOIDC(context.Background(), srv.URL, 1)
+	provider, err := discoverOIDC(context.Background(), &Config{OIDCIssuer: srv.URL}, 1)
 	if err != nil {
 		t.Fatalf("discoverOIDC failed: %v", err)
 	}
@@ -73,9 +75,157 @@ func TestDiscoverOIDC(t *testing.T) {
 }
 
 func TestDiscoverOIDCUnreachable(t *testing.T) {
-	_, err := discoverOIDC(context.Background(), "http://127.0.0.1:1", 1)
+	_, err := discoverOIDC(context.Background(), &Config{OIDCIssuer: "http://127.0.0.1:1"}, 1)
 	if err == nil {
 		t.Fatal("expected error for unreachable issuer")
+	}
+}
+
+func TestDiscoverOIDCWithOverrides(t *testing.T) {
+	srv := mockOIDCServer(t)
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:                srv.URL,
+		OIDCIssuerOverride:        "https://external.example.com",
+		OIDCAuthorizationEndpoint: "https://external.example.com/authorize",
+		OIDCTokenEndpoint:         "https://internal.example.com/token",
+		OIDCJwksURI:               "https://internal.example.com/jwks",
+	}
+
+	provider, err := discoverOIDC(context.Background(), cfg, 1)
+	if err != nil {
+		t.Fatalf("discoverOIDC with overrides failed: %v", err)
+	}
+	if provider == nil {
+		t.Fatal("expected non-nil provider")
+	}
+
+	ep := provider.Endpoint()
+	if ep.AuthURL != "https://external.example.com/authorize" {
+		t.Errorf("expected overridden AuthURL, got %s", ep.AuthURL)
+	}
+	if ep.TokenURL != "https://internal.example.com/token" {
+		t.Errorf("expected overridden TokenURL, got %s", ep.TokenURL)
+	}
+}
+
+func TestDiscoverOIDCPartialOverride(t *testing.T) {
+	srv := mockOIDCServer(t)
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:                srv.URL,
+		OIDCAuthorizationEndpoint: "https://external.example.com/authorize",
+	}
+
+	provider, err := discoverOIDC(context.Background(), cfg, 1)
+	if err != nil {
+		t.Fatalf("discoverOIDC with partial override failed: %v", err)
+	}
+
+	ep := provider.Endpoint()
+	if ep.AuthURL != "https://external.example.com/authorize" {
+		t.Errorf("expected overridden AuthURL, got %s", ep.AuthURL)
+	}
+	if ep.TokenURL != srv.URL+"/token" {
+		t.Errorf("expected discovered TokenURL %s/token, got %s", srv.URL, ep.TokenURL)
+	}
+}
+
+func TestDiscoverOIDCOverrideUnreachable(t *testing.T) {
+	cfg := &Config{
+		OIDCIssuer:                "http://127.0.0.1:1",
+		OIDCAuthorizationEndpoint: "https://external.example.com/authorize",
+	}
+
+	_, err := discoverOIDC(context.Background(), cfg, 1)
+	if err == nil {
+		t.Fatal("expected error for unreachable issuer even with overrides")
+	}
+}
+
+func TestDiscoverOIDCOverrideNon200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:                srv.URL,
+		OIDCAuthorizationEndpoint: "https://external.example.com/authorize",
+	}
+
+	_, err := discoverOIDC(context.Background(), cfg, 1)
+	if err == nil {
+		t.Fatal("expected error for non-200 discovery response")
+	}
+	if !strings.Contains(err.Error(), "status 500") {
+		t.Errorf("expected status 500 in error, got: %s", err)
+	}
+}
+
+func TestDiscoverOIDCOverrideBadJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:                srv.URL,
+		OIDCAuthorizationEndpoint: "https://external.example.com/authorize",
+	}
+
+	_, err := discoverOIDC(context.Background(), cfg, 1)
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	if !strings.Contains(err.Error(), "decode") {
+		t.Errorf("expected decode error, got: %s", err)
+	}
+}
+
+func TestDiscoverOIDCOverrideIssuerOnly(t *testing.T) {
+	srv := mockOIDCServer(t)
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:         srv.URL,
+		OIDCIssuerOverride: "https://external.example.com",
+	}
+
+	provider, err := discoverOIDC(context.Background(), cfg, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ep := provider.Endpoint()
+	if ep.AuthURL != srv.URL+"/authorize" {
+		t.Errorf("expected discovered AuthURL, got %s", ep.AuthURL)
+	}
+}
+
+func TestDiscoverOIDCOverrideJwksOnly(t *testing.T) {
+	srv := mockOIDCServer(t)
+	defer srv.Close()
+
+	cfg := &Config{
+		OIDCIssuer:  srv.URL,
+		OIDCJwksURI: "https://internal.example.com/jwks",
+	}
+
+	provider, err := discoverOIDC(context.Background(), cfg, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ep := provider.Endpoint()
+	if ep.AuthURL != srv.URL+"/authorize" {
+		t.Errorf("expected discovered AuthURL, got %s", ep.AuthURL)
+	}
+	if ep.TokenURL != srv.URL+"/token" {
+		t.Errorf("expected discovered TokenURL, got %s", ep.TokenURL)
 	}
 }
 

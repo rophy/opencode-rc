@@ -63,6 +63,22 @@ spec:
                   key: cookie-secret
             - name: COOKIE_SECURE
               value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
+            {{- if .Values.oidc.issuerOverride }}
+            - name: OIDC_ISSUER_OVERRIDE
+              value: {{ .Values.oidc.issuerOverride | quote }}
+            {{- end }}
+            {{- if .Values.oidc.authorizationEndpoint }}
+            - name: OIDC_AUTHORIZATION_ENDPOINT
+              value: {{ .Values.oidc.authorizationEndpoint | quote }}
+            {{- end }}
+            {{- if .Values.oidc.tokenEndpoint }}
+            - name: OIDC_TOKEN_ENDPOINT
+              value: {{ .Values.oidc.tokenEndpoint | quote }}
+            {{- end }}
+            {{- if .Values.oidc.jwksUri }}
+            - name: OIDC_JWKS_URI
+              value: {{ .Values.oidc.jwksUri | quote }}
+            {{- end }}
             {{- if .Values.oidc.cookieDomain }}
             - name: COOKIE_DOMAIN
               value: {{ .Values.oidc.cookieDomain | quote }}

@@ -225,6 +225,75 @@ tests:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: true
 
+  - it: does not set OIDC override env vars by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+
+  - it: sets OIDC override env vars when configured
+    set:
+      oidc.issuerOverride: https://external.idp.example.com
+      oidc.authorizationEndpoint: https://external.idp.example.com/authorize
+      oidc.tokenEndpoint: https://internal.idp.example.com/token
+      oidc.jwksUri: https://internal.idp.example.com/jwks
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+            value: "https://external.idp.example.com"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+            value: "https://external.idp.example.com/authorize"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+            value: "https://internal.idp.example.com/token"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+            value: "https://internal.idp.example.com/jwks"
+
+  - it: sets only specified OIDC overrides
+    set:
+      oidc.authorizationEndpoint: https://external.idp.example.com/authorize
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+            value: "https://external.idp.example.com/authorize"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+
   - it: does not set TLS_INSECURE_SKIP_VERIFY by default
     asserts:
       - notContains:
