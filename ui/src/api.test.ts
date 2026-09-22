@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, fetchMe, fetchSessions } from "./api"
+import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, isPreConfigured, loadConfig, resetConfig, fetchMe, fetchSessions } from "./api"
 
 beforeEach(() => {
   localStorage.clear()
+  resetConfig()
 })
 
 describe("getBaseUrl / setBaseUrl", () => {
@@ -110,6 +111,75 @@ describe("fetchSessions", () => {
   it("returns empty array on error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 500 }))
     expect(await fetchSessions()).toEqual([])
+    vi.restoreAllMocks()
+  })
+})
+
+describe("loadConfig / isPreConfigured", () => {
+  it("is not pre-configured by default", () => {
+    expect(isPreConfigured()).toBe(false)
+  })
+
+  it("loads serverUrl from config.json", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com" }), { status: 200 })
+    )
+    await loadConfig()
+    expect(isPreConfigured()).toBe(true)
+    expect(getBaseUrl()).toBe("https://corp.example.com")
+    vi.restoreAllMocks()
+  })
+
+  it("strips trailing slashes from serverUrl", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com///" }), { status: 200 })
+    )
+    await loadConfig()
+    expect(getBaseUrl()).toBe("https://corp.example.com")
+    vi.restoreAllMocks()
+  })
+
+  it("pre-configured URL takes priority over localStorage", async () => {
+    setBaseUrl("https://user-set.example.com")
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com" }), { status: 200 })
+    )
+    await loadConfig()
+    expect(getBaseUrl()).toBe("https://corp.example.com")
+    vi.restoreAllMocks()
+  })
+
+  it("stays unconfigured when config.json is missing", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 404 }))
+    await loadConfig()
+    expect(isPreConfigured()).toBe(false)
+    vi.restoreAllMocks()
+  })
+
+  it("stays unconfigured when config.json has no serverUrl", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 200 })
+    )
+    await loadConfig()
+    expect(isPreConfigured()).toBe(false)
+    vi.restoreAllMocks()
+  })
+
+  it("stays unconfigured when fetch fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network error"))
+    await loadConfig()
+    expect(isPreConfigured()).toBe(false)
+    vi.restoreAllMocks()
+  })
+
+  it("resetConfig clears pre-configured state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com" }), { status: 200 })
+    )
+    await loadConfig()
+    expect(isPreConfigured()).toBe(true)
+    resetConfig()
+    expect(isPreConfigured()).toBe(false)
     vi.restoreAllMocks()
   })
 })

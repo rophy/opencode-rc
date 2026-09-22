@@ -43,7 +43,7 @@ import {
   notifyIfNotBlocked,
 } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
-import { fetchMe, getBaseUrl } from "./api"
+import { fetchMe, getBaseUrl, isPreConfigured, loadConfig } from "./api"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
 import { ConfigScreen } from "./config-screen"
@@ -260,5 +260,5 @@ function App() {
 
 const root = document.getElementById("root")
 if (root) {
-  render(() => <App />, root)
+  loadConfig().then(() => render(() => <App />, root))
 }

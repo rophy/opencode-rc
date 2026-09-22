@@ -1,5 +1,5 @@
 import { type Component, Show } from "solid-js"
-import { getBaseUrl, type UserInfo } from "./api"
+import { getBaseUrl, isPreConfigured, type UserInfo } from "./api"
 
 export const UserBar: Component<{ user: UserInfo; onSettings?: () => void }> = (props) => {
   const displayId = () => props.user.email.split("@")[0] || props.user.sub
@@ -14,7 +14,7 @@ export const UserBar: Component<{ user: UserInfo; onSettings?: () => void }> = (
       </button>
       <div class="flex items-center gap-2">
         <span class="text-[12px] text-v2-text-text-muted">{displayId()}</span>
-        <Show when={props.onSettings}>
+        <Show when={props.onSettings && !isPreConfigured()}>
           <button
             class="flex items-center justify-center size-6 rounded-md text-v2-icon-icon-muted hover:text-v2-text-text-base hover:bg-v2-background-bg-layer-01 cursor-pointer bg-transparent border-none p-0 transition-colors"
             onClick={props.onSettings}

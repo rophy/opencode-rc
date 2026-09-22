@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library"
 import { LoginScreen } from "./login-screen"
+import { loadConfig, resetConfig } from "./api"
 
 beforeEach(() => {
   localStorage.clear()
+  resetConfig()
 })
 
 afterEach(() => {
@@ -45,5 +47,29 @@ describe("LoginScreen", () => {
     })
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
     expect(window.location.href).toBe("https://rc.example.com/auth/start")
+  })
+
+  it("hides Server settings when pre-configured", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com" }), { status: 200 })
+    )
+    await loadConfig()
+    render(() => <LoginScreen onSettings={vi.fn()} />)
+    expect(screen.queryByText("Server settings")).toBeNull()
+    expect(screen.getByText("Sign in with OIDC")).toBeTruthy()
+  })
+
+  it("uses pre-configured URL for login redirect", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ serverUrl: "https://corp.example.com" }), { status: 200 })
+    )
+    await loadConfig()
+    render(() => <LoginScreen onSettings={vi.fn()} />)
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, href: "" },
+      writable: true,
+    })
+    await fireEvent.click(screen.getByText("Sign in with OIDC"))
+    expect(window.location.href).toBe("https://corp.example.com/auth/start")
   })
 })

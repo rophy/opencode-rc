@@ -1,6 +1,28 @@
 const STORAGE_KEY = "opencode-rc-endpoint"
 
+let preConfiguredUrl: string | undefined
+
+export async function loadConfig(): Promise<void> {
+  try {
+    const res = await fetch("/config.json", { signal: AbortSignal.timeout(3000) })
+    if (!res.ok) return
+    const config = await res.json()
+    if (config.serverUrl) {
+      preConfiguredUrl = config.serverUrl.replace(/\/+$/, "")
+    }
+  } catch {}
+}
+
+export function isPreConfigured(): boolean {
+  return !!preConfiguredUrl
+}
+
+export function resetConfig() {
+  preConfiguredUrl = undefined
+}
+
 export function getBaseUrl(): string {
+  if (preConfiguredUrl) return preConfiguredUrl
   try {
     return localStorage.getItem(STORAGE_KEY) || ""
   } catch {

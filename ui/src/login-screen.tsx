@@ -1,5 +1,5 @@
-import { type Component } from "solid-js"
-import { getBaseUrl } from "./api"
+import { type Component, Show } from "solid-js"
+import { getBaseUrl, isPreConfigured } from "./api"
 
 export const LoginScreen: Component<{ onSettings: () => void }> = (props) => {
   const handleLogin = () => {
@@ -30,18 +30,20 @@ export const LoginScreen: Component<{ onSettings: () => void }> = (props) => {
           Sign in with OIDC
         </button>
 
-        <div class="mt-6">
-          <button
-            onClick={props.onSettings}
-            class="inline-flex items-center gap-1.5 text-[12px] text-v2-text-text-faint hover:text-v2-text-text-muted transition-colors cursor-pointer bg-transparent border-none p-0"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <path d="M8 10a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" stroke-width="1.3" />
-              <path d="M13.5 8a5.5 5.5 0 01-.08.93l1.52 1.2a.36.36 0 01.09.46l-1.44 2.49a.36.36 0 01-.44.16l-1.79-.72a5.3 5.3 0 01-1.61.93l-.27 1.9a.36.36 0 01-.36.31H6.88a.36.36 0 01-.36-.31l-.27-1.9a5.3 5.3 0 01-1.61-.93l-1.79.72a.36.36 0 01-.44-.16L1.07 10.6a.36.36 0 01.09-.46l1.52-1.2A5.6 5.6 0 012.5 8c0-.31.03-.63.08-.93L1.06 5.87a.36.36 0 01-.09-.46l1.44-2.49a.36.36 0 01.44-.16l1.79.72a5.3 5.3 0 011.61-.93l.27-1.9A.36.36 0 016.88.34h2.24c.18 0 .33.13.36.31l.27 1.9c.59.2 1.13.52 1.61.93l1.79-.72a.36.36 0 01.44.16l1.44 2.49a.36.36 0 01-.09.46l-1.52 1.2c.05.3.08.62.08.93z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
-            </svg>
-            Server settings
-          </button>
-        </div>
+        <Show when={!isPreConfigured()}>
+          <div class="mt-6">
+            <button
+              onClick={props.onSettings}
+              class="inline-flex items-center gap-1.5 text-[12px] text-v2-text-text-faint hover:text-v2-text-text-muted transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 10a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" stroke-width="1.3" />
+                <path d="M13.5 8a5.5 5.5 0 01-.08.93l1.52 1.2a.36.36 0 01.09.46l-1.44 2.49a.36.36 0 01-.44.16l-1.79-.72a5.3 5.3 0 01-1.61.93l-.27 1.9a.36.36 0 01-.36.31H6.88a.36.36 0 01-.36-.31l-.27-1.9a5.3 5.3 0 01-1.61-.93l-1.79.72a.36.36 0 01-.44-.16L1.07 10.6a.36.36 0 01.09-.46l1.52-1.2A5.6 5.6 0 012.5 8c0-.31.03-.63.08-.93L1.06 5.87a.36.36 0 01-.09-.46l1.44-2.49a.36.36 0 01.44-.16l1.79.72a5.3 5.3 0 011.61-.93l.27-1.9A.36.36 0 016.88.34h2.24c.18 0 .33.13.36.31l.27 1.9c.59.2 1.13.52 1.61.93l1.79-.72a.36.36 0 01.44.16l1.44 2.49a.36.36 0 01-.09.46l-1.52 1.2c.05.3.08.62.08.93z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+              </svg>
+              Server settings
+            </button>
+          </div>
+        </Show>
       </div>
     </div>
   )
