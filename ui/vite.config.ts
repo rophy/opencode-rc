@@ -115,7 +115,7 @@ function opencodeResolver(): Plugin {
 }
 
 export default defineConfig({
-  base: "./",
+  base: "/",
   plugins: [opencodeResolver(), solid(), tailwindcss()],
   resolve: {
     alias: {

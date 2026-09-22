@@ -1,3 +1,29 @@
+// Polyfill Map.groupBy and Object.groupBy for older WebViews (Chrome < 117)
+if (typeof Map.groupBy !== "function") {
+  Map.groupBy = function <K, T>(items: Iterable<T>, keySelector: (item: T, index: number) => K): Map<K, T[]> {
+    const map = new Map<K, T[]>()
+    let i = 0
+    for (const item of items) {
+      const key = keySelector(item, i++)
+      const group = map.get(key)
+      if (group) group.push(item)
+      else map.set(key, [item])
+    }
+    return map
+  }
+}
+if (typeof Object.groupBy !== "function") {
+  Object.groupBy = function <K extends PropertyKey, T>(items: Iterable<T>, keySelector: (item: T, index: number) => K): Partial<Record<K, T[]>> {
+    const result = {} as Record<K, T[]>
+    let i = 0
+    for (const item of items) {
+      const key = keySelector(item, i++)
+      ;(result[key] ??= []).push(item)
+    }
+    return result
+  }
+}
+
 import { delegateEvents, render } from "solid-js/web"
 import { createEffect, createResource, createSignal, Match, onCleanup, Switch } from "solid-js"
 import {
@@ -77,14 +103,17 @@ function App() {
       <Match when={user() && sessionId}>
         {(() => {
           const sessionPrefix = `/s/${sessionId}`
-          const proxyUrl = `${location.origin}${sessionPrefix}/`
+          const serverOrigin = getBaseUrl() || location.origin
+          const proxyUrl = `${serverOrigin}${sessionPrefix}/`
 
           // Patch globalThis.fetch to rewrite OpenCode API paths through the session proxy.
           // The SDK uses absolute paths ("/api/...", "/global/...", "/session/...", etc.)
           // in new URL(path, baseUrl), which strips the /s/{sessionId}/ prefix.
           // This intercept prepends the prefix for all same-origin requests that
           // aren't already under /s/, /auth/, /gateway/, or /healthz.
-          const passthroughPrefixes = ["/s/", "/auth/", "/gateway/", "/healthz", "/assets/"]
+          // On mobile (Capacitor), location.origin is https://localhost, so we also
+          // rewrite those to the remote server.
+          const passthroughPrefixes = ["/auth/", "/gateway/", "/healthz", "/assets/"]
           const originalFetch = globalThis.fetch.bind(globalThis)
           globalThis.fetch = (input, init) => {
             let url: URL | undefined
@@ -95,8 +124,19 @@ function App() {
             } else if (input instanceof Request) {
               url = new URL(input.url)
             }
-            if (url && url.origin === location.origin && !passthroughPrefixes.some(p => url!.pathname.startsWith(p))) {
-              url.pathname = `${sessionPrefix}${url.pathname}`
+            if (url && (url.origin === location.origin || url.origin === serverOrigin)) {
+              if (passthroughPrefixes.some(p => url!.pathname.startsWith(p))) {
+                // Passthrough paths go to the server but without session prefix
+                if (url.origin === location.origin && serverOrigin !== location.origin) {
+                  url = new URL(url.pathname + url.search + url.hash, serverOrigin)
+                }
+              } else if (!url.pathname.startsWith(sessionPrefix)) {
+                // All other paths get the session prefix and target the server
+                url = new URL(`${sessionPrefix}${url.pathname}${url.search}${url.hash}`, serverOrigin)
+              } else if (url.origin === location.origin && serverOrigin !== location.origin) {
+                // Already has session prefix but wrong origin (mobile)
+                url = new URL(url.pathname + url.search + url.hash, serverOrigin)
+              }
               if (input instanceof Request) {
                 return originalFetch(new Request(url, input), init)
               }
@@ -186,18 +226,18 @@ function App() {
             <PlatformProvider value={platform}>
               <AppBaseProviders>
                 <div class="flex flex-col h-dvh">
-                  <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
-                  <div class="flex-1 min-h-0 flex flex-col">
-                    <AppInterface
-                      defaultServer={serverKey}
-                      canonicalLocalServer={serverKey}
-                      servers={[server]}
-                      disableHealthCheck
-                      router={SessionRouter}
-                      serverScoped={<AutoOpenProjects />}
-                    />
+                    <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
+                    <div class="flex-1 min-h-0 flex flex-col">
+                      <AppInterface
+                        defaultServer={serverKey}
+                        canonicalLocalServer={serverKey}
+                        servers={[server]}
+                        disableHealthCheck
+                        router={SessionRouter}
+                        serverScoped={<AutoOpenProjects />}
+                      />
+                    </div>
                   </div>
-                </div>
               </AppBaseProviders>
             </PlatformProvider>
           )
