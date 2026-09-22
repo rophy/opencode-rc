@@ -1,0 +1,49 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - 'vendor/opencode'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install submodule deps
+        run: cd vendor/opencode && bun install --frozen-lockfile
+
+      - name: Build SPA
+        run: cd ui && bun install --frozen-lockfile && bun run build
+
+      - name: Sync iOS project
+        run: cd ui && npx cap sync ios
+
+      - name: Publish to releases/ios
+        run: |
+          cd /tmp
+          mkdir ios-publish && cd ios-publish
+          git init -b releases/ios
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          cp -r $GITHUB_WORKSPACE/ui/ios/. .
+          cp $GITHUB_WORKSPACE/LICENSE .
+          rm -f .gitignore
+
+          git add -A
+          git commit -m "build: update iOS project from ${GITHUB_SHA::8}"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push -f origin releases/ios
