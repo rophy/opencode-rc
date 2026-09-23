@@ -195,6 +195,7 @@ export async function startTunnel(
     const disconnected = new Promise<void>((r) => { resolveDisconnected = r; });
 
     ws.addEventListener("open", () => {
+      connected = true;
       console.log("Tunnel established");
       resolve({
         close() {
@@ -228,14 +229,30 @@ export async function startTunnel(
       }
     });
 
+    let connected = false;
+
     ws.addEventListener("error", (event: Event) => {
       const err = event as ErrorEvent;
-      console.error(`Tunnel WebSocket error: ${err.message || "connection failed"}`);
-      reject(new Error("tunnel connection failed"));
+      if (!connected) {
+        console.error(`Tunnel WebSocket connection failed: ${url}`);
+        if (err.message) console.error(`  Error: ${err.message}`);
+      } else {
+        console.error(`Tunnel WebSocket error: ${err.message || "connection failed"}`);
+      }
     });
 
-    ws.addEventListener("close", () => {
-      console.log("Tunnel closed");
+    ws.addEventListener("close", (event: CloseEvent) => {
+      if (!connected) {
+        const hints: string[] = [];
+        if (event.code === 1006) hints.push("connection was closed abnormally (no close frame received)");
+        if (event.code === 401 || event.reason?.includes("auth")) hints.push("authentication may have failed — try logging in again");
+        const detail = event.reason || hints.join("; ") || `close code ${event.code}`;
+        console.error(`  Reason: ${detail}`);
+        console.error("  Check that the gateway URL is correct and the gateway is accepting WebSocket connections.");
+        reject(new Error(`tunnel connection failed: ${detail}`));
+      } else {
+        console.log("Tunnel closed");
+      }
       resolveDisconnected();
     });
   });

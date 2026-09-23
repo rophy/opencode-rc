@@ -34,6 +34,13 @@ cd vendor/opencode && git fetch --tags && git checkout <new-tag>
 cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
+## Package Managers
+
+- `web/`, `ui/`, `vendor/opencode` — **bun** (`bun.lock`)
+- `cli/` — **npm** (`package-lock.json`)
+
+Do not mix them: don't run `bun install` in `cli/` or `npm install` in `web/`/`ui/`.
+
 ## Building
 
 ### UI (rc-web SPA)
