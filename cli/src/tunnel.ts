@@ -230,12 +230,22 @@ export async function startTunnel(
     });
 
     let connected = false;
+    let rejected = false;
+
+    function rejectOnce(detail: string) {
+      if (rejected) return;
+      rejected = true;
+      console.error(`  Reason: ${detail}`);
+      console.error("  Check that the gateway URL is correct and the gateway is accepting WebSocket connections.");
+      reject(new Error(`tunnel connection failed: ${detail}`));
+    }
 
     ws.addEventListener("error", (event: Event) => {
       const err = event as ErrorEvent;
       if (!connected) {
         console.error(`Tunnel WebSocket connection failed: ${url}`);
         if (err.message) console.error(`  Error: ${err.message}`);
+        rejectOnce(err.message || "connection failed");
       } else {
         console.error(`Tunnel WebSocket error: ${err.message || "connection failed"}`);
       }
@@ -247,9 +257,7 @@ export async function startTunnel(
         if (event.code === 1006) hints.push("connection was closed abnormally (no close frame received)");
         if (event.code === 401 || event.reason?.includes("auth")) hints.push("authentication may have failed — try logging in again");
         const detail = event.reason || hints.join("; ") || `close code ${event.code}`;
-        console.error(`  Reason: ${detail}`);
-        console.error("  Check that the gateway URL is correct and the gateway is accepting WebSocket connections.");
-        reject(new Error(`tunnel connection failed: ${detail}`));
+        rejectOnce(detail);
       } else {
         console.log("Tunnel closed");
       }
