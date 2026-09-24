@@ -45,8 +45,15 @@ const upgrade = upgradeWebSocket((c: Context<ProxyEnv>) => {
       if (upstream?.readyState === WebSocket.OPEN) upstream.send(frame);
       else pending.push(frame);
     },
-    onClose() {
-      upstream?.close();
+    onClose(evt) {
+      if (!upstream) return;
+      // Bun throws if close() is called with a code/reason while the socket
+      // is still CONNECTING; fall back to a plain close() in that state.
+      if (upstream.readyState === WebSocket.CONNECTING) {
+        upstream.close();
+      } else {
+        upstream.close(relayCloseCode(evt.code), evt.reason);
+      }
     },
   };
 });
