@@ -1,0 +1,89 @@
+import { describe, it, expect } from "vitest";
+import { Hono } from "hono";
+import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware } from "./origins.js";
+
+const isAllowed = makeOriginCheck("https://rc.example.com", ["https://dev.example.com/"]);
+
+describe("originOf", () => {
+  it("handles http(s) and capacitor URLs", () => {
+    expect(originOf("https://rc.example.com/a?b#c")).toBe("https://rc.example.com");
+    expect(originOf("http://localhost:5173/")).toBe("http://localhost:5173");
+    expect(originOf("capacitor://localhost/s/x/")).toBe("capacitor://localhost");
+  });
+
+  it("returns null for junk", () => {
+    expect(originOf("not a url")).toBeNull();
+  });
+});
+
+describe("makeOriginCheck", () => {
+  it("allows server, app and extra origins", () => {
+    expect(isAllowed("https://rc.example.com")).toBe(true);
+    expect(isAllowed("capacitor://localhost")).toBe(true);
+    expect(isAllowed("https://localhost")).toBe(true);
+    expect(isAllowed("https://dev.example.com")).toBe(true);
+  });
+
+  it("rejects others", () => {
+    expect(isAllowed("https://evil.example.com")).toBe(false);
+    expect(isAllowed("")).toBe(false);
+    expect(isAllowed(undefined)).toBe(false);
+  });
+});
+
+describe("validateReturnTo", () => {
+  it("defaults to /", () => {
+    expect(validateReturnTo(undefined, isAllowed)).toBe("/");
+    expect(validateReturnTo("", isAllowed)).toBe("/");
+  });
+
+  it("accepts same-origin paths and strips the fragment", () => {
+    expect(validateReturnTo("/s/abc/?x=1#old", isAllowed)).toBe("/s/abc/?x=1");
+  });
+
+  it("rejects protocol-relative and backslash paths", () => {
+    expect(validateReturnTo("//evil.example.com/", isAllowed)).toBeNull();
+    expect(validateReturnTo("/\\evil.example.com/", isAllowed)).toBeNull();
+  });
+
+  it("accepts allowed absolute URLs", () => {
+    expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBe("capacitor://localhost/");
+    expect(validateReturnTo("https://localhost/s/x/#y", isAllowed)).toBe("https://localhost/s/x/");
+  });
+
+  it("rejects other absolute URLs", () => {
+    expect(validateReturnTo("https://evil.example.com/", isAllowed)).toBeNull();
+    expect(validateReturnTo("javascript:alert(1)", isAllowed)).toBeNull();
+  });
+});
+
+describe("corsMiddleware", () => {
+  const app = new Hono();
+  app.use("*", corsMiddleware((o) => isAllowed(o)));
+  app.get("/x", (c) => c.text("ok"));
+
+  it("answers preflight for allowed origins", async () => {
+    const res = await app.request("/x", {
+      method: "OPTIONS",
+      headers: {
+        origin: "capacitor://localhost",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "authorization,content-type,x-opencode-directory",
+      },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("capacitor://localhost");
+    expect(res.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("authorization");
+    expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+  });
+
+  it("sets allow-origin on normal responses", async () => {
+    const res = await app.request("/x", { headers: { origin: "https://localhost" } });
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://localhost");
+  });
+
+  it("omits allow-origin for other origins", async () => {
+    const res = await app.request("/x", { headers: { origin: "https://evil.example.com" } });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
