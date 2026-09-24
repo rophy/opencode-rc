@@ -9,6 +9,8 @@ import {
   logout,
   onLoggedOut,
   resetAuthState,
+  setRefreshTokenStore,
+  type RefreshTokenStore,
 } from "./auth"
 import { resetConfig } from "./server"
 
@@ -110,6 +112,34 @@ describe("authFetch", () => {
   })
 })
 
+describe("setRefreshTokenStore", () => {
+  function memoryStore(): RefreshTokenStore & { value: string | null } {
+    return {
+      value: null,
+      get() {
+        return this.value
+      },
+      set(token: string | null) {
+        this.value = token
+      },
+    }
+  }
+
+  it("routes reads and writes through a custom store instead of localStorage", async () => {
+    const store = memoryStore()
+    setRefreshTokenStore(store)
+    store.value = "refresh-custom"
+    expect(hasSession()).toBe(true)
+    expect(localStorage.getItem(REFRESH_KEY)).toBeNull()
+
+    window.history.replaceState(null, "", "/#code=abc")
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(json(tokens(1)))
+    expect(await completeLogin()).toBe("ok")
+    expect(store.value).toBe("refresh-1")
+    expect(localStorage.getItem(REFRESH_KEY)).toBeNull()
+  })
+})
+
 describe("login / logout", () => {
   it("login sends a relative return_to when served by the server", () => {
     window.history.replaceState(null, "", "/s/x/?a=1")
@@ -119,7 +149,7 @@ describe("login / logout", () => {
       pathname: "/s/x/",
       search: "?a=1",
       set href(v: string) { assign(v) },
-    } as Location)
+    } as unknown as Location)
     login()
     expect(assign).toHaveBeenCalledWith("/auth/start?return_to=%2Fs%2Fx%2F%3Fa%3D1")
   })

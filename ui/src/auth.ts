@@ -9,23 +9,43 @@ export interface TokenResponse {
   expires_in: number
 }
 
+export interface RefreshTokenStore {
+  get(): string | null
+  set(token: string | null): void
+}
+
+const localStorageRefreshTokenStore: RefreshTokenStore = {
+  get(): string | null {
+    try {
+      return localStorage.getItem(REFRESH_KEY)
+    } catch {
+      return null
+    }
+  },
+  set(token: string | null) {
+    try {
+      if (token) localStorage.setItem(REFRESH_KEY, token)
+      else localStorage.removeItem(REFRESH_KEY)
+    } catch {}
+  },
+}
+
+let refreshTokenStore: RefreshTokenStore = localStorageRefreshTokenStore
+
+export function setRefreshTokenStore(store: RefreshTokenStore): void {
+  refreshTokenStore = store
+}
+
 let access: { token: string; expiresAt: number } | null = null
 let inflight: Promise<string | null> | null = null
 let loggedOutListener: (() => void) | null = null
 
 function readRefresh(): string | null {
-  try {
-    return localStorage.getItem(REFRESH_KEY)
-  } catch {
-    return null
-  }
+  return refreshTokenStore.get()
 }
 
 function writeRefresh(token: string | null) {
-  try {
-    if (token) localStorage.setItem(REFRESH_KEY, token)
-    else localStorage.removeItem(REFRESH_KEY)
-  } catch {}
+  refreshTokenStore.set(token)
 }
 
 function save(res: TokenResponse) {
@@ -143,4 +163,5 @@ export function resetAuthState(): void {
   access = null
   inflight = null
   loggedOutListener = null
+  refreshTokenStore = localStorageRefreshTokenStore
 }
