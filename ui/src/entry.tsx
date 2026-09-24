@@ -44,8 +44,8 @@ import {
 } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
 import { fetchMe, getBaseUrl, isPreConfigured, loadConfig } from "./api"
-import { completeLogin, onLoggedOut } from "./auth"
-import { dropBogusContentLength } from "./fix-response"
+import { completeLogin, getAccessToken, getCachedAccessToken, invalidateAccessToken, onLoggedOut } from "./auth"
+import { installProxyFetch, installProxyWebSocket } from "./proxy-fetch"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
 import { ConfigScreen } from "./config-screen"
@@ -107,58 +107,15 @@ function App(props: { loginExpired: boolean }) {
         {(() => {
           const sessionPrefix = `/s/${sessionId}`
           const serverOrigin = getBaseUrl() || location.origin
-          const proxyUrl = `${serverOrigin}${sessionPrefix}/`
+          const proxyUrl = `${serverOrigin}/proxy/${sessionId}/`
 
-          // Patch globalThis.fetch to rewrite OpenCode API paths through the session proxy.
-          // The SDK uses absolute paths ("/api/...", "/global/...", "/session/...", etc.)
-          // in new URL(path, baseUrl), which strips the /s/{sessionId}/ prefix.
-          // This intercept prepends the prefix for all same-origin requests that
-          // aren't already under /s/, /auth/, /gateway/, or /healthz.
-          // On mobile (Capacitor), location.origin is https://localhost, so we also
-          // rewrite those to the remote server.
-          const passthroughPrefixes = ["/auth/", "/gateway/", "/healthz", "/assets/"]
-          const originalFetch = globalThis.fetch.bind(globalThis)
-          globalThis.fetch = async (input, init) => {
-            let url: URL | undefined
-            if (typeof input === "string") {
-              url = new URL(input, location.origin)
-            } else if (input instanceof URL) {
-              url = new URL(input)
-            } else if (input instanceof Request) {
-              url = new URL(input.url)
-            }
-            if (url && (url.origin === location.origin || url.origin === serverOrigin)) {
-              if (passthroughPrefixes.some(p => url!.pathname.startsWith(p))) {
-                // Passthrough paths go to the server but without session prefix
-                if (url.origin === location.origin && serverOrigin !== location.origin) {
-                  url = new URL(url.pathname + url.search + url.hash, serverOrigin)
-                }
-              } else if (!url.pathname.startsWith(sessionPrefix)) {
-                // All other paths get the session prefix and target the server
-                url = new URL(`${sessionPrefix}${url.pathname}${url.search}${url.hash}`, serverOrigin)
-              } else if (url.origin === location.origin && serverOrigin !== location.origin) {
-                // Already has session prefix but wrong origin (mobile)
-                url = new URL(url.pathname + url.search + url.hash, serverOrigin)
-              }
-              if (input instanceof Request) {
-                // Uint8Array, not ArrayBuffer: CapacitorHttp on Android sends ArrayBuffer bodies as empty
-                const body = input.method !== "GET" && input.method !== "HEAD"
-                  ? new Uint8Array(await input.arrayBuffer())
-                  : undefined
-                return originalFetch(url.toString(), {
-                  method: input.method,
-                  headers: input.headers,
-                  body,
-                  credentials: input.credentials,
-                  redirect: input.redirect,
-                  signal: input.signal,
-                  ...init,
-                }).then(dropBogusContentLength)
-              }
-              return originalFetch(url, init).then(dropBogusContentLength)
-            }
-            return originalFetch(input, init)
-          }
+          const proxyOpts = { pageOrigin: location.origin, serverOrigin, sessionId: sessionId! }
+          installProxyFetch({ ...proxyOpts, getToken: getAccessToken, invalidate: invalidateAccessToken })
+          installProxyWebSocket({
+            ...proxyOpts,
+            getCachedToken: getCachedAccessToken,
+            warmToken: () => void getAccessToken(),
+          })
 
           const server: ServerConnection.Http = {
             type: "http",

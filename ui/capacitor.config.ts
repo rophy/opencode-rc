@@ -8,11 +8,6 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     allowNavigation: ["*"],
   },
-  plugins: {
-    CapacitorHttp: {
-      enabled: true,
-    },
-  },
 }
 
 export default config

@@ -8,10 +8,5 @@
 			"*"
 		]
 	},
-	"plugins": {
-		"CapacitorHttp": {
-			"enabled": true
-		}
-	},
 	"packageClassList": []
 }

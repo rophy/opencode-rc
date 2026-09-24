@@ -134,7 +134,7 @@ export default defineConfig({
       "/api": "http://localhost:12029",
       "/auth": "http://localhost:12029",
       "/gateway": "http://localhost:12029",
-      "/s": "http://localhost:12029",
+      "/proxy": { target: "http://localhost:12029", ws: true },
       "/healthz": "http://localhost:12029",
     },
   },
