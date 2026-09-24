@@ -1,4 +1,5 @@
 import type { Config } from "./config.js";
+import WebSocket from "ws";
 
 export const FRAME_REQUEST_HEADERS = 0x01;
 export const FRAME_RESPONSE_HEADERS = 0x02;
@@ -188,13 +189,13 @@ export async function startTunnel(
       headers: {
         Authorization: `Bearer ${idToken}`,
       },
-    } as any);
+    });
 
     ws.binaryType = "arraybuffer";
     let resolveDisconnected: () => void;
     const disconnected = new Promise<void>((r) => { resolveDisconnected = r; });
 
-    ws.addEventListener("open", () => {
+    ws.on("open", () => {
       connected = true;
       console.log("Tunnel established");
       resolve({
@@ -205,25 +206,24 @@ export async function startTunnel(
       });
     });
 
-    ws.addEventListener("message", (event: MessageEvent) => {
-      let data: ArrayBuffer;
-      if (event.data instanceof ArrayBuffer) {
-        data = event.data;
-      } else if (ArrayBuffer.isView(event.data)) {
-        const view = event.data;
-        data = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+    ws.on("message", (data: Buffer | ArrayBuffer) => {
+      let buf: ArrayBuffer;
+      if (data instanceof ArrayBuffer) {
+        buf = data;
+      } else if (Buffer.isBuffer(data)) {
+        buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
       } else {
         return;
       }
 
-      if (data.byteLength < 5) return;
+      if (buf.byteLength < 5) return;
 
-      const frame = decodeFrameHeader(data);
+      const frame = decodeFrameHeader(buf);
 
       if (frame.type === FRAME_REQUEST_HEADERS) {
         const json = new TextDecoder().decode(frame.payload);
         const req: RequestHeaders = JSON.parse(json);
-        proxyToLocal(ws, frame.streamId, req, localUrl);
+        proxyToLocal(ws as unknown as WebSocket, frame.streamId, req, localUrl);
       } else if (frame.type === FRAME_DATA || frame.type === FRAME_END) {
         handleBodyFrame(frame.streamId, frame.type, frame.payload);
       }
@@ -240,8 +240,7 @@ export async function startTunnel(
       reject(new Error(`tunnel connection failed: ${detail}`));
     }
 
-    ws.addEventListener("error", (event: Event) => {
-      const err = event as ErrorEvent;
+    ws.on("error", (err: Error) => {
       if (!connected) {
         console.error(`Tunnel WebSocket connection failed: ${url}`);
         if (err.message) console.error(`  Error: ${err.message}`);
@@ -251,12 +250,13 @@ export async function startTunnel(
       }
     });
 
-    ws.addEventListener("close", (event: CloseEvent) => {
+    ws.on("close", (code: number, reason: Buffer) => {
+      const reasonStr = reason.toString();
       if (!connected) {
         const hints: string[] = [];
-        if (event.code === 1006) hints.push("connection was closed abnormally (no close frame received)");
-        if (event.code === 401 || event.reason?.includes("auth")) hints.push("authentication may have failed — try logging in again");
-        const detail = event.reason || hints.join("; ") || `close code ${event.code}`;
+        if (code === 1006) hints.push("connection was closed abnormally (no close frame received)");
+        if (code === 401 || reasonStr.includes("auth")) hints.push("authentication may have failed — try logging in again");
+        const detail = reasonStr || hints.join("; ") || `close code ${code}`;
         rejectOnce(detail);
       } else {
         console.log("Tunnel closed");
@@ -292,8 +292,9 @@ export async function startTunnelWithReconnect(
         if (!closed) {
           console.log("Tunnel disconnected, will reconnect...");
         }
-      } catch {
+      } catch (err) {
         if (closed) return;
+        console.error(`Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
       }
       if (!closed) {
         console.log(`Reconnecting in ${backoff / 1000}s...`);
@@ -317,6 +318,7 @@ export async function startTunnelWithReconnect(
       break;
     } catch (err) {
       if (closed) throw new Error("tunnel closed");
+      console.error(`Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
       console.log(`Reconnecting in ${backoff / 1000}s...`);
       await new Promise((r) => setTimeout(r, backoff));
       backoff = Math.min(backoff * 2, 30000);

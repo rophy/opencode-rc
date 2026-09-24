@@ -18,15 +18,18 @@
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.11",
-    "ws": "^8.21.3"
+    "vitest": "^4.1.11"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/rophy/opencode-rc",
     "directory": "cli"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "@opencode-ai/sdk": "^1.18.29"
+    "@opencode-ai/sdk": "^1.18.29",
+    "ws": "^8.21.3"
   }
 }

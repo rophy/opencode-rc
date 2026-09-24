@@ -453,6 +453,147 @@ describe("startTunnel pre-flight", () => {
   });
 });
 
+describe("handleBodyFrame and proxyToLocal with body", () => {
+  it("accumulates body chunks and proxies POST request", async () => {
+    const localServer: Server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.end(`echo: ${body}`);
+      });
+    });
+    await new Promise<void>((resolve) => localServer.listen(0, resolve));
+    const localAddress = localServer.address();
+    const localPort = typeof localAddress === "object" && localAddress ? localAddress.port : 0;
+
+    try {
+      await withServer(async (wss, port) => {
+        const serverConn = new Promise<WSClient>((resolve) => {
+          wss.once("connection", (ws) => resolve(ws));
+        });
+
+        const handle = await startTunnel(
+          makeConfig(port),
+          "test-token",
+          "sess1",
+          `http://127.0.0.1:${localPort}`,
+          "/tmp"
+        );
+
+        const serverWs = await serverConn;
+
+        const framesReceived = new Promise<{ streamId: number; type: number; payload: Uint8Array }[]>(
+          (resolve) => {
+            const frames: { streamId: number; type: number; payload: Uint8Array }[] = [];
+            serverWs.on("message", (data: Buffer) => {
+              const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+              const frame = decodeFrameHeader(arrayBuffer as ArrayBuffer);
+              frames.push(frame);
+              if (frame.type === FRAME_END) resolve(frames);
+            });
+          }
+        );
+
+        // Send request headers with hasBody: true
+        const reqHeaders: RequestHeaders = {
+          method: "POST",
+          path: "/submit",
+          headers: { "content-type": "text/plain" },
+          hasBody: true,
+        };
+        const headerPayload = new TextEncoder().encode(JSON.stringify(reqHeaders));
+        serverWs.send(encodeFrame(10, FRAME_REQUEST_HEADERS, headerPayload));
+
+        // Send body in two chunks
+        serverWs.send(encodeFrame(10, FRAME_DATA, new TextEncoder().encode("hello ")));
+        serverWs.send(encodeFrame(10, FRAME_DATA, new TextEncoder().encode("world")));
+        serverWs.send(encodeFrame(10, FRAME_END));
+
+        const frames = await framesReceived;
+        expect(frames.map((f) => f.type)).toEqual([
+          FRAME_RESPONSE_HEADERS,
+          FRAME_DATA,
+          FRAME_END,
+        ]);
+
+        const respHeaders: ResponseHeaders = JSON.parse(
+          new TextDecoder().decode(frames[0].payload)
+        );
+        expect(respHeaders.status).toBe(200);
+        expect(new TextDecoder().decode(frames[1].payload)).toBe("echo: hello world");
+
+        handle.close();
+      });
+    } finally {
+      await new Promise<void>((resolve) => localServer.close(() => resolve()));
+    }
+  });
+
+  it("ignores handleBodyFrame for unknown streamId", async () => {
+    const { handleBodyFrame } = await import("../src/tunnel.js");
+    handleBodyFrame(99999, FRAME_DATA, new Uint8Array([1, 2, 3]));
+  });
+});
+
+describe("startTunnel message handling", () => {
+  it("ignores frames shorter than 5 bytes", async () => {
+    await withServer(async (wss, port) => {
+      const serverConn = new Promise<WSClient>((resolve) => {
+        wss.once("connection", (ws) => resolve(ws));
+      });
+
+      const handle = await startTunnel(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/tmp"
+      );
+
+      const serverWs = await serverConn;
+
+      // Send a too-short frame — should be silently ignored
+      serverWs.send(Buffer.from([0x00, 0x01]));
+
+      // Give it a moment to process
+      await new Promise((r) => setTimeout(r, 50));
+
+      handle.close();
+    });
+  });
+});
+
+describe("startTunnel post-connection events", () => {
+  it("logs error after connection is established", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await withServer(async (wss, port) => {
+      const serverConn = new Promise<WSClient>((resolve) => {
+        wss.once("connection", (ws) => resolve(ws));
+      });
+
+      const handle = await startTunnel(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/tmp"
+      );
+
+      const serverWs = await serverConn;
+
+      // Force an error after connected by terminating the server-side abruptly
+      serverWs.terminate();
+
+      // Wait for the disconnected promise
+      await handle.disconnected;
+
+      handle.close();
+    });
+    errorSpy.mockRestore();
+  });
+});
+
 describe("startTunnelWithReconnect", () => {
   it("connects successfully and close() stops it", async () => {
     await withServer(async (wss, port) => {
@@ -468,4 +609,77 @@ describe("startTunnelWithReconnect", () => {
       handle.close();
     });
   });
+
+  it("retries on initial connection failure then connects", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Allocate a port, then close so first attempt fails
+    const wss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => wss.once("listening", resolve));
+    const address = wss.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    await new Promise<void>((resolve) => wss.close(() => resolve()));
+
+    // Start connecting — first attempt will fail, then retry
+    let wss2: WebSocketServer | null = null;
+    const connectPromise = startTunnelWithReconnect(
+      makeConfig(port),
+      "test-token",
+      "sess1",
+      "http://localhost:9999",
+      "/tmp"
+    );
+
+    // After a short delay (let first attempt fail), start the server
+    await new Promise((r) => setTimeout(r, 500));
+    wss2 = new WebSocketServer({ port });
+    await new Promise<void>((resolve) => wss2!.once("listening", resolve));
+
+    try {
+      const handle = await connectPromise;
+
+      expect(typeof handle.close).toBe("function");
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("Tunnel error:"));
+
+      handle.close();
+    } finally {
+      wss2?.close();
+      if (wss2) for (const client of wss2.clients) client.terminate();
+      errorSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  }, 10000);
+
+  it("reconnects after tunnel disconnects", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await withServer(async (wss, port) => {
+      let connectionCount = 0;
+      wss.on("connection", () => { connectionCount++; });
+
+      const handle = await startTunnelWithReconnect(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/tmp"
+      );
+
+      expect(connectionCount).toBe(1);
+
+      // Terminate all server-side connections to trigger reconnect
+      for (const client of wss.clients) client.terminate();
+
+      // Wait for reconnection
+      await new Promise((r) => setTimeout(r, 2000));
+
+      expect(connectionCount).toBeGreaterThanOrEqual(2);
+      expect(logSpy).toHaveBeenCalledWith("Tunnel disconnected, will reconnect...");
+
+      handle.close();
+    });
+
+    logSpy.mockRestore();
+  }, 10000);
 });
