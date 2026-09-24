@@ -118,7 +118,7 @@ spec:
               value: "test"
             - name: OIDC_REDIRECT_URI
               value: "http://localhost/callback"
-            - name: COOKIE_SECRET
+            - name: TOKEN_SECRET
               value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             - name: REDIS_URL
               value: "redis://opencode-rc-redis:6379/1"
@@ -166,7 +166,7 @@ spec:
               value: "test"
             - name: OIDC_REDIRECT_URI
               value: "http://localhost/callback"
-            - name: COOKIE_SECRET
+            - name: TOKEN_SECRET
               value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             - name: REDIS_URL
               value: "redis://opencode-rc-redis:6379/2"
@@ -208,7 +208,7 @@ spec:
               value: "test"
             - name: OIDC_REDIRECT_URI
               value: "http://localhost/callback"
-            - name: COOKIE_SECRET
+            - name: TOKEN_SECRET
               value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             - name: REDIS_URL
               value: "redis://opencode-rc-redis:6379/1"

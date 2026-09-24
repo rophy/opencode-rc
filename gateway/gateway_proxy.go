@@ -31,7 +31,7 @@ func GatewayProxyHandler(registry *TunnelRegistry, tokenSecret []byte) http.Hand
 		// Authenticate via access token issued by the web server
 		session, ok := verifyAccessToken(bearerToken(r), tokenSecret, time.Now())
 		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			marshalJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
 

@@ -411,8 +411,20 @@ func TestGatewayProxyRejectsMissingToken(t *testing.T) {
 	defer cleanup()
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/proxy/sess1/api/health", nil))
+	assertUnauthorizedJSON(t, rec)
+}
+
+func assertUnauthorizedJSON(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected application/json, got %q", ct)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["error"] != "unauthorized" || len(body) != 1 {
+		t.Errorf("expected {\"error\":\"unauthorized\"}, got %q", rec.Body.String())
 	}
 }
 
@@ -423,9 +435,7 @@ func TestGatewayProxyRejectsSessionCookie(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "orc_session", Value: testAccessToken(t, "user1")})
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
-	}
+	assertUnauthorizedJSON(t, rec)
 }
 
 func TestGatewayProxyRejectsOtherUser(t *testing.T) {

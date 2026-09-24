@@ -200,3 +200,16 @@ tests:
             name: extra-ca-certs
             configMap:
               name: RELEASE-NAME-opencode-rc-extra-ca-certs
+
+  - it: does not set cookie env vars
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_SECURE
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_DOMAIN
+          any: true

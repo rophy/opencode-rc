@@ -8,24 +8,22 @@ import (
 )
 
 type Config struct {
-	Port                       int
-	OIDCIssuer                 string
-	OIDCIssuerOverride         string
-	OIDCAuthorizationEndpoint  string
-	OIDCTokenEndpoint          string
-	OIDCJwksURI                string
-	OIDCClientID               string
-	OIDCClientSecret           string
-	OIDCCLIClientID            string
-	OIDCRedirectURI            string
-	WebUIDir                   string
-	TokenSecret                []byte
-	CookieDomain               string
-	SecureCookies              bool
-	RedisURL                   string
-	PodIP                      string
-	ProxySecret                string
-	TLSInsecureSkipVerify      bool
+	Port                      int
+	OIDCIssuer                string
+	OIDCIssuerOverride        string
+	OIDCAuthorizationEndpoint string
+	OIDCTokenEndpoint         string
+	OIDCJwksURI               string
+	OIDCClientID              string
+	OIDCClientSecret          string
+	OIDCCLIClientID           string
+	OIDCRedirectURI           string
+	WebUIDir                  string
+	TokenSecret               []byte
+	RedisURL                  string
+	PodIP                     string
+	ProxySecret               string
+	TLSInsecureSkipVerify     bool
 }
 
 func LoadConfig() (*Config, error) {
@@ -66,11 +64,6 @@ func LoadConfig() (*Config, error) {
 
 	webUIDir := os.Getenv("WEBUI_DIR")
 
-	secureCookies := true
-	if v := os.Getenv("COOKIE_SECURE"); v == "false" {
-		secureCookies = false
-	}
-
 	cliClientID := os.Getenv("OIDC_CLI_CLIENT_ID")
 
 	redisURL := os.Getenv("REDIS_URL")
@@ -93,8 +86,6 @@ func LoadConfig() (*Config, error) {
 		OIDCRedirectURI:           redirectURI,
 		WebUIDir:                  webUIDir,
 		TokenSecret:               secret,
-		CookieDomain:              os.Getenv("COOKIE_DOMAIN"),
-		SecureCookies:             secureCookies,
 		RedisURL:                  redisURL,
 		PodIP:                     os.Getenv("POD_IP"),
 		TLSInsecureSkipVerify:     tlsInsecure,

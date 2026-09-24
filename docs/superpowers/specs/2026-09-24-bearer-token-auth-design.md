@@ -193,7 +193,7 @@ interface so a Keychain/Keystore implementation can replace it later.
 | `auth.sessionTTL` | `SESSION_TTL` | `7d` | Absolute refresh-chain lifetime |
 | `auth.allowedOrigins` | `ALLOWED_ORIGINS` | `[]` | Extra origins for `return_to` and CORS |
 
-`COOKIE_DOMAIN` is removed. `COOKIE_SECURE` remains, for `orc_state` only.
+`COOKIE_DOMAIN` is removed. `COOKIE_SECURE` remains on web only, for the short-lived login cookies (`orc_state`, `orc_return`, `orc_challenge`).
 
 ## Error handling
 

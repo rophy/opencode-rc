@@ -119,11 +119,26 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
 | `OIDC_CLIENT_ID` | Yes | CLI OAuth client ID (public, PKCE) |
 | `OIDC_REDIRECT_URI` | Yes | OAuth callback URL |
-| `COOKIE_SECRET` | Yes | 64-char hex string (32 bytes) for session cookie encryption |
-| `COOKIE_DOMAIN` | No | Cookie domain scope |
-| `COOKIE_SECURE` | No | Set to `false` for HTTP (default: `true`) |
+| `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match web. Falls back to `COOKIE_SECRET` |
 | `REDIS_URL` | Yes | Redis connection URL |
 | `POD_IP` | Yes | Pod IP for session registration |
+| `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
+
+## Web Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
+| `OIDC_CLIENT_ID` | Yes | Web OAuth client ID |
+| `OIDC_CLIENT_SECRET` | No | Web OAuth client secret |
+| `OIDC_REDIRECT_URI` | Yes | OAuth callback URL (`https://<host>/auth/callback`); its origin is always allowed |
+| `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match the gateway. Falls back to `COOKIE_SECRET` |
+| `ACCESS_TOKEN_TTL` | No | Access token lifetime (default: `15m`; units `s`, `m`, `h`, `d`) |
+| `SESSION_TTL` | No | Absolute refresh-token chain lifetime from login (default: `7d`) |
+| `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS (`capacitor://localhost` and `https://localhost` are always allowed) |
+| `COOKIE_SECURE` | No | Set to `false` for HTTP; applies to the short-lived login cookies only (default: `true`) |
+| `REDIS_URL` | Yes | Redis connection URL |
+| `WEBUI_DIR` | No | Directory of the built UI (`ui/dist`) to serve |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
 
 ## Versioning

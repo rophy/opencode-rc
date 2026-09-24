@@ -81,8 +81,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: cookie-secret
-            - name: COOKIE_SECURE
-              value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
             {{- if .Values.tlsInsecureSkipVerify }}
             - name: TLS_INSECURE_SKIP_VERIFY
               value: "true"
