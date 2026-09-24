@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { logger } from "hono/logger";
 import { websocket } from "hono/bun";
 import Redis from "ioredis";
 import { loadConfig } from "./config.js";
@@ -11,6 +10,7 @@ import { corsMiddleware, makeOriginCheck, originOf } from "./origins.js";
 import { proxyHttp, sessionAccess } from "./proxy.js";
 import { wsRelay } from "./ws-relay.js";
 import { spaHandler } from "./webui.js";
+import { requestLogger } from "./request-log.js";
 
 import pkg from "../package.json";
 const version = pkg.version;
@@ -43,7 +43,7 @@ const tokens = new TokenStore(redis as unknown as RedisLike, config.sessionTtl);
 const isAllowedOrigin = makeOriginCheck(originOf(config.oidcRedirectUri), config.allowedOrigins);
 
 const app = new Hono<AuthEnv>();
-app.use("*", logger());
+app.use("*", requestLogger());
 app.use("*", corsMiddleware(isAllowedOrigin));
 
 // Health check (no auth)
