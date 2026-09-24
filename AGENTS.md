@@ -78,7 +78,7 @@ cd gateway && go build -o opencode-rc .
 cd ui && bun run dev
 ```
 
-Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
+Proxies `/api`, `/auth`, `/gateway`, `/proxy`, `/healthz` to `localhost:12029`.
 
 ## E2E Tests
 
