@@ -44,6 +44,7 @@ import {
 } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
 import { fetchMe, getBaseUrl, isPreConfigured, loadConfig } from "./api"
+import { dropBogusContentLength } from "./fix-response"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
 import { ConfigScreen } from "./config-screen"
@@ -138,8 +139,9 @@ function App() {
                 url = new URL(url.pathname + url.search + url.hash, serverOrigin)
               }
               if (input instanceof Request) {
+                // Uint8Array, not ArrayBuffer: CapacitorHttp on Android sends ArrayBuffer bodies as empty
                 const body = input.method !== "GET" && input.method !== "HEAD"
-                  ? await input.arrayBuffer()
+                  ? new Uint8Array(await input.arrayBuffer())
                   : undefined
                 return originalFetch(url.toString(), {
                   method: input.method,
@@ -149,9 +151,9 @@ function App() {
                   redirect: input.redirect,
                   signal: input.signal,
                   ...init,
-                })
+                }).then(dropBogusContentLength)
               }
-              return originalFetch(url, init)
+              return originalFetch(url, init).then(dropBogusContentLength)
             }
             return originalFetch(input, init)
           }
