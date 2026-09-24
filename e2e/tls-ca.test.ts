@@ -3,10 +3,10 @@ import { execSync } from "child_process";
 
 const NAMESPACE = process.env.NAMESPACE ?? "default";
 
-function kubectl(args: string): string {
+function kubectl(args: string, timeoutMs = 30_000): string {
   return execSync(`kubectl -n ${NAMESPACE} ${args}`, {
     encoding: "utf-8",
-    timeout: 30_000,
+    timeout: timeoutMs,
   }).trim();
 }
 
@@ -19,8 +19,10 @@ function kubectlSafe(args: string): string {
 }
 
 function waitForDeployment(name: string, timeoutSec = 60): void {
+  // The process timeout must outlast kubectl's own wait, or slow image pulls kill it early.
   kubectl(
-    `wait --for=condition=Available deployment/${name} --timeout=${timeoutSec}s`
+    `wait --for=condition=Available deployment/${name} --timeout=${timeoutSec}s`,
+    (timeoutSec + 15) * 1000
   );
 }
 

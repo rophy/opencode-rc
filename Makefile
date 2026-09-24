@@ -58,6 +58,7 @@ up: ## Create kind cluster and deploy e2e environment
 	@echo ""
 	@echo "=== Cluster ready ==="
 
+# Coverage is collected from the Go gateway only; web is a Bun server covered by its vitest unit tests.
 e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	@echo "=== Running vitest e2e tests ==="
 	@DEV_POD=$$($(KUBECTL) get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}'); \
@@ -80,15 +81,6 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	rm -rf $(COVER_DIR); \
 	mkdir -p $(COVER_DIR)/raw; \
 	$(KUBECTL) exec "$$DEV_POD" -- \
-		curl -sf http://opencode-rc-web:8080/debug/coverage > $(COVER_DIR)/raw/web.tar; \
-	if [ -s $(COVER_DIR)/raw/web.tar ]; then \
-		mkdir -p $(COVER_DIR)/raw/web; \
-		tar xf $(COVER_DIR)/raw/web.tar -C $(COVER_DIR)/raw/web; \
-		echo "Web coverage collected"; \
-	else \
-		echo "WARNING: No web coverage"; \
-	fi; \
-	$(KUBECTL) exec "$$DEV_POD" -- \
 		curl -sf http://opencode-rc-gateway:9090/debug/coverage > $(COVER_DIR)/raw/gateway.tar; \
 	if [ -s $(COVER_DIR)/raw/gateway.tar ]; then \
 		mkdir -p $(COVER_DIR)/raw/gateway; \
@@ -100,14 +92,11 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	echo ""; \
 	echo "=== Generating coverage report ==="; \
 	mkdir -p $(COVER_DIR)/merged; \
-	COV_INPUTS=""; \
-	[ -d $(COVER_DIR)/raw/web ] && COV_INPUTS="$(COVER_DIR)/raw/web"; \
-	[ -d $(COVER_DIR)/raw/gateway ] && COV_INPUTS="$${COV_INPUTS:+$$COV_INPUTS,}$(COVER_DIR)/raw/gateway"; \
-	if [ -z "$$COV_INPUTS" ]; then \
+	if [ ! -d $(COVER_DIR)/raw/gateway ]; then \
 		echo "WARNING: No coverage data collected"; \
 		exit $$TEST_EXIT; \
 	fi; \
-	go tool covdata merge -i="$$COV_INPUTS" -o="$(COVER_DIR)/merged"; \
+	go tool covdata merge -i="$(COVER_DIR)/raw/gateway" -o="$(COVER_DIR)/merged"; \
 	cd gateway && go tool covdata textfmt -i="../$(COVER_DIR)/merged" -o="../$(COVER_DIR)/coverage.out"; \
 	go tool cover -func="../$(COVER_DIR)/coverage.out" | tail -1; \
 	go tool cover -html="../$(COVER_DIR)/coverage.out" -o="../$(COVER_DIR)/coverage.html"; \
