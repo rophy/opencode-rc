@@ -4,7 +4,14 @@ import { createMiddleware } from "hono/factory";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
 import { verifyToken } from "./oidc.js";
-import { randomToken, signAccessToken, verifyAccessToken, type AccessClaims } from "./token.js";
+import {
+  isCodeChallenge,
+  randomToken,
+  signAccessToken,
+  verifyAccessToken,
+  verifyCodeVerifier,
+  type AccessClaims,
+} from "./token.js";
 import type { TokenStore } from "./token-store.js";
 import { validateReturnTo } from "./origins.js";
 
@@ -52,14 +59,22 @@ function tokenResponse(c: Context, config: Config, claims: AccessClaims, refresh
   });
 }
 
-async function readField(c: Context, field: string): Promise<string | null> {
+async function readBody(c: Context): Promise<Record<string, unknown>> {
   try {
     const body = await c.req.json();
-    const value = body?.[field];
-    return typeof value === "string" && value ? value : null;
+    return body && typeof body === "object" ? body : {};
   } catch {
-    return null;
+    return {};
   }
+}
+
+function stringField(body: Record<string, unknown>, field: string): string | null {
+  const value = body[field];
+  return typeof value === "string" && value ? value : null;
+}
+
+async function readField(c: Context, field: string): Promise<string | null> {
+  return stringField(await readBody(c), field);
 }
 
 export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDeps) {
@@ -69,10 +84,13 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
   app.get("/auth/start", (c) => {
     const returnTo = validateReturnTo(c.req.query("return_to"), isAllowedOrigin);
     if (!returnTo) return c.json({ error: "invalid return_to" }, 400);
+    const challenge = c.req.query("code_challenge");
+    if (!isCodeChallenge(challenge)) return c.json({ error: "invalid_request" }, 400);
 
     const state = randomToken(16);
     setCookie(c, "orc_state", state, authCookie);
     setCookie(c, "orc_return", returnTo, authCookie);
+    setCookie(c, "orc_challenge", challenge, authCookie);
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -91,6 +109,10 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       return c.text("invalid state", 400);
     }
     const returnTo = validateReturnTo(getCookie(c, "orc_return"), isAllowedOrigin) ?? "/";
+    const challenge = getCookie(c, "orc_challenge");
+    if (!isCodeChallenge(challenge)) {
+      return c.text("missing code challenge", 400);
+    }
 
     const code = c.req.query("code");
     if (!code) {
@@ -138,7 +160,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
 
     let loginCode: string;
     try {
-      loginCode = await tokens.createCode(claims);
+      loginCode = await tokens.createCode(claims, challenge);
     } catch (err) {
       console.error("login code store failed:", err);
       return c.json({ error: "unavailable" }, 503);
@@ -146,16 +168,22 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
 
     deleteCookie(c, "orc_state", { path: "/auth" });
     deleteCookie(c, "orc_return", { path: "/auth" });
+    deleteCookie(c, "orc_challenge", { path: "/auth" });
     console.log(`login: user=${claims.uid} name=${claims.name}`);
     return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
   });
 
   app.post("/auth/token", async (c) => {
-    const code = await readField(c, "code");
+    const body = await readBody(c);
+    const code = stringField(body, "code");
     if (!code) return c.json({ error: "invalid_grant" }, 400);
     try {
-      const claims = await tokens.consumeCode(code);
-      if (!claims) return c.json({ error: "invalid_grant" }, 400);
+      // Consumed before the verifier check, so a wrong verifier burns the code.
+      const record = await tokens.consumeCode(code);
+      if (!record || !verifyCodeVerifier(stringField(body, "code_verifier"), record.challenge)) {
+        return c.json({ error: "invalid_grant" }, 400);
+      }
+      const { claims } = record;
       const refreshToken = await tokens.createChain(claims);
       return tokenResponse(c, config, claims, refreshToken);
     } catch (err) {

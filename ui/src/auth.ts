@@ -1,6 +1,8 @@
 import { apiUrl, getBaseUrl } from "./server"
+import { sha256 } from "./sha256"
 
 export const REFRESH_KEY = "opencode-rc-refresh"
+export const VERIFIER_KEY = "opencode-rc-login-verifier"
 const EARLY_REFRESH_MS = 30_000
 
 export interface TokenResponse {
@@ -125,20 +127,67 @@ export async function authFetch(url: string, init: RequestInit = {}): Promise<Re
   return send(await getAccessToken())
 }
 
-export function login(): void {
+// The login verifier binds the login code to this client (PKCE-style): only the
+// client that started the login can exchange the code it gets back.
+function verifierStorage(): Storage {
+  try {
+    return window.sessionStorage
+  } catch {
+    return window.localStorage
+  }
+}
+
+function saveVerifier(verifier: string) {
+  try {
+    verifierStorage().setItem(VERIFIER_KEY, verifier)
+  } catch {}
+}
+
+function takeVerifier(): string | null {
+  try {
+    const storage = verifierStorage()
+    const verifier = storage.getItem(VERIFIER_KEY)
+    storage.removeItem(VERIFIER_KEY)
+    return verifier
+  } catch {
+    return null
+  }
+}
+
+function base64url(bytes: Uint8Array): string {
+  let binary = ""
+  for (const b of bytes) binary += String.fromCharCode(b)
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+async function codeChallenge(verifier: string): Promise<string> {
+  return base64url(await sha256(new TextEncoder().encode(verifier)))
+}
+
+export async function login(): Promise<void> {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)))
+  saveVerifier(verifier)
+  const challenge = await codeChallenge(verifier)
   // Served by the server itself: return to a path. Otherwise (the app): absolute URL.
   const returnTo = getBaseUrl()
     ? window.location.href.split("#")[0]
     : window.location.pathname + window.location.search
-  window.location.href = apiUrl(`/auth/start?return_to=${encodeURIComponent(returnTo)}`)
+  window.location.href = apiUrl(
+    `/auth/start?return_to=${encodeURIComponent(returnTo)}&code_challenge=${challenge}`,
+  )
 }
 
 export async function completeLogin(): Promise<"none" | "ok" | "expired"> {
   const match = window.location.hash.match(/(?:^#|&)code=([^&]+)/)
   if (!match) return "none"
   window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search)
+  const verifier = takeVerifier()
+  if (!verifier) return "expired"
   try {
-    const res = await postJson("/auth/token", { code: decodeURIComponent(match[1]) })
+    const res = await postJson("/auth/token", {
+      code: decodeURIComponent(match[1]),
+      code_verifier: verifier,
+    })
     if (!res.ok) return "expired"
     save((await res.json()) as TokenResponse)
     return "ok"

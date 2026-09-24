@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { signAccessToken, verifyAccessToken, randomToken, hashToken } from "./token.js";
+import {
+  signAccessToken,
+  verifyAccessToken,
+  randomToken,
+  hashToken,
+  codeChallenge,
+  isCodeChallenge,
+  verifyCodeVerifier,
+} from "./token.js";
 import { createHmac } from "node:crypto";
 
 const secret = new Uint8Array(32).fill(0xab);
@@ -54,5 +62,30 @@ describe("randomToken / hashToken", () => {
   it("hashes deterministically to hex", () => {
     expect(hashToken("abc")).toBe(hashToken("abc"));
     expect(hashToken("abc")).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe("code challenge", () => {
+  // RFC 7636 appendix B
+  const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+  const challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
+
+  it("computes the S256 challenge", () => {
+    expect(codeChallenge(verifier)).toBe(challenge);
+    expect(isCodeChallenge(challenge)).toBe(true);
+  });
+
+  it("rejects malformed challenges", () => {
+    expect(isCodeChallenge(undefined)).toBe(false);
+    expect(isCodeChallenge("short")).toBe(false);
+    expect(isCodeChallenge(challenge + "A")).toBe(false);
+    expect(isCodeChallenge(challenge.slice(0, 42) + "=")).toBe(false);
+  });
+
+  it("verifies only the matching verifier", () => {
+    expect(verifyCodeVerifier(verifier, challenge)).toBe(true);
+    expect(verifyCodeVerifier(randomToken(), challenge)).toBe(false);
+    expect(verifyCodeVerifier(null, challenge)).toBe(false);
+    expect(verifyCodeVerifier("short", codeChallenge("short"))).toBe(false);
   });
 });

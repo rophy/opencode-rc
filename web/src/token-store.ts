@@ -14,6 +14,11 @@ export type RotateResult =
 
 export const REFRESH_GRACE_SECONDS = 30;
 
+export interface LoginCodeRecord {
+  claims: AccessClaims;
+  challenge: string;
+}
+
 interface RefreshRecord extends AccessClaims {
   chain: string;
 }
@@ -33,15 +38,16 @@ export class TokenStore {
     private codeTtlSeconds = 60,
   ) {}
 
-  async createCode(claims: AccessClaims): Promise<string> {
+  async createCode(claims: AccessClaims, challenge: string): Promise<string> {
     const code = randomToken();
-    await this.redis.set(key.code(code), JSON.stringify(claims), "EX", this.codeTtlSeconds);
+    const record: LoginCodeRecord = { claims, challenge };
+    await this.redis.set(key.code(code), JSON.stringify(record), "EX", this.codeTtlSeconds);
     return code;
   }
 
-  async consumeCode(code: string): Promise<AccessClaims | null> {
+  async consumeCode(code: string): Promise<LoginCodeRecord | null> {
     const raw = await this.redis.getdel(key.code(code));
-    return raw ? (JSON.parse(raw) as AccessClaims) : null;
+    return raw ? (JSON.parse(raw) as LoginCodeRecord) : null;
   }
 
   async createChain(claims: AccessClaims): Promise<string> {

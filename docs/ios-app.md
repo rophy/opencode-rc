@@ -10,9 +10,10 @@ Capacitor wraps the rc-web SPA in a WKWebView. The app loads the gateway URL
 (e.g. `https://gateway.internal/`) — it does not bundle API endpoints.
 
 Login runs inside the WebView: the app sends the user to
-`/auth/start?return_to=capacitor://localhost/`, and after the IdP the server
-redirects back with a one-time code that the app exchanges for an access
-token (15 min) and a refresh token (stored in `localStorage`, valid 7 days).
+`/auth/start?return_to=capacitor://localhost/&code_challenge=…`, and after the IdP
+the server redirects back with a one-time code that the app exchanges, together
+with the matching verifier, for an access token (15 min) and a refresh token
+(stored in `localStorage`, valid 7 days).
 API calls use `Authorization: Bearer`, so CapacitorHttp is not used.
 
 ## Docker Image as Transport

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
+import { createHash, randomBytes } from "node:crypto";
 
 const WEB_URL = process.env.WEB_URL ?? "http://opencode-rc-web:8080";
 const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:9090";
@@ -47,8 +48,18 @@ async function postJson(path: string, body: unknown): Promise<Response> {
   });
 }
 
-async function loginCode(sub: string): Promise<string> {
-  const startRes = await fetch(`${WEB_URL}/auth/start?return_to=%2F`, { redirect: "manual" });
+interface LoginCode {
+  code: string;
+  verifier: string;
+}
+
+async function loginCode(sub: string): Promise<LoginCode> {
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const startRes = await fetch(`${WEB_URL}/auth/start?return_to=%2F&code_challenge=${challenge}`, {
+    redirect: "manual",
+  });
+  expect(startRes.status).toBe(302);
   const cookies = cookieHeader(startRes);
   const url = new URL(startRes.headers.get("location")!);
 
@@ -75,11 +86,12 @@ async function loginCode(sub: string): Promise<string> {
   const landing = new URL(webCallback.headers.get("location")!, WEB_URL);
   const code = new URLSearchParams(landing.hash.slice(1)).get("code");
   expect(code).toBeTruthy();
-  return code!;
+  return { code: code!, verifier };
 }
 
 async function loginAs(sub: string): Promise<TokenSession> {
-  const res = await postJson("/auth/token", { code: await loginCode(sub) });
+  const { code, verifier } = await loginCode(sub);
+  const res = await postJson("/auth/token", { code, code_verifier: verifier });
   expect(res.status).toBe(200);
   const body = await res.json();
   return new TokenSession(body.access_token, body.refresh_token);
@@ -223,10 +235,20 @@ describe("auth edge cases", () => {
   });
 
   it("login code works only once", async () => {
-    const code = await loginCode("user1");
-    expect((await postJson("/auth/token", { code })).status).toBe(200);
-    const again = await postJson("/auth/token", { code });
+    const { code, verifier } = await loginCode("user1");
+    expect((await postJson("/auth/token", { code, code_verifier: verifier })).status).toBe(200);
+    const again = await postJson("/auth/token", { code, code_verifier: verifier });
     expect(again.status).toBe(400);
+  });
+
+  it("login code is rejected with a wrong verifier", async () => {
+    const { code } = await loginCode("user1");
+    const res = await postJson("/auth/token", {
+      code,
+      code_verifier: randomBytes(32).toString("base64url"),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_grant" });
   });
 
   it("CORS preflight allows the mobile app origin", async () => {

@@ -21,7 +21,7 @@ export const LoginScreen: Component<{ onSettings: () => void; expired?: boolean 
         </Show>
 
         <button
-          onClick={login}
+          onClick={() => void login()}
           class="inline-flex items-center gap-2 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-4 py-2 text-[13px] font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-hover cursor-pointer"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

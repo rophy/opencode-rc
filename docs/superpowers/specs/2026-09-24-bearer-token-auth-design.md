@@ -34,6 +34,8 @@ on `/s/<id>/pty/<pty>/connect`).
 - Bearer tokens (short-lived access + rotating refresh) instead of cookies.
 - The app uses the WebView's normal `fetch`; CapacitorHttp is disabled.
 - After login, the app returns to its bundled UI.
+- The login code is bound to the client that started the login (PKCE-style verifier),
+  so a stolen or injected code cannot be exchanged by anyone else.
 - The terminal WebSocket works through web.
 
 ## Non-goals
@@ -53,6 +55,7 @@ on `/s/<id>/pty/<pty>/connect`).
 | Session length | 7 days absolute from login, no sliding extension |
 | Client storage | Access token in memory; refresh token in `localStorage` for both browser and app |
 | App login | Inside the WebView; callback redirects back to the app's local URL |
+| Login code binding | PKCE-style: the UI sends `code_challenge = base64url(sha256(verifier))` to `/auth/start` and the verifier to `/auth/token` |
 | WebSocket auth | `?access_token=` query parameter, accepted only on upgrade requests |
 
 ## Server design
@@ -66,8 +69,8 @@ on `/s/<id>/pty/<pty>/connect`).
   - `rt:<hash>` → `{chain, uid, email, name, rotatedTo?, rotatedAt?}`,
     TTL = remaining chain lifetime
   - `chain:<id>` → `{uid, exp}`, TTL = 7 days from login (absolute)
-- **Login code**: `code:<random>` → `{uid, email, name}`, TTL 60 s, deleted on first use
-  (`GETDEL`).
+- **Login code**: `code:<random>` → `{claims: {uid, email, name}, challenge}`, TTL 60 s,
+  deleted on first use (`GETDEL`), including when the verifier is wrong.
 
 ### Rotation and reuse
 
@@ -87,9 +90,9 @@ Refresh tokens never extend the chain's absolute expiry.
 
 | Endpoint | Behaviour |
 |---|---|
-| `GET /auth/start?return_to=<url>` | `return_to` is either a path starting with a single `/` (same origin as the server; default `/`), or an absolute URL whose origin is allowed (below); otherwise `400`. The browser UI served by the server sends a path; the app sends its absolute local URL. Stores state + `return_to` in the short-lived `orc_state` cookie (unchanged mechanism, same-site only during the redirect), redirects to the IdP. |
-| `GET /auth/callback` | Validates state, exchanges the code with the IdP, verifies the ID token (unchanged). Creates a login code and redirects to `<return_to>#code=<code>`. Does not set `orc_session`. |
-| `POST /auth/token {code}` | Consumes the code, creates a chain, returns `{access_token, refresh_token, expires_in}`. Unknown/expired/used code → `400 invalid_grant`. |
+| `GET /auth/start?return_to=<url>&code_challenge=<challenge>` | `return_to` is either a path starting with a single `/` (same origin as the server; default `/`), or an absolute URL whose origin is allowed (below); control characters and backslashes are rejected anywhere, and paths are normalized with the URL parser and must stay on the server's origin; otherwise `400`. The browser UI served by the server sends a path; the app sends its absolute local URL. `code_challenge` is required: 43-char base64url (`base64url(sha256(verifier))`), else `400 {"error":"invalid_request"}`. Stores state, `return_to` and the challenge in short-lived HttpOnly cookies (`orc_state`, `orc_return`, `orc_challenge`; same-site only during the redirect), redirects to the IdP. |
+| `GET /auth/callback` | Validates state, exchanges the code with the IdP, verifies the ID token (unchanged). Creates a login code bound to the challenge and redirects to `<return_to>#code=<code>`. Does not set `orc_session`. |
+| `POST /auth/token {code, code_verifier}` | Consumes the code, checks `base64url(sha256(code_verifier))` against the stored challenge (constant-time), creates a chain, returns `{access_token, refresh_token, expires_in}`. Unknown/expired/used code, or a missing/wrong verifier → `400 invalid_grant` (the code is burned either way). |
 | `POST /auth/refresh {refresh_token}` | See rotation above. Returns `{access_token, refresh_token, expires_in}`. |
 | `POST /auth/logout {refresh_token}` | Deletes the chain. Always `204`. |
 | `GET /api/me`, `GET /gateway/sessions` | Bearer required. |
@@ -148,11 +151,17 @@ Owns all token handling:
 - `authFetch(url, init)`: adds `Authorization: Bearer`. On `401` forces one refresh
   and retries once. If the refresh fails with `invalid_grant`, clears tokens and
   signals the app to show the login screen.
-- `login()`: navigates to `${server}/auth/start?return_to=<current page>`, where the
+- `login()` (async): generates a random 32-byte verifier (base64url), stores it in
+  `sessionStorage` (falling back to `localStorage`) under `opencode-rc-login-verifier`,
+  computes `code_challenge = base64url(sha256(verifier))` (`crypto.subtle`, with a
+  JS fallback for plain-http origins where it is unavailable) and navigates to
+  `${server}/auth/start?return_to=<current page>&code_challenge=<challenge>`, where the
   current page is a path (`pathname + search`) when the UI is served by the server
   itself, and the absolute URL without fragment otherwise (the app).
 - `completeLogin()`: at startup, if the fragment has `code=`, removes it with
-  `history.replaceState` and calls `POST /auth/token`.
+  `history.replaceState`, then reads and removes the stored verifier. Without a
+  verifier (a login this client did not start) it returns "expired" without calling
+  the server; otherwise it calls `POST /auth/token {code, code_verifier}`.
 - `logout()`: `POST /auth/logout`, clears tokens.
 
 Refresh token storage key: `opencode-rc-refresh`. Storage goes through a small
@@ -192,7 +201,7 @@ interface so a Keychain/Keystore implementation can replace it later.
 |---|---|---|
 | Missing/invalid/expired/wrong-`typ` access token | `401 {"error":"unauthorized"}` (web and gateway) | Refresh once, retry |
 | Refresh token unknown, reused past grace, or chain expired | `401 {"error":"invalid_grant"}` | Clear tokens, show login |
-| Login code unknown/expired/used | `400 {"error":"invalid_grant"}` | Show login with "Sign-in expired, try again" |
+| Login code unknown/expired/used, or verifier missing/wrong | `400 {"error":"invalid_grant"}` | Show login with "Sign-in expired, try again" |
 | `return_to` not allowed | `400` from `/auth/start` | None (no redirect happens) |
 | Redis unavailable | `503` from `/auth/token`, `/auth/refresh` | Error shown; existing access tokens keep working until they expire |
 
@@ -208,7 +217,7 @@ interface so a Keychain/Keystore implementation can replace it later.
 ## Testing
 
 - **web unit**: token sign/verify (MAC, `typ`, `exp`); code exchange (single use,
-  TTL); refresh rotation, grace window, chain revocation on reuse; `return_to`
+  TTL, verifier check); refresh rotation, grace window, chain revocation on reuse; `return_to`
   allowlist; CORS preflight; `/proxy/:id` ownership check; WebSocket relay.
 - **gateway unit**: bearer and `?access_token=` on upgrade accepted; cookie rejected;
   wrong `typ` and expired tokens rejected.

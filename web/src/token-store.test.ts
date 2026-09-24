@@ -15,13 +15,13 @@ beforeEach(() => {
 
 describe("login codes", () => {
   it("can be consumed once", async () => {
-    const code = await store.createCode(claims);
-    expect(await store.consumeCode(code)).toEqual(claims);
+    const code = await store.createCode(claims, "challenge");
+    expect(await store.consumeCode(code)).toEqual({ claims, challenge: "challenge" });
     expect(await store.consumeCode(code)).toBeNull();
   });
 
   it("expire after 60 seconds", async () => {
-    const code = await store.createCode(claims);
+    const code = await store.createCode(claims, "challenge");
     redis.advance(60);
     expect(await store.consumeCode(code)).toBeNull();
   });

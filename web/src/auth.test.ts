@@ -1,12 +1,17 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Hono } from "hono";
 import { authMiddleware, authRoutes, type AuthEnv } from "./auth.js";
-import { signAccessToken } from "./token.js";
+import { codeChallenge, randomToken, signAccessToken } from "./token.js";
 import { TokenStore } from "./token-store.js";
 import { MockRedis } from "./testing/mock-redis.js";
 import { makeOriginCheck } from "./origins.js";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
+
+vi.mock("./oidc.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./oidc.js")>()),
+  verifyToken: vi.fn(async () => ({ sub: "alice", email: "alice@example.com", name: "Alice" })),
+}));
 
 const secret = new Uint8Array(32).fill(0xab);
 const claims = { uid: "alice@example.com", email: "alice@example.com", name: "Alice" };
@@ -63,6 +68,11 @@ beforeEach(() => {
   );
 });
 
+afterEach(() => vi.restoreAllMocks());
+
+const verifier = randomToken();
+const challenge = codeChallenge(verifier);
+
 const post = (path: string, body: unknown) =>
   app.request(path, {
     method: "POST",
@@ -111,37 +121,74 @@ describe("authMiddleware", () => {
 });
 
 describe("/auth/start", () => {
-  it("redirects to the IdP and stores state and return_to", async () => {
-    const res = await app.request("/auth/start?return_to=capacitor%3A%2F%2Flocalhost%2F");
+  it("redirects to the IdP and stores state, return_to and the code challenge", async () => {
+    const res = await app.request(
+      `/auth/start?return_to=capacitor%3A%2F%2Flocalhost%2F&code_challenge=${challenge}`,
+    );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/^https:\/\/idp\.example\.com\/authorize\?/);
     const cookies = res.headers.getSetCookie().join("\n");
     expect(cookies).toContain("orc_state=");
     expect(cookies).toContain("orc_return=capacitor%3A%2F%2Flocalhost%2F");
+    expect(cookies).toMatch(new RegExp(`orc_challenge=${challenge}; Max-Age=300; Path=/auth; HttpOnly`));
+  });
+
+  it("requires a well-formed code_challenge", async () => {
+    for (const q of ["", "&code_challenge=short", `&code_challenge=${challenge}x`]) {
+      const res = await app.request(`/auth/start?return_to=%2F${q}`);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "invalid_request" });
+    }
   });
 
   it("rejects a return_to with a control character", async () => {
-    const res = await app.request("/auth/start?return_to=%2F%09%2Fevil.com");
+    const res = await app.request(`/auth/start?return_to=%2F%09%2Fevil.com&code_challenge=${challenge}`);
     expect(res.status).toBe(400);
   });
 
   it("rejects a foreign return_to", async () => {
-    const res = await app.request("/auth/start?return_to=https%3A%2F%2Fevil.example.com%2F");
+    const res = await app.request(
+      `/auth/start?return_to=https%3A%2F%2Fevil.example.com%2F&code_challenge=${challenge}`,
+    );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("/auth/callback", () => {
+  const callback = (cookies: string) =>
+    app.request("/auth/callback?state=st&code=idp-code", { headers: { cookie: cookies } });
+
+  it("binds the login code to the challenge from /auth/start", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    const res = await callback(`orc_state=st; orc_return=%2Fs%2Fx%2F; orc_challenge=${challenge}`);
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location")!;
+    expect(location).toMatch(/^\/s\/x\/#code=/);
+    const code = decodeURIComponent(location.split("#code=")[1]);
+
+    const ok = await post("/auth/token", { code, code_verifier: verifier });
+    expect(ok.status).toBe(200);
+  });
+
+  it("rejects a callback without a code challenge cookie", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    const res = await callback("orc_state=st; orc_return=%2F");
+    expect(res.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 
 describe("/auth/token", () => {
   it("exchanges a code for tokens once", async () => {
-    const code = await tokens.createCode(claims);
-    const res = await post("/auth/token", { code });
+    const code = await tokens.createCode(claims, challenge);
+    const res = await post("/auth/token", { code, code_verifier: verifier });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.expires_in).toBe(900);
     expect(typeof body.access_token).toBe("string");
     expect(typeof body.refresh_token).toBe("string");
 
-    const again = await post("/auth/token", { code });
+    const again = await post("/auth/token", { code, code_verifier: verifier });
     expect(again.status).toBe(400);
     expect(await again.json()).toEqual({ error: "invalid_grant" });
   });
@@ -150,12 +197,30 @@ describe("/auth/token", () => {
     const res = await post("/auth/token", {});
     expect(res.status).toBe(400);
   });
+
+  it("rejects a missing verifier and burns the code", async () => {
+    const code = await tokens.createCode(claims, challenge);
+    const res = await post("/auth/token", { code });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_grant" });
+    const retry = await post("/auth/token", { code, code_verifier: verifier });
+    expect(retry.status).toBe(400);
+  });
+
+  it("rejects a wrong verifier and burns the code", async () => {
+    const code = await tokens.createCode(claims, challenge);
+    const res = await post("/auth/token", { code, code_verifier: randomToken() });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_grant" });
+    const retry = await post("/auth/token", { code, code_verifier: verifier });
+    expect(retry.status).toBe(400);
+  });
 });
 
 describe("/auth/refresh and /auth/logout", () => {
   async function login() {
-    const code = await tokens.createCode(claims);
-    return (await (await post("/auth/token", { code })).json()) as {
+    const code = await tokens.createCode(claims, challenge);
+    return (await (await post("/auth/token", { code, code_verifier: verifier })).json()) as {
       access_token: string;
       refresh_token: string;
     };

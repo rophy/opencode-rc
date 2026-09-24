@@ -64,3 +64,22 @@ export function randomToken(bytes = 32): string {
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+// PKCE (RFC 7636, S256): the login code is bound to the client that started the login.
+const CODE_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
+const CODE_VERIFIER = /^[A-Za-z0-9._~-]{43,128}$/;
+
+export function isCodeChallenge(value: unknown): value is string {
+  return typeof value === "string" && CODE_CHALLENGE.test(value);
+}
+
+export function codeChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+export function verifyCodeVerifier(verifier: string | null, challenge: string): boolean {
+  if (!verifier || !CODE_VERIFIER.test(verifier)) return false;
+  const got = Buffer.from(codeChallenge(verifier));
+  const want = Buffer.from(challenge);
+  return got.length === want.length && timingSafeEqual(got, want);
+}

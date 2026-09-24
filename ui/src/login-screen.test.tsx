@@ -35,7 +35,8 @@ describe("LoginScreen", () => {
       writable: true,
     })
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
-    expect(window.location.href.startsWith("/auth/start?return_to=")).toBe(true)
+    await vi.waitFor(() => expect(window.location.href.startsWith("/auth/start?return_to=")).toBe(true))
+    expect(window.location.href).toMatch(/&code_challenge=[A-Za-z0-9_-]{43}$/)
   })
 
   it("redirects to base URL /auth/start when configured", async () => {
@@ -46,7 +47,9 @@ describe("LoginScreen", () => {
       writable: true,
     })
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
-    expect(window.location.href.startsWith("https://rc.example.com/auth/start?return_to=")).toBe(true)
+    await vi.waitFor(() =>
+      expect(window.location.href.startsWith("https://rc.example.com/auth/start?return_to=")).toBe(true),
+    )
   })
 
   it("hides Server settings when pre-configured", async () => {
@@ -70,7 +73,9 @@ describe("LoginScreen", () => {
       writable: true,
     })
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
-    expect(window.location.href.startsWith("https://corp.example.com/auth/start?return_to=")).toBe(true)
+    await vi.waitFor(() =>
+      expect(window.location.href.startsWith("https://corp.example.com/auth/start?return_to=")).toBe(true),
+    )
   })
 
   it("shows the expired notice", () => {
