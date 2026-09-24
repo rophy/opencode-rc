@@ -89,12 +89,12 @@ tests:
                 name: RELEASE-NAME-opencode-rc
                 key: oidc-client-secret
 
-  - it: reads COOKIE_SECRET from secret
+  - it: reads TOKEN_SECRET from secret
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: COOKIE_SECRET
+            name: TOKEN_SECRET
             valueFrom:
               secretKeyRef:
                 name: RELEASE-NAME-opencode-rc
@@ -109,7 +109,7 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: COOKIE_SECRET
+            name: TOKEN_SECRET
             valueFrom:
               secretKeyRef:
                 name: corp-secrets
@@ -340,3 +340,36 @@ tests:
             name: extra-ca-certs
             configMap:
               name: RELEASE-NAME-opencode-rc-extra-ca-certs
+
+  - it: sets token TTL defaults
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ACCESS_TOKEN_TTL
+            value: "15m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SESSION_TTL
+            value: "7d"
+
+  - it: sets ALLOWED_ORIGINS when configured
+    set:
+      auth.allowedOrigins:
+        - https://a.example.com
+        - https://b.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: "https://a.example.com,https://b.example.com"
+
+  - it: does not set COOKIE_DOMAIN
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: COOKIE_DOMAIN
+          any: true

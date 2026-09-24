@@ -47,7 +47,7 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: COOKIE_SECRET
+            name: TOKEN_SECRET
             valueFrom:
               secretKeyRef:
                 name: corp-secrets

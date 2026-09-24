@@ -71,7 +71,7 @@ The `existingSecret` must contain:
 
 | Key | Description |
 |-----|-------------|
-| `cookie-secret` | 64-char hex string (32 bytes) for session cookie encryption |
+| `cookie-secret` | 64-char hex string (32 bytes), HMAC key for access tokens |
 | `oidc-client-secret` | OIDC client secret for the web client |
 | `redis-url` | Redis connection URL (only if `redis.enabled=false`) |
 
@@ -84,7 +84,9 @@ The `existingSecret` must contain:
 | `oidc.clientId` | `opencode-rc` | Web client ID (confidential) |
 | `oidc.cliClientId` | `opencode-rc-cli` | CLI client ID (public, PKCE) |
 | `oidc.redirectUri` | auto-derived | OAuth callback URL |
-| `oidc.cookieDomain` | `""` | Cookie domain scope |
+| `auth.accessTokenTTL` | `15m` | Access token lifetime |
+| `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |
+| `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `web.ingress.enabled` | `false` | Create Ingress for web server |

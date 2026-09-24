@@ -76,7 +76,7 @@ spec:
             - name: OIDC_JWKS_URI
               value: {{ .Values.oidc.jwksUri | quote }}
             {{- end }}
-            - name: COOKIE_SECRET
+            - name: TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "opencode-rc.secretName" . }}

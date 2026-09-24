@@ -56,13 +56,21 @@ spec:
               value: {{ include "opencode-rc.redirectUri" . | quote }}
             - name: OIDC_CLI_CLIENT_ID
               value: {{ .Values.oidc.cliClientId | quote }}
-            - name: COOKIE_SECRET
+            - name: TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ include "opencode-rc.secretName" . }}
                   key: cookie-secret
             - name: COOKIE_SECURE
               value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
+            - name: ACCESS_TOKEN_TTL
+              value: {{ .Values.auth.accessTokenTTL | quote }}
+            - name: SESSION_TTL
+              value: {{ .Values.auth.sessionTTL | quote }}
+            {{- with .Values.auth.allowedOrigins }}
+            - name: ALLOWED_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- if .Values.oidc.issuerOverride }}
             - name: OIDC_ISSUER_OVERRIDE
               value: {{ .Values.oidc.issuerOverride | quote }}
@@ -78,10 +86,6 @@ spec:
             {{- if .Values.oidc.jwksUri }}
             - name: OIDC_JWKS_URI
               value: {{ .Values.oidc.jwksUri | quote }}
-            {{- end }}
-            {{- if .Values.oidc.cookieDomain }}
-            - name: COOKIE_DOMAIN
-              value: {{ .Values.oidc.cookieDomain | quote }}
             {{- end }}
             {{- if .Values.tlsInsecureSkipVerify }}
             - name: TLS_INSECURE_SKIP_VERIFY
