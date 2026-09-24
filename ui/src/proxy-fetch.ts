@@ -8,6 +8,14 @@ export interface ProxyOptions {
 const RC_PREFIXES = ["/auth/", "/gateway/", "/assets/"]
 const RC_PATHS = ["/healthz", "/api/me"]
 
+// URL.origin is "null" for non-special schemes (e.g. capacitor:) per the WHATWG
+// URL spec, so it can't be used to compare against pageOrigin/serverOrigin on
+// iOS (capacitor://localhost). Compare protocol+host instead.
+function originOf(input: string): string {
+  const url = new URL(input)
+  return `${url.protocol}//${url.host}`
+}
+
 export function proxyTarget(input: string, opts: ProxyOptions): string | null {
   let url: URL
   try {
@@ -15,7 +23,8 @@ export function proxyTarget(input: string, opts: ProxyOptions): string | null {
   } catch {
     return null
   }
-  if (url.origin !== opts.pageOrigin && url.origin !== opts.serverOrigin) return null
+  const origin = originOf(url.href)
+  if (origin !== originOf(opts.pageOrigin) && origin !== originOf(opts.serverOrigin)) return null
   if (RC_PATHS.includes(url.pathname) || RC_PREFIXES.some((p) => url.pathname.startsWith(p))) {
     return null
   }
@@ -52,26 +61,33 @@ export function installProxyFetch(
     const target = proxyTarget(raw, opts)
     if (!target) return original(input, init)
 
+    const method = input instanceof Request ? input.method : (init?.method ?? "GET")
+    const hasBody = method !== "GET" && method !== "HEAD"
+    // Buffer the body once up front instead of streaming it (duplex: "half"):
+    // streaming request uploads aren't supported in WKWebView/Safari/Firefox
+    // and fail in Chrome over HTTP/1.1, and we need to resend the same body
+    // on a 401 retry anyway. Reading via a throwaway Request also normalizes
+    // string/Blob/FormData bodies into a plain ArrayBuffer.
+    const body = hasBody
+      ? await (input instanceof Request ? input.clone() : new Request(raw, init)).arrayBuffer()
+      : undefined
+
     // Build a plain RequestInit per attempt rather than passing a Request as
     // `init` (nesting Requests this way silently drops the body in some
-    // fetch implementations). Cloning `input` per attempt keeps its body
-    // stream reusable across the 401 retry.
+    // fetch implementations).
     const buildRequest = (): Request => {
       if (input instanceof Request) {
-        const src = input.clone()
-        const hasBody = src.method !== "GET" && src.method !== "HEAD"
         return new Request(target, {
-          method: src.method,
-          headers: src.headers,
-          body: hasBody ? src.body : undefined,
-          credentials: src.credentials,
-          redirect: src.redirect,
-          signal: src.signal,
-          ...(hasBody ? { duplex: "half" } : {}),
+          method: input.method,
+          headers: input.headers,
+          body,
+          credentials: input.credentials,
+          redirect: input.redirect,
+          signal: input.signal,
           ...init,
         } as RequestInit)
       }
-      return new Request(target, init ? ({ ...init, duplex: "half" } as RequestInit) : init)
+      return new Request(target, { ...init, body } as RequestInit)
     }
     const send = async () => {
       const req = buildRequest()
