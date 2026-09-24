@@ -118,6 +118,9 @@ requests only, also accepts `?access_token=`. Failure → `401 {"error":"unautho
 | `/proxy/:id/*` | Forward to the gateway: HTTP, SSE, WebSocket | Bearer (WebSocket: `?access_token=`) |
 | `/api/*`, `/auth/*`, `/gateway/*`, `/healthz` | As above | As above |
 
+Unknown paths under `/api/`, `/auth/`, `/gateway/` and `/proxy/` return
+`404 {"error":"not found"}`, never the SPA.
+
 `/s/:id/...` URLs stay valid as SPA routes (bookmarks keep working); the server no
 longer looks up the session to serve `index.html`.
 
