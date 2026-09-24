@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
+import { websocket } from "hono/bun";
 import Redis from "ioredis";
 import { loadConfig } from "./config.js";
 import { discoverOIDC, createProvider } from "./oidc.js";
@@ -8,6 +9,7 @@ import { SessionStore } from "./store.js";
 import { TokenStore, type RedisLike } from "./token-store.js";
 import { corsMiddleware, makeOriginCheck, originOf } from "./origins.js";
 import { proxyHttp, sessionAccess } from "./proxy.js";
+import { wsRelay } from "./ws-relay.js";
 import { spaHandler } from "./webui.js";
 
 import pkg from "../package.json";
@@ -67,7 +69,8 @@ app.get("/gateway/sessions", auth, async (c) => {
   return c.json(sessions.map((s) => ({ ...s, user: s.userId })));
 });
 
-// OpenCode API proxy: HTTP, SSE (and WebSocket, added in the next task)
+// OpenCode API proxy: WebSocket upgrades first, then HTTP and SSE
+app.get("/proxy/:sessionId/*", auth, sessionAccess(store), wsRelay());
 app.all("/proxy/:sessionId/*", auth, sessionAccess(store), proxyHttp());
 
 // SPA: static files, client routes (including /s/:id/...) fall back to index.html
@@ -80,4 +83,5 @@ console.log(`web starting version=${version} addr=:${config.port}`);
 export default {
   port: config.port,
   fetch: app.fetch,
+  websocket,
 };
