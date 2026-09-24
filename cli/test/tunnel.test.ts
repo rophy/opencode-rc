@@ -5,6 +5,7 @@ import {
   encodeFrame,
   decodeFrameHeader,
   proxyToLocal,
+  handleBodyFrame,
   startTunnel,
   startTunnelWithReconnect,
   FRAME_REQUEST_HEADERS,
@@ -106,6 +107,22 @@ function decodeFrames(sent: ArrayBuffer[]) {
   return sent.map((buf) => decodeFrameHeader(buf));
 }
 
+// Minimal raw WebSocket wire-frame helpers for testing the byte-for-byte
+// socket relay: client->server frames are masked per RFC 6455, server->client
+// frames aren't. Only small (<126 byte) single-frame text messages are needed here.
+function encodeClientTextFrame(text: string): Buffer {
+  const payload = Buffer.from(text, "utf8");
+  const mask = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+  const masked = Buffer.alloc(payload.length);
+  for (let i = 0; i < payload.length; i++) masked[i] = payload[i] ^ mask[i % 4];
+  return Buffer.concat([Buffer.from([0x81, 0x80 | payload.length]), mask, masked]);
+}
+
+function decodeServerTextFrame(buf: Buffer): string {
+  const len = buf[1] & 0x7f;
+  return buf.subarray(2, 2 + len).toString("utf8");
+}
+
 describe("proxyToLocal", () => {
   it("proxies a GET request", async () => {
     vi.stubGlobal(
@@ -176,6 +193,103 @@ describe("proxyToLocal", () => {
 
     const body = new TextDecoder().decode(frames[1].payload);
     expect(body).toContain("connection refused");
+  });
+});
+
+describe("proxyToLocal with a WebSocket upgrade", () => {
+  it("dials the local server, replies 101, and relays data both ways", async () => {
+    const localWss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => localWss.once("listening", resolve));
+    const localAddress = localWss.address();
+    const localPort = typeof localAddress === "object" && localAddress ? localAddress.port : 0;
+
+    const localServerConn = new Promise<WSClient>((resolve) => {
+      localWss.once("connection", (socket) => resolve(socket));
+    });
+
+    try {
+      const ws = createMockWs();
+      proxyToLocal(
+        ws as unknown as WebSocket,
+        7,
+        {
+          method: "GET",
+          path: "/pty/abc/connect?cursor=0",
+          headers: {
+            upgrade: "websocket",
+            connection: "Upgrade",
+            "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "sec-websocket-version": "13",
+          },
+          hasBody: false,
+        },
+        `http://127.0.0.1:${localPort}`
+      );
+
+      const localSocket = await localServerConn;
+      localSocket.on("message", (data: Buffer) => {
+        localSocket.send(`echo:${data.toString()}`);
+      });
+
+      // Wait for the 101 response frame before sending browser->local data.
+      await vi.waitFor(() => {
+        expect(decodeFrames(ws.sent).some((f) => f.type === FRAME_RESPONSE_HEADERS)).toBe(true);
+      });
+
+      const respHeaders: ResponseHeaders = JSON.parse(
+        new TextDecoder().decode(decodeFrames(ws.sent)[0].payload)
+      );
+      expect(respHeaders.status).toBe(101);
+      // RFC 6455 test vector: Sec-WebSocket-Key "dGhlIHNhbXBsZSBub25jZQ=="
+      // must accept as "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" — computed by the real
+      // local server, proving the key was forwarded to it, not synthesized here.
+      expect(respHeaders.headers["Sec-WebSocket-Accept"]).toBe("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
+
+      // Simulate the gateway forwarding an already-framed browser message as
+      // FRAME_DATA — this must reach the local server as valid wire bytes,
+      // not get re-framed by a higher-level WebSocket client.
+      handleBodyFrame(7, FRAME_DATA, encodeClientTextFrame("hello"));
+
+      await vi.waitFor(() => {
+        const dataFrames = decodeFrames(ws.sent).filter((f) => f.type === FRAME_DATA);
+        expect(dataFrames.length).toBeGreaterThan(0);
+      });
+      const dataFrame = decodeFrames(ws.sent).find((f) => f.type === FRAME_DATA)!;
+      expect(decodeServerTextFrame(Buffer.from(dataFrame.payload))).toBe("echo:hello");
+
+      // Browser closing the stream closes the local socket too.
+      handleBodyFrame(7, FRAME_END, new Uint8Array());
+      await vi.waitFor(() => {
+        expect(decodeFrames(ws.sent).some((f) => f.type === FRAME_END)).toBe(true);
+      });
+    } finally {
+      localWss.close();
+      for (const client of localWss.clients) client.terminate();
+    }
+  });
+
+  it("sends a 502 when the local server rejects the upgrade", async () => {
+    const ws = createMockWs();
+    proxyToLocal(
+      ws as unknown as WebSocket,
+      11,
+      {
+        method: "GET",
+        path: "/pty/x/connect",
+        headers: { upgrade: "websocket" },
+        hasBody: false,
+      },
+      "http://127.0.0.1:1" // nothing listens here
+    );
+
+    await vi.waitFor(() => {
+      expect(decodeFrames(ws.sent).some((f) => f.type === FRAME_RESPONSE_HEADERS)).toBe(true);
+    });
+
+    const frames = decodeFrames(ws.sent);
+    const respHeaders: ResponseHeaders = JSON.parse(new TextDecoder().decode(frames[0].payload));
+    expect(respHeaders.status).toBe(502);
+    expect(frames.map((f) => f.type)).toEqual([FRAME_RESPONSE_HEADERS, FRAME_DATA, FRAME_END]);
   });
 });
 

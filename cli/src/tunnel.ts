@@ -1,5 +1,7 @@
 import type { Config } from "./config.js";
 import WebSocket from "ws";
+import { request as httpRequest } from "node:http";
+import type { Socket } from "node:net";
 
 export const FRAME_REQUEST_HEADERS = 0x01;
 export const FRAME_RESPONSE_HEADERS = 0x02;
@@ -52,7 +54,26 @@ const pendingRequests = new Map<
   { req: RequestHeaders; bodyChunks: Uint8Array[]; localUrl: string; ws: WebSocket }
 >();
 
+// Raw sockets for a proxied WebSocket upgrade, keyed by tunnel streamId, so
+// subsequent FRAME_DATA/FRAME_END frames from the tunnel forward into them.
+// FRAME_DATA payloads here are already-framed WebSocket wire bytes (produced
+// by whatever real WebSocket client is on the browser/web end of the tunnel),
+// so they're written to the socket verbatim rather than re-sent through a
+// higher-level WebSocket client, which would re-frame and corrupt them.
+const activeWsStreams = new Map<number, Socket>();
+
 export function handleBodyFrame(streamId: number, type: number, payload: Uint8Array): void {
+  const active = activeWsStreams.get(streamId);
+  if (active) {
+    if (type === FRAME_DATA) {
+      active.write(Buffer.from(payload));
+    } else if (type === FRAME_END) {
+      activeWsStreams.delete(streamId);
+      active.end();
+    }
+    return;
+  }
+
   const pending = pendingRequests.get(streamId);
   if (!pending) return;
 
@@ -71,17 +92,113 @@ export function handleBodyFrame(streamId: number, type: number, payload: Uint8Ar
   }
 }
 
+function isWebSocketUpgrade(headers: Record<string, string>): boolean {
+  for (const [k, v] of Object.entries(headers)) {
+    if (k.toLowerCase() === "upgrade" && v.toLowerCase() === "websocket") return true;
+  }
+  return false;
+}
+
 export function proxyToLocal(
   ws: WebSocket,
   streamId: number,
   req: RequestHeaders,
   localUrl: string
 ): Promise<void> | void {
+  if (isWebSocketUpgrade(req.headers)) {
+    return proxyWebSocketToLocal(ws, streamId, req, localUrl);
+  }
   if (req.hasBody) {
     pendingRequests.set(streamId, { req, bodyChunks: [], localUrl, ws });
   } else {
     return doProxyToLocal(ws, streamId, req, localUrl, undefined);
   }
+}
+
+// Headers that only make sense framing the inbound hop; node's http client
+// sets its own Host/Content-Length for the outbound request.
+const WS_HOP_BY_HOP_HEADERS = new Set(["host", "content-length", "accept-encoding"]);
+
+function sendResponseHeaders(ws: WebSocket, streamId: number, status: number, headers: Record<string, string>): void {
+  const payload = new TextEncoder().encode(JSON.stringify({ status, headers } satisfies ResponseHeaders));
+  ws.send(encodeFrame(streamId, FRAME_RESPONSE_HEADERS, payload));
+}
+
+function headerPairsToRecord(rawHeaders: string[]): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (let i = 0; i < rawHeaders.length; i += 2) headers[rawHeaders[i]] = rawHeaders[i + 1];
+  return headers;
+}
+
+// Proxies a WebSocket upgrade request through to the local opencode server,
+// mirroring gateway's proxyWebSocketUpgrade on the other end of the tunnel.
+// This performs the HTTP upgrade for real (forwarding the original
+// Sec-WebSocket-Key etc. so the local server computes a correct
+// Sec-WebSocket-Accept), then relays the raw, already-framed WebSocket wire
+// bytes byte-for-byte in both directions — the same raw-socket relay gateway
+// itself does after hijacking the browser's connection. A FRAME_RESPONSE_HEADERS
+// with status 101 signals gateway to hijack and start relaying FRAME_DATA/
+// FRAME_END frames bidirectionally from then on.
+function proxyWebSocketToLocal(
+  ws: WebSocket,
+  streamId: number,
+  req: RequestHeaders,
+  localUrl: string
+): void {
+  const target = new URL(req.path, localUrl);
+
+  const fwdHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (!WS_HOP_BY_HOP_HEADERS.has(k.toLowerCase())) fwdHeaders[k] = v;
+  }
+
+  const upgradeReq = httpRequest({
+    hostname: target.hostname,
+    port: target.port || 80,
+    path: target.pathname + target.search,
+    method: req.method,
+    headers: fwdHeaders,
+  });
+
+  upgradeReq.on("upgrade", (res, socket) => {
+    activeWsStreams.set(streamId, socket);
+    sendResponseHeaders(ws, streamId, res.statusCode ?? 101, headerPairsToRecord(res.rawHeaders));
+
+    socket.on("data", (chunk: Buffer) => {
+      ws.send(encodeFrame(streamId, FRAME_DATA, new Uint8Array(chunk)));
+    });
+    socket.on("close", () => {
+      activeWsStreams.delete(streamId);
+      ws.send(encodeFrame(streamId, FRAME_END));
+    });
+    socket.on("error", () => {
+      activeWsStreams.delete(streamId);
+      ws.send(encodeFrame(streamId, FRAME_END));
+    });
+  });
+
+  // The local server responded without upgrading (e.g. rejected the request) —
+  // relay its response as a normal HTTP response instead.
+  upgradeReq.on("response", (res) => {
+    const chunks: Buffer[] = [];
+    res.on("data", (c: Buffer) => chunks.push(c));
+    res.on("end", () => {
+      sendResponseHeaders(ws, streamId, res.statusCode ?? 502, headerPairsToRecord(res.rawHeaders));
+      const body = Buffer.concat(chunks);
+      if (body.length > 0) ws.send(encodeFrame(streamId, FRAME_DATA, new Uint8Array(body)));
+      ws.send(encodeFrame(streamId, FRAME_END));
+    });
+  });
+
+  upgradeReq.on("error", (err: Error) => {
+    activeWsStreams.delete(streamId);
+    sendResponseHeaders(ws, streamId, 502, { "content-type": "text/plain" });
+    const errBody = new TextEncoder().encode(`proxy error: ${err.message || String(err)}`);
+    ws.send(encodeFrame(streamId, FRAME_DATA, errBody));
+    ws.send(encodeFrame(streamId, FRAME_END));
+  });
+
+  upgradeReq.end();
 }
 
 async function doProxyToLocal(
