@@ -173,7 +173,7 @@ func TestSetupGatewayRoutesHealthzDegraded(t *testing.T) {
 	store := NewRedisStore(client, 10*time.Minute)
 	reg := NewTunnelRegistry(store)
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090", testCookieSecret)
+	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090", testTokenSecret)
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -191,7 +191,7 @@ func TestSetupGatewayRoutesHealthz(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090", testCookieSecret)
+	SetupGatewayRoutes(mux, &mockVerifier{}, nil, reg, "10.0.0.1:9090", testTokenSecret)
 
 	req := httptest.NewRequest("GET", "/healthz", nil)
 	rec := httptest.NewRecorder()

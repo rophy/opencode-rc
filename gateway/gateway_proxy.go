@@ -3,9 +3,10 @@ package main
 import (
 	"net/http"
 	"strings"
+	"time"
 )
 
-func GatewayProxyHandler(registry *TunnelRegistry, cookieSecret []byte) http.Handler {
+func GatewayProxyHandler(registry *TunnelRegistry, tokenSecret []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL: /proxy/{sessionID}/api/...
 		// Strip "/proxy/{sessionID}" prefix, pass the rest to the backend.
@@ -23,17 +24,12 @@ func GatewayProxyHandler(registry *TunnelRegistry, cookieSecret []byte) http.Han
 		sessionID := rest[:slashIdx]
 		downstream := rest[slashIdx:] // e.g. "/api/session"
 
-		if r.URL.RawQuery != "" {
-			downstream += "?" + r.URL.RawQuery
+		if q := stripAccessToken(r.URL.RawQuery); q != "" {
+			downstream += "?" + q
 		}
 
-		// Authenticate via session cookie
-		cookie, err := r.Cookie("orc_session")
-		if err != nil || cookie.Value == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		session, ok := verifyCookie(cookie.Value, cookieSecret)
+		// Authenticate via access token issued by the web server
+		session, ok := verifyAccessToken(bearerToken(r), tokenSecret, time.Now())
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -52,11 +48,7 @@ func GatewayProxyHandler(registry *TunnelRegistry, cookieSecret []byte) http.Han
 		}
 
 		// Verify the authenticated user owns this session
-		userID := session.Email
-		if userID == "" {
-			userID = session.UID
-		}
-		if userID != meta.UserID {
+		if session.UID != meta.UserID {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}

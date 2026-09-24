@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"strings"
 	"testing"
 )
@@ -38,8 +39,8 @@ func TestLoadConfigAllFields(t *testing.T) {
 	if cfg.OIDCRedirectURI != "http://redirect" {
 		t.Errorf("expected OIDCRedirectURI http://redirect, got %s", cfg.OIDCRedirectURI)
 	}
-	if len(cfg.CookieSecret) != 32 {
-		t.Errorf("expected CookieSecret length 32, got %d", len(cfg.CookieSecret))
+	if len(cfg.TokenSecret) != 32 {
+		t.Errorf("expected TokenSecret length 32, got %d", len(cfg.TokenSecret))
 	}
 	if cfg.SecureCookies != false {
 		t.Errorf("expected SecureCookies false, got %v", cfg.SecureCookies)
@@ -114,14 +115,16 @@ func TestLoadConfigMissingRedirectURI(t *testing.T) {
 	}
 }
 
-func TestLoadConfigMissingCookieSecret(t *testing.T) {
+func TestLoadConfigMissingTokenSecret(t *testing.T) {
 	t.Setenv("OIDC_ISSUER", "http://issuer")
 	t.Setenv("OIDC_CLIENT_ID", "client")
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
+	t.Setenv("TOKEN_SECRET", "")
+	t.Setenv("COOKIE_SECRET", "")
 
 	_, err := LoadConfig()
-	if err == nil || !strings.Contains(err.Error(), "COOKIE_SECRET is required") {
-		t.Fatalf("expected COOKIE_SECRET is required error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "TOKEN_SECRET is required") {
+		t.Fatalf("expected TOKEN_SECRET is required error, got %v", err)
 	}
 }
 
@@ -133,8 +136,25 @@ func TestLoadConfigInvalidCookieSecret(t *testing.T) {
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 
 	_, err := LoadConfig()
-	if err == nil || !strings.Contains(err.Error(), "COOKIE_SECRET must be") {
-		t.Fatalf("expected COOKIE_SECRET must be error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "TOKEN_SECRET must be") {
+		t.Fatalf("expected TOKEN_SECRET must be error, got %v", err)
+	}
+}
+
+func TestLoadConfigTokenSecretPreferred(t *testing.T) {
+	t.Setenv("OIDC_ISSUER", "http://issuer")
+	t.Setenv("OIDC_CLIENT_ID", "client")
+	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
+	t.Setenv("COOKIE_SECRET", strings.Repeat("ab", 32))
+	t.Setenv("TOKEN_SECRET", strings.Repeat("cd", 32))
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hex.EncodeToString(cfg.TokenSecret) != strings.Repeat("cd", 32) {
+		t.Errorf("expected TOKEN_SECRET to win, got %x", cfg.TokenSecret)
 	}
 }
 

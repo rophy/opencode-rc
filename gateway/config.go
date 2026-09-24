@@ -19,7 +19,7 @@ type Config struct {
 	OIDCCLIClientID            string
 	OIDCRedirectURI            string
 	WebUIDir                   string
-	CookieSecret               []byte
+	TokenSecret                []byte
 	CookieDomain               string
 	SecureCookies              bool
 	RedisURL                   string
@@ -52,13 +52,16 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("OIDC_REDIRECT_URI is required")
 	}
 
-	secretHex := os.Getenv("COOKIE_SECRET")
+	secretHex := os.Getenv("TOKEN_SECRET")
 	if secretHex == "" {
-		return nil, errors.New("COOKIE_SECRET is required (32-byte hex string)")
+		secretHex = os.Getenv("COOKIE_SECRET")
+	}
+	if secretHex == "" {
+		return nil, errors.New("TOKEN_SECRET is required (32-byte hex string)")
 	}
 	secret, err := hex.DecodeString(secretHex)
 	if err != nil || len(secret) != 32 {
-		return nil, errors.New("COOKIE_SECRET must be a 64-char hex string (32 bytes)")
+		return nil, errors.New("TOKEN_SECRET must be a 64-char hex string (32 bytes)")
 	}
 
 	webUIDir := os.Getenv("WEBUI_DIR")
@@ -89,7 +92,7 @@ func LoadConfig() (*Config, error) {
 		OIDCCLIClientID:           cliClientID,
 		OIDCRedirectURI:           redirectURI,
 		WebUIDir:                  webUIDir,
-		CookieSecret:              secret,
+		TokenSecret:               secret,
 		CookieDomain:              os.Getenv("COOKIE_DOMAIN"),
 		SecureCookies:             secureCookies,
 		RedisURL:                  redisURL,

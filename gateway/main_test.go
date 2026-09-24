@@ -241,7 +241,7 @@ func testConfig(t *testing.T, redisURL, oidcIssuer string) *Config {
 		OIDCClientID:     "test-client",
 		OIDCClientSecret: "test-secret",
 		OIDCRedirectURI:  "http://localhost/callback",
-		CookieSecret:     secret,
+		TokenSecret:      secret,
 		RedisURL:         redisURL,
 		PodIP:            "10.0.0.1",
 	}
