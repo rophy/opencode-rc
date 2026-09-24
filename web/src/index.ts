@@ -9,7 +9,7 @@ import { TokenStore, type RedisLike } from "./token-store.js";
 import { corsMiddleware, makeOriginCheck, originOf } from "./origins.js";
 import { proxyHttp, sessionAccess } from "./proxy.js";
 import { wsRelay } from "./ws-relay.js";
-import { spaHandler } from "./webui.js";
+import { reservedNotFound, spaHandler } from "./webui.js";
 import { requestLogger } from "./request-log.js";
 
 import pkg from "../package.json";
@@ -69,9 +69,11 @@ app.get("/gateway/sessions", auth, async (c) => {
   return c.json(sessions.map((s) => ({ ...s, user: s.userId })));
 });
 
-// OpenCode API proxy: WebSocket upgrades first, then HTTP and SSE
-app.get("/proxy/:sessionId/*", auth, sessionAccess(store), wsRelay());
-app.all("/proxy/:sessionId/*", auth, sessionAccess(store), proxyHttp());
+// OpenCode API proxy: WebSocket upgrades (GET only), else HTTP and SSE
+app.all("/proxy/:sessionId/*", auth, sessionAccess(store), wsRelay(), proxyHttp());
+
+// Unknown API paths: JSON 404, never the SPA
+app.all("*", reservedNotFound());
 
 // SPA: static files, client routes (including /s/:id/...) fall back to index.html
 if (config.webUiDir) {

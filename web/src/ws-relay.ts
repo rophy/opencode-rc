@@ -46,21 +46,14 @@ const upgrade = upgradeWebSocket((c: Context<ProxyEnv>) => {
       else pending.push(frame);
     },
     onClose(evt) {
-      if (!upstream) return;
-      // Bun throws if close() is called with a code/reason while the socket
-      // is still CONNECTING; fall back to a plain close() in that state.
-      if (upstream.readyState === WebSocket.CONNECTING) {
-        upstream.close();
-      } else {
-        upstream.close(relayCloseCode(evt.code), evt.reason);
-      }
+      upstream?.close(relayCloseCode(evt.code), evt.reason);
     },
   };
 });
 
 export function wsRelay(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
-    if (!isUpgrade(c)) return next();
+    if (c.req.method !== "GET" || !isUpgrade(c)) return next();
     return upgrade(c, next);
   };
 }
