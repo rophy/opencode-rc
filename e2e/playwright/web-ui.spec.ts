@@ -104,9 +104,26 @@ test.describe("multi-user isolation", () => {
     await expect(page.locator("text=No active sessions")).toBeVisible();
   });
 
-  test("bob gets not found for alice's session", async ({ page }) => {
-    await loginAs(page, "Bob");
-    const response = await page.goto("/s/alice-dev/");
-    expect(response?.status()).toBe(404);
+});
+
+test.describe("token session", () => {
+  test("reload keeps the user logged in", async ({ page }) => {
+    await loginAs(page, "Alice");
+    await expect(page.locator("h1", { hasText: "Sessions" })).toBeVisible();
+    await page.reload();
+    await expect(page.locator("h1", { hasText: "Sessions" })).toBeVisible();
+  });
+
+  test("login lands back on the page it started from", async ({ page }) => {
+    await page.goto("/s/alice-dev/");
+    await page.waitForSelector("text=Sign in with OIDC");
+    await page.locator("button", { hasText: "Sign in with OIDC" }).click();
+    await page.waitForURL("**/authorize**");
+    await page.locator("button.user-card", { hasText: "Alice" }).click();
+    await page.waitForURL(/\/s\/alice-dev\//);
+    // completeLogin() strips the "#code=" fragment via replaceState only after
+    // exchanging it for tokens, a few ms after the URL first lands here.
+    await page.waitForFunction(() => !location.hash.includes("code="));
+    expect(page.url()).not.toContain("#code=");
   });
 });
