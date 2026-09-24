@@ -77,6 +77,17 @@ async function readField(c: Context, field: string): Promise<string | null> {
   return stringField(await readBody(c), field);
 }
 
+function scriptRedirect(c: Context, target: string) {
+  // "<" is escaped so the value cannot close the script element.
+  const literal = JSON.stringify(target).replace(/</g, "\\u003c");
+  c.header("Cache-Control", "no-store");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'");
+  return c.html(
+    `<!doctype html><meta charset="utf-8"><title>Signing in</title><script>location.replace(${literal})</script>`,
+  );
+}
+
 export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDeps) {
   const app = new Hono();
   const authCookie = { path: "/auth", maxAge: 300, httpOnly: true, sameSite: "Lax" as const, secure: config.secureCookies };
@@ -170,7 +181,12 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     deleteCookie(c, "orc_return", { path: "/auth" });
     deleteCookie(c, "orc_challenge", { path: "/auth" });
     console.log(`login: user=${claims.uid} name=${claims.name}`);
-    return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
+    const target = `${returnTo}#code=${encodeURIComponent(loginCode)}`;
+    // Same-origin paths use a normal redirect. Absolute targets (the mobile app's
+    // https://localhost or capacitor://localhost) get a script navigation instead:
+    // Android WebView does not route a server redirect to the app's local origin
+    // through Capacitor, but it does route a script-initiated navigation.
+    return returnTo.startsWith("/") ? c.redirect(target) : scriptRedirect(c, target);
   });
 
   app.post("/auth/token", async (c) => {

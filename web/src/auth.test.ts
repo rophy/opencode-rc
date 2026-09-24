@@ -170,6 +170,32 @@ describe("/auth/callback", () => {
     expect(ok.status).toBe(200);
   });
 
+  it("returns to the mobile app with a script navigation instead of a redirect", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    const res = await callback(
+      `orc_state=st; orc_return=https%3A%2F%2Flocalhost%2F; orc_challenge=${challenge}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const html = await res.text();
+    const match = html.match(/location\.replace\("(https:\/\/localhost\/#code=[^"]+)"\)/);
+    expect(match).not.toBeNull();
+    const code = decodeURIComponent(match![1].split("#code=")[1]);
+    const ok = await post("/auth/token", { code, code_verifier: verifier });
+    expect(ok.status).toBe(200);
+  });
+
+  it("escapes < in the script navigation target", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    const returnTo = encodeURIComponent("capacitor://localhost/?x=</script><script>alert(1)");
+    const res = await callback(`orc_state=st; orc_return=${returnTo}; orc_challenge=${challenge}`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).not.toContain("</script><script>alert");
+    expect(html).toContain("\\u003c/script>");
+  });
+
   it("rejects a callback without a code challenge cookie", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     const res = await callback("orc_state=st; orc_return=%2F");
