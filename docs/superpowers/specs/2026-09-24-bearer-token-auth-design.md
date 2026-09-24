@@ -87,7 +87,7 @@ Refresh tokens never extend the chain's absolute expiry.
 
 | Endpoint | Behaviour |
 |---|---|
-| `GET /auth/start?return_to=<url>` | `return_to` must match an allowed origin (below); otherwise `400`. Stores state + `return_to` in the short-lived `orc_state` cookie (unchanged mechanism, same-site only during the redirect), redirects to the IdP. |
+| `GET /auth/start?return_to=<url>` | `return_to` is either a path starting with a single `/` (same origin as the server; default `/`), or an absolute URL whose origin is allowed (below); otherwise `400`. The browser UI served by the server sends a path; the app sends its absolute local URL. Stores state + `return_to` in the short-lived `orc_state` cookie (unchanged mechanism, same-site only during the redirect), redirects to the IdP. |
 | `GET /auth/callback` | Validates state, exchanges the code with the IdP, verifies the ID token (unchanged). Creates a login code and redirects to `<return_to>#code=<code>`. Does not set `orc_session`. |
 | `POST /auth/token {code}` | Consumes the code, creates a chain, returns `{access_token, refresh_token, expires_in}`. Unknown/expired/used code → `400 invalid_grant`. |
 | `POST /auth/refresh {refresh_token}` | See rotation above. Returns `{access_token, refresh_token, expires_in}`. |
@@ -148,7 +148,9 @@ Owns all token handling:
 - `authFetch(url, init)`: adds `Authorization: Bearer`. On `401` forces one refresh
   and retries once. If the refresh fails with `invalid_grant`, clears tokens and
   signals the app to show the login screen.
-- `login()`: navigates to `${server}/auth/start?return_to=<current URL without fragment>`.
+- `login()`: navigates to `${server}/auth/start?return_to=<current page>`, where the
+  current page is a path (`pathname + search`) when the UI is served by the server
+  itself, and the absolute URL without fragment otherwise (the app).
 - `completeLogin()`: at startup, if the fragment has `code=`, removes it with
   `history.replaceState` and calls `POST /auth/token`.
 - `logout()`: `POST /auth/logout`, clears tokens.
