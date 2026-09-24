@@ -354,6 +354,21 @@ tests:
             name: SESSION_TTL
             value: "7d"
 
+  - it: falls back to TTL defaults when auth values are missing (upgrade with --reuse-values)
+    set:
+      auth: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ACCESS_TOKEN_TTL
+            value: "15m"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SESSION_TTL
+            value: "7d"
+
   - it: sets ALLOWED_ORIGINS when configured
     set:
       auth.allowedOrigins:
