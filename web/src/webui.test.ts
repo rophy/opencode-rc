@@ -28,6 +28,10 @@ describe("resolveSpaFile", () => {
     expect(resolveSpaFile(dir, "/../../etc/passwd")).toBe(join(dir, "index.html"));
   });
 
+  it("falls back to index.html on malformed percent-encoding", () => {
+    expect(resolveSpaFile(dir, "/%")).toBe(join(dir, "index.html"));
+  });
+
   it("returns null when the UI is missing", () => {
     expect(resolveSpaFile(join(dir, "nope"), "/")).toBeNull();
   });

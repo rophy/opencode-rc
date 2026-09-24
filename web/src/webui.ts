@@ -7,7 +7,14 @@ export function resolveSpaFile(webUiDir: string, urlPath: string): string | null
   const index = join(root, "index.html");
   if (!existsSync(index)) return null;
 
-  const candidate = resolve(root, "." + decodeURIComponent(urlPath));
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(urlPath);
+  } catch {
+    return index;
+  }
+
+  const candidate = resolve(root, "." + decoded);
   if (candidate.startsWith(root + sep) && existsSync(candidate) && statSync(candidate).isFile()) {
     return candidate;
   }
