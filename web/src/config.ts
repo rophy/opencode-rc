@@ -9,8 +9,10 @@ export interface Config {
   oidcAuthorizationEndpoint: string;
   oidcTokenEndpoint: string;
   oidcJwksUri: string;
-  cookieSecret: Uint8Array;
-  cookieDomain: string;
+  tokenSecret: Uint8Array;
+  accessTokenTtl: number;
+  sessionTtl: number;
+  allowedOrigins: string[];
   secureCookies: boolean;
   redisUrl: string;
   webUiDir: string;
@@ -24,13 +26,24 @@ function requireEnv(name: string): string {
   return val;
 }
 
+const UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+
+export function parseDuration(value: string): number {
+  const match = /^(\d+)([smhd])$/.exec(value.trim());
+  if (!match) throw new Error(`invalid duration: ${value}`);
+  const seconds = parseInt(match[1], 10) * UNITS[match[2]];
+  if (seconds <= 0) throw new Error(`duration must be positive: ${value}`);
+  return seconds;
+}
+
 export function loadConfig(): Config {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
 
-  const secretHex = requireEnv("COOKIE_SECRET");
+  const secretHex = process.env.TOKEN_SECRET || process.env.COOKIE_SECRET;
+  if (!secretHex) throw new Error("TOKEN_SECRET is required");
   const secret = Buffer.from(secretHex, "hex");
   if (secret.length !== 32) {
-    throw new Error("COOKIE_SECRET must be a 64-char hex string (32 bytes)");
+    throw new Error("TOKEN_SECRET must be a 64-char hex string (32 bytes)");
   }
 
   return {
@@ -44,8 +57,13 @@ export function loadConfig(): Config {
     oidcAuthorizationEndpoint: process.env.OIDC_AUTHORIZATION_ENDPOINT ?? "",
     oidcTokenEndpoint: process.env.OIDC_TOKEN_ENDPOINT ?? "",
     oidcJwksUri: process.env.OIDC_JWKS_URI ?? "",
-    cookieSecret: new Uint8Array(secret),
-    cookieDomain: process.env.COOKIE_DOMAIN ?? "",
+    tokenSecret: new Uint8Array(secret),
+    accessTokenTtl: parseDuration(process.env.ACCESS_TOKEN_TTL || "15m"),
+    sessionTtl: parseDuration(process.env.SESSION_TTL || "7d"),
+    allowedOrigins: (process.env.ALLOWED_ORIGINS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     secureCookies: process.env.COOKIE_SECURE !== "false",
     redisUrl: requireEnv("REDIS_URL"),
     webUiDir: process.env.WEBUI_DIR ?? "",

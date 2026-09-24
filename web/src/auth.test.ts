@@ -1,24 +1,31 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { Hono } from "hono";
-import { authMiddleware, type AuthEnv } from "./auth.js";
-import { encodeCookie, type SessionData } from "./cookie.js";
+import { authMiddleware, authRoutes, type AuthEnv } from "./auth.js";
+import { signAccessToken } from "./token.js";
+import { TokenStore } from "./token-store.js";
+import { MockRedis } from "./testing/mock-redis.js";
+import { makeOriginCheck } from "./origins.js";
+import type { Config } from "./config.js";
+import type { OIDCProvider } from "./oidc.js";
 
-const secret = new Uint8Array(32);
-secret.fill(0xab);
+const secret = new Uint8Array(32).fill(0xab);
+const claims = { uid: "alice@example.com", email: "alice@example.com", name: "Alice" };
 
-const config = {
+const config: Config = {
   port: 8080,
   oidcIssuer: "https://idp.example.com",
   oidcClientId: "test",
   oidcClientSecret: "",
   oidcCliClientId: "",
-  oidcRedirectUri: "https://app.example.com/auth/callback",
+  oidcRedirectUri: "https://rc.example.com/auth/callback",
   oidcIssuerOverride: "",
   oidcAuthorizationEndpoint: "",
   oidcTokenEndpoint: "",
   oidcJwksUri: "",
-  cookieSecret: secret,
-  cookieDomain: "",
+  tokenSecret: secret,
+  accessTokenTtl: 900,
+  sessionTtl: 7 * 24 * 3600,
+  allowedOrigins: [],
   secureCookies: false,
   redisUrl: "redis://localhost:6379/0",
   webUiDir: "",
@@ -26,75 +33,174 @@ const config = {
   tlsInsecureSkipVerify: false,
 };
 
-function makeApp() {
-  const app = new Hono<AuthEnv>();
-  const auth = authMiddleware(config);
-  app.get("/protected", auth, (c) => {
-    return c.json({ userId: c.get("userId"), session: c.get("session") });
-  });
-  return app;
-}
+const provider = {
+  discovery: {
+    authorization_endpoint: "https://idp.example.com/authorize",
+    token_endpoint: "https://idp.example.com/token",
+    jwks_uri: "https://idp.example.com/jwks",
+    issuer: "https://idp.example.com",
+  },
+  jwks: (() => {}) as unknown,
+} as OIDCProvider;
 
-function makeCookie(overrides: Partial<SessionData> = {}): string {
-  const data: SessionData = {
-    uid: "alice@example.com",
-    email: "alice@example.com",
-    name: "Alice",
-    exp: Math.floor(Date.now() / 1000) + 3600,
-    ...overrides,
-  };
-  return encodeCookie(data, secret);
-}
+let tokens: TokenStore;
+let app: Hono<AuthEnv>;
+
+beforeEach(() => {
+  tokens = new TokenStore(new MockRedis(), config.sessionTtl);
+  app = new Hono<AuthEnv>();
+  app.route(
+    "/",
+    authRoutes({
+      config,
+      provider,
+      tokens,
+      isAllowedOrigin: makeOriginCheck("https://rc.example.com", []),
+    }),
+  );
+  app.get("/protected", authMiddleware(config), (c) =>
+    c.json({ userId: c.get("userId"), token: c.get("token") }),
+  );
+});
+
+const post = (path: string, body: unknown) =>
+  app.request(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
 describe("authMiddleware", () => {
-  it("redirects to login when no cookie", async () => {
-    const app = makeApp();
+  it("returns 401 without a token", async () => {
     const res = await app.request("/protected");
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
   });
 
-  it("redirects when cookie has invalid signature", async () => {
-    const app = makeApp();
-    const res = await app.request("/protected", {
-      headers: { cookie: "orc_session=garbage.value" },
-    });
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
+  it("accepts a valid bearer token", async () => {
+    const token = signAccessToken(claims, secret, 900);
+    const res = await app.request("/protected", { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ userId: "alice@example.com", token });
   });
 
-  it("redirects when cookie is expired", async () => {
-    const app = makeApp();
-    const expired = makeCookie({ exp: Math.floor(Date.now() / 1000) - 100 });
-    const res = await app.request("/protected", {
-      headers: { cookie: `orc_session=${expired}` },
-    });
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
+  it("rejects an expired token", async () => {
+    const token = signAccessToken(claims, secret, 900, Date.now() - 1_000_000);
+    const res = await app.request("/protected", { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(401);
   });
 
-  it("passes through with valid cookie", async () => {
-    const app = makeApp();
-    const cookie = makeCookie();
-    const res = await app.request("/protected", {
-      headers: { cookie: `orc_session=${cookie}` },
+  it("ignores access_token query on normal requests", async () => {
+    const token = signAccessToken(claims, secret, 900);
+    const res = await app.request(`/protected?access_token=${token}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("accepts access_token query on websocket upgrades", async () => {
+    const token = signAccessToken(claims, secret, 900);
+    const res = await app.request(`/protected?access_token=${token}`, {
+      headers: { upgrade: "websocket" },
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.userId).toBe("alice@example.com");
-    expect(body.session.email).toBe("alice@example.com");
-    expect(body.session.name).toBe("Alice");
   });
 
-  it("sets userId and session on context", async () => {
-    const app = makeApp();
-    const cookie = makeCookie({ uid: "bob@example.com", email: "bob@example.com", name: "Bob" });
-    const res = await app.request("/protected", {
-      headers: { cookie: `orc_session=${cookie}` },
-    });
+  it("ignores the old session cookie", async () => {
+    const res = await app.request("/protected", { headers: { cookie: "orc_session=abc.def" } });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("/auth/start", () => {
+  it("redirects to the IdP and stores state and return_to", async () => {
+    const res = await app.request("/auth/start?return_to=capacitor%3A%2F%2Flocalhost%2F");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toMatch(/^https:\/\/idp\.example\.com\/authorize\?/);
+    const cookies = res.headers.getSetCookie().join("\n");
+    expect(cookies).toContain("orc_state=");
+    expect(cookies).toContain("orc_return=capacitor%3A%2F%2Flocalhost%2F");
+  });
+
+  it("rejects a foreign return_to", async () => {
+    const res = await app.request("/auth/start?return_to=https%3A%2F%2Fevil.example.com%2F");
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("/auth/token", () => {
+  it("exchanges a code for tokens once", async () => {
+    const code = await tokens.createCode(claims);
+    const res = await post("/auth/token", { code });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.userId).toBe("bob@example.com");
-    expect(body.session.name).toBe("Bob");
+    expect(body.expires_in).toBe(900);
+    expect(typeof body.access_token).toBe("string");
+    expect(typeof body.refresh_token).toBe("string");
+
+    const again = await post("/auth/token", { code });
+    expect(again.status).toBe(400);
+    expect(await again.json()).toEqual({ error: "invalid_grant" });
+  });
+
+  it("rejects a missing code", async () => {
+    const res = await post("/auth/token", {});
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("/auth/refresh and /auth/logout", () => {
+  async function login() {
+    const code = await tokens.createCode(claims);
+    return (await (await post("/auth/token", { code })).json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+  }
+
+  it("rotates the refresh token and issues a working access token", async () => {
+    const first = await login();
+    const res = await post("/auth/refresh", { refresh_token: first.refresh_token });
+    expect(res.status).toBe(200);
+    const next = await res.json();
+    expect(next.refresh_token).not.toBe(first.refresh_token);
+    const me = await app.request("/protected", {
+      headers: { authorization: `Bearer ${next.access_token}` },
+    });
+    expect(me.status).toBe(200);
+  });
+
+  it("returns 401 invalid_grant for an unknown token", async () => {
+    const res = await post("/auth/refresh", { refresh_token: "nope" });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "invalid_grant" });
+  });
+
+  it("logout revokes the chain", async () => {
+    const first = await login();
+    const out = await post("/auth/logout", { refresh_token: first.refresh_token });
+    expect(out.status).toBe(204);
+    const res = await post("/auth/refresh", { refresh_token: first.refresh_token });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 503 when Redis fails", async () => {
+    const broken = new TokenStore(
+      {
+        get: async () => { throw new Error("down"); },
+        getdel: async () => { throw new Error("down"); },
+        set: async () => { throw new Error("down"); },
+        del: async () => { throw new Error("down"); },
+        ttl: async () => { throw new Error("down"); },
+      },
+      config.sessionTtl,
+    );
+    const a = new Hono();
+    a.route("/", authRoutes({ config, provider, tokens: broken, isAllowedOrigin: () => false }));
+    const res = await a.request("/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refresh_token: "x" }),
+    });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "unavailable" });
   });
 });

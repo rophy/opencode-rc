@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { loadConfig } from "./config.js";
+import { loadConfig, parseDuration } from "./config.js";
 
 const validEnv: Record<string, string> = {
   OIDC_ISSUER: "https://idp.example.com",
   OIDC_CLIENT_ID: "my-client",
   OIDC_REDIRECT_URI: "https://app.example.com/auth/callback",
-  COOKIE_SECRET: "ab".repeat(32),
+  TOKEN_SECRET: "ab".repeat(32),
   REDIS_URL: "redis://localhost:6379/0",
 };
 
@@ -22,7 +22,6 @@ beforeEach(() => {
   delete process.env.PORT;
   delete process.env.WEBUI_DIR;
   delete process.env.GATEWAY_URL;
-  delete process.env.COOKIE_DOMAIN;
   delete process.env.COOKIE_SECURE;
   delete process.env.TLS_INSECURE_SKIP_VERIFY;
   delete process.env.OIDC_CLIENT_SECRET;
@@ -31,6 +30,10 @@ beforeEach(() => {
   delete process.env.OIDC_AUTHORIZATION_ENDPOINT;
   delete process.env.OIDC_TOKEN_ENDPOINT;
   delete process.env.OIDC_JWKS_URI;
+  delete process.env.COOKIE_SECRET;
+  delete process.env.ACCESS_TOKEN_TTL;
+  delete process.env.SESSION_TTL;
+  delete process.env.ALLOWED_ORIGINS;
 });
 
 afterEach(() => {
@@ -46,8 +49,8 @@ describe("loadConfig", () => {
     expect(config.oidcIssuer).toBe("https://idp.example.com");
     expect(config.oidcClientId).toBe("my-client");
     expect(config.redisUrl).toBe("redis://localhost:6379/0");
-    expect(config.cookieSecret).toBeInstanceOf(Uint8Array);
-    expect(config.cookieSecret.length).toBe(32);
+    expect(config.tokenSecret).toBeInstanceOf(Uint8Array);
+    expect(config.tokenSecret.length).toBe(32);
   });
 
   it("defaults port to 8080", () => {
@@ -65,7 +68,6 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.webUiDir).toBe("");
     expect(config.gatewayUrl).toBe("");
-    expect(config.cookieDomain).toBe("");
     expect(config.oidcClientSecret).toBe("");
     expect(config.oidcCliClientId).toBe("");
     expect(config.oidcIssuerOverride).toBe("");
@@ -74,6 +76,9 @@ describe("loadConfig", () => {
     expect(config.oidcJwksUri).toBe("");
     expect(config.tlsInsecureSkipVerify).toBe(false);
     expect(config.secureCookies).toBe(true);
+    expect(config.accessTokenTtl).toBe(900);
+    expect(config.sessionTtl).toBe(7 * 24 * 3600);
+    expect(config.allowedOrigins).toEqual([]);
   });
 
   it("reads OIDC endpoint overrides from env", () => {
@@ -105,8 +110,42 @@ describe("loadConfig", () => {
     expect(() => loadConfig()).toThrow("OIDC_ISSUER is required");
   });
 
-  it("throws when COOKIE_SECRET is wrong length", () => {
-    process.env.COOKIE_SECRET = "abcd";
-    expect(() => loadConfig()).toThrow("COOKIE_SECRET must be a 64-char hex string");
+  it("throws when TOKEN_SECRET is wrong length", () => {
+    process.env.TOKEN_SECRET = "abcd";
+    expect(() => loadConfig()).toThrow("TOKEN_SECRET must be a 64-char hex string");
+  });
+});
+
+describe("token settings", () => {
+  it("falls back to COOKIE_SECRET", () => {
+    delete process.env.TOKEN_SECRET;
+    process.env.COOKIE_SECRET = "cd".repeat(32);
+    const config = loadConfig();
+    expect(Buffer.from(config.tokenSecret).toString("hex")).toBe("cd".repeat(32));
+  });
+
+  it("parses TTLs and allowed origins", () => {
+    process.env.ACCESS_TOKEN_TTL = "5m";
+    process.env.SESSION_TTL = "2d";
+    process.env.ALLOWED_ORIGINS = "https://a.example.com, https://b.example.com";
+    const config = loadConfig();
+    expect(config.accessTokenTtl).toBe(300);
+    expect(config.sessionTtl).toBe(172800);
+    expect(config.allowedOrigins).toEqual(["https://a.example.com", "https://b.example.com"]);
+  });
+});
+
+describe("parseDuration", () => {
+  it("parses units", () => {
+    expect(parseDuration("30s")).toBe(30);
+    expect(parseDuration("15m")).toBe(900);
+    expect(parseDuration("1h")).toBe(3600);
+    expect(parseDuration("7d")).toBe(604800);
+  });
+
+  it("rejects invalid input", () => {
+    expect(() => parseDuration("15")).toThrow();
+    expect(() => parseDuration("0m")).toThrow();
+    expect(() => parseDuration("1w")).toThrow();
   });
 });

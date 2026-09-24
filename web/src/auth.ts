@@ -1,59 +1,78 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
 import { verifyToken } from "./oidc.js";
-import {
-  encodeCookie,
-  decodeCookie,
-  generateState,
-  type SessionData,
-} from "./cookie.js";
+import { randomToken, signAccessToken, verifyAccessToken, type AccessClaims } from "./token.js";
+import type { TokenStore } from "./token-store.js";
+import { validateReturnTo } from "./origins.js";
 
 export type AuthEnv = {
   Variables: {
     userId: string;
-    session: SessionData;
+    claims: AccessClaims;
+    token: string;
   };
 };
 
-function authFailed(c: any): Response {
-  const accept = c.req.raw.headers.get("accept") ?? "";
-  if (accept.includes("application/json") || c.req.path.startsWith("/api/") || c.req.path.startsWith("/gateway/")) {
-    return c.json({ error: "unauthorized" }, 401);
+export function bearerToken(c: Context): string | null {
+  const header = c.req.header("authorization") ?? "";
+  if (header.startsWith("Bearer ")) return header.slice(7).trim() || null;
+  if ((c.req.header("upgrade") ?? "").toLowerCase() === "websocket") {
+    return c.req.query("access_token") ?? null;
   }
-  return c.redirect("/");
+  return null;
 }
 
-export function authMiddleware(config: Config) {
+export function authMiddleware(config: Pick<Config, "tokenSecret">) {
   return createMiddleware<AuthEnv>(async (c, next) => {
-    const cookieHeader = c.req.raw.headers.get("cookie") ?? "";
-    const match = cookieHeader.match(/orc_session=([^;]+)/);
-    if (!match) return authFailed(c);
-
-    const data = decodeCookie(match[1], config.cookieSecret);
-    if (!data) return authFailed(c);
-    if (Date.now() / 1000 > data.exp) return authFailed(c);
-
-    c.set("userId", data.uid);
-    c.set("session", data);
+    const token = bearerToken(c);
+    const claims = token ? verifyAccessToken(token, config.tokenSecret) : null;
+    if (!token || !claims) return c.json({ error: "unauthorized" }, 401);
+    c.set("userId", claims.uid);
+    c.set("claims", claims);
+    c.set("token", token);
     await next();
   });
 }
 
-export function authRoutes(config: Config, provider: OIDCProvider) {
+interface AuthDeps {
+  config: Config;
+  provider: OIDCProvider;
+  tokens: TokenStore;
+  isAllowedOrigin: (origin: string) => boolean;
+}
+
+function tokenResponse(c: Context, config: Config, claims: AccessClaims, refreshToken: string) {
+  return c.json({
+    access_token: signAccessToken(claims, config.tokenSecret, config.accessTokenTtl),
+    refresh_token: refreshToken,
+    expires_in: config.accessTokenTtl,
+  });
+}
+
+async function readField(c: Context, field: string): Promise<string | null> {
+  try {
+    const body = await c.req.json();
+    const value = body?.[field];
+    return typeof value === "string" && value ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDeps) {
   const app = new Hono();
+  const authCookie = { path: "/auth", maxAge: 300, httpOnly: true, sameSite: "Lax" as const, secure: config.secureCookies };
 
   app.get("/auth/start", (c) => {
-    const state = generateState();
-    setCookie(c, "orc_state", state, {
-      path: "/auth",
-      maxAge: 300,
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: config.secureCookies,
-    });
+    const returnTo = validateReturnTo(c.req.query("return_to"), isAllowedOrigin);
+    if (!returnTo) return c.json({ error: "invalid return_to" }, 400);
+
+    const state = randomToken(16);
+    setCookie(c, "orc_state", state, authCookie);
+    setCookie(c, "orc_return", returnTo, authCookie);
 
     const params = new URLSearchParams({
       response_type: "code",
@@ -62,10 +81,7 @@ export function authRoutes(config: Config, provider: OIDCProvider) {
       scope: "openid email profile",
       state,
     });
-
-    return c.redirect(
-      `${provider.discovery.authorization_endpoint}?${params}`
-    );
+    return c.redirect(`${provider.discovery.authorization_endpoint}?${params}`);
   });
 
   app.get("/auth/callback", async (c) => {
@@ -74,6 +90,7 @@ export function authRoutes(config: Config, provider: OIDCProvider) {
     if (!stateCookie || stateCookie !== stateParam) {
       return c.text("invalid state", 400);
     }
+    const returnTo = validateReturnTo(getCookie(c, "orc_return"), isAllowedOrigin) ?? "/";
 
     const code = c.req.query("code");
     if (!code) {
@@ -95,64 +112,82 @@ export function authRoutes(config: Config, provider: OIDCProvider) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(tokenParams),
     });
-
     if (!tokenRes.ok) {
       console.error(`OIDC token exchange failed: ${tokenRes.status}`);
       return c.text("authentication failed", 401);
     }
 
-    const tokenData = (await tokenRes.json()) as {
-      id_token?: string;
-    };
+    const tokenData = (await tokenRes.json()) as { id_token?: string };
     if (!tokenData.id_token) {
       return c.text("no id_token in response", 401);
     }
 
-    let claims: { email?: string; sub?: string; name?: string };
+    let idClaims: { email?: string; sub?: string; name?: string };
     try {
-      const payload = await verifyToken(
-        provider,
-        tokenData.id_token,
-        config.oidcClientId
-      );
-      claims = payload as typeof claims;
+      idClaims = (await verifyToken(provider, tokenData.id_token, config.oidcClientId)) as typeof idClaims;
     } catch (err) {
       console.error("ID token verification failed:", err);
       return c.text("invalid id_token", 401);
     }
 
-    const userId = claims.email || claims.sub || "";
-    const sessionData: SessionData = {
-      uid: userId,
-      email: claims.email ?? "",
-      name: claims.name ?? "",
-      exp: Math.floor(Date.now() / 1000) + 86400,
+    const claims: AccessClaims = {
+      uid: idClaims.email || idClaims.sub || "",
+      email: idClaims.email ?? "",
+      name: idClaims.name ?? "",
     };
 
-    const encoded = encodeCookie(sessionData, config.cookieSecret);
-    setCookie(c, "orc_session", encoded, {
-      path: "/",
-      maxAge: 86400,
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: config.secureCookies,
-      domain: config.cookieDomain || undefined,
-    });
+    let loginCode: string;
+    try {
+      loginCode = await tokens.createCode(claims);
+    } catch (err) {
+      console.error("login code store failed:", err);
+      return c.json({ error: "unavailable" }, 503);
+    }
 
     deleteCookie(c, "orc_state", { path: "/auth" });
-
-    console.log(`login: user=${userId} name=${claims.name ?? ""}`);
-    return c.redirect("/");
+    deleteCookie(c, "orc_return", { path: "/auth" });
+    console.log(`login: user=${claims.uid} name=${claims.name}`);
+    return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
   });
 
-  app.get("/auth/logout", (c) => {
-    deleteCookie(c, "orc_session", {
-      path: "/",
-      domain: config.cookieDomain || undefined,
-    });
-    return c.redirect("/");
+  app.post("/auth/token", async (c) => {
+    const code = await readField(c, "code");
+    if (!code) return c.json({ error: "invalid_grant" }, 400);
+    try {
+      const claims = await tokens.consumeCode(code);
+      if (!claims) return c.json({ error: "invalid_grant" }, 400);
+      const refreshToken = await tokens.createChain(claims);
+      return tokenResponse(c, config, claims, refreshToken);
+    } catch (err) {
+      console.error("token exchange failed:", err);
+      return c.json({ error: "unavailable" }, 503);
+    }
+  });
+
+  app.post("/auth/refresh", async (c) => {
+    const refreshToken = await readField(c, "refresh_token");
+    if (!refreshToken) return c.json({ error: "invalid_grant" }, 401);
+    try {
+      const result = await tokens.rotate(refreshToken);
+      if (!result.ok) return c.json({ error: "invalid_grant" }, 401);
+      return tokenResponse(c, config, result.claims, result.refreshToken);
+    } catch (err) {
+      console.error("refresh failed:", err);
+      return c.json({ error: "unavailable" }, 503);
+    }
+  });
+
+  app.post("/auth/logout", async (c) => {
+    const refreshToken = await readField(c, "refresh_token");
+    if (refreshToken) {
+      try {
+        await tokens.revoke(refreshToken);
+      } catch (err) {
+        console.error("logout revoke failed:", err);
+      }
+    }
+    return c.body(null, 204);
   });
 
   return app;
 }
-
