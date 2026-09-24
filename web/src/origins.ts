@@ -24,16 +24,30 @@ export function makeOriginCheck(serverOrigin: string | null, extra: string[]) {
   return (origin: string | null | undefined): boolean => !!origin && allowed.has(origin);
 }
 
+const PATH_BASE = "https://placeholder.invalid";
+
+// Browsers strip tab/newline from URLs and treat a backslash like "/", so a
+// path such as "/<TAB>/evil.com" would resolve to another host. Reject them outright.
+function hasUnsafeChars(value: string): boolean {
+  return /[\x00-\x1f\x7f\\]/.test(value);
+}
+
 export function validateReturnTo(
   returnTo: string | undefined,
   isAllowed: (origin: string) => boolean,
 ): string | null {
   if (!returnTo) return "/";
+  if (hasUnsafeChars(returnTo)) return null;
   const withoutFragment = returnTo.split("#")[0];
   if (withoutFragment.startsWith("/")) {
-    const second = withoutFragment[1];
-    if (second === "/" || second === "\\") return null;
-    return withoutFragment;
+    let parsed: URL;
+    try {
+      parsed = new URL(withoutFragment, PATH_BASE);
+    } catch {
+      return null;
+    }
+    if (parsed.origin !== PATH_BASE) return null;
+    return parsed.pathname + parsed.search;
   }
   const origin = originOf(withoutFragment);
   if (!origin || !isAllowed(origin)) return null;

@@ -46,6 +46,25 @@ describe("validateReturnTo", () => {
     expect(validateReturnTo("/\\evil.example.com/", isAllowed)).toBeNull();
   });
 
+  it("rejects control characters and backslashes anywhere", () => {
+    expect(validateReturnTo("/\t/evil.com", isAllowed)).toBeNull();
+    expect(validateReturnTo("/\n/evil.com", isAllowed)).toBeNull();
+    expect(validateReturnTo("/\r/evil.com", isAllowed)).toBeNull();
+    expect(validateReturnTo("/\\evil.com", isAllowed)).toBeNull();
+    expect(validateReturnTo("/x\\y", isAllowed)).toBeNull();
+    expect(validateReturnTo("/x\x7fy", isAllowed)).toBeNull();
+    expect(validateReturnTo("https://localhost/\t/x", isAllowed)).toBeNull();
+    expect(validateReturnTo("https://localhost\\@evil.com/", isAllowed)).toBeNull();
+  });
+
+  it("allows percent-encoded control characters in paths", () => {
+    expect(validateReturnTo("/%09/foo", isAllowed)).toBe("/%09/foo");
+  });
+
+  it("returns the normalized path", () => {
+    expect(validateReturnTo("/a/../b?x=1", isAllowed)).toBe("/b?x=1");
+  });
+
   it("accepts allowed absolute URLs", () => {
     expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBe("capacitor://localhost/");
     expect(validateReturnTo("https://localhost/s/x/#y", isAllowed)).toBe("https://localhost/s/x/");

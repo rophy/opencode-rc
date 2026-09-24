@@ -120,6 +120,11 @@ describe("/auth/start", () => {
     expect(cookies).toContain("orc_return=capacitor%3A%2F%2Flocalhost%2F");
   });
 
+  it("rejects a return_to with a control character", async () => {
+    const res = await app.request("/auth/start?return_to=%2F%09%2Fevil.com");
+    expect(res.status).toBe(400);
+  });
+
   it("rejects a foreign return_to", async () => {
     const res = await app.request("/auth/start?return_to=https%3A%2F%2Fevil.example.com%2F");
     expect(res.status).toBe(400);
