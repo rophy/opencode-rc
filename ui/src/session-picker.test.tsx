@@ -60,7 +60,7 @@ describe("SessionPicker", () => {
     expect(link?.getAttribute("href")).toBe("/s/my-session/")
   })
 
-  it("session card links include base URL when configured", async () => {
+  it("session card links stay relative when a remote server is configured", async () => {
     localStorage.setItem("opencode-rc-endpoint", "https://rc.example.com")
     const sessions = [
       { id: "s1", userID: "alice", endpoint: "gw:9090", directory: "/proj", lastHeartbeat: new Date().toISOString() },
@@ -73,7 +73,8 @@ describe("SessionPicker", () => {
       expect(screen.getByText("proj")).toBeTruthy()
     })
     const link = screen.getByText("proj").closest("a")
-    expect(link?.getAttribute("href")).toBe("https://rc.example.com/s/s1/")
+    // Relative so the mobile app stays in the bundled SPA; API calls are routed to the server by entry.tsx
+    expect(link?.getAttribute("href")).toBe("/s/s1/")
   })
 
   it("refresh button triggers refetch", async () => {
