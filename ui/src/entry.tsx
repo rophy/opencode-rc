@@ -44,6 +44,7 @@ import {
 } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
 import { fetchMe, getBaseUrl, isPreConfigured, loadConfig } from "./api"
+import { completeLogin, onLoggedOut } from "./auth"
 import { dropBogusContentLength } from "./fix-response"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
@@ -79,9 +80,10 @@ function getSessionIdFromPath(): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-function App() {
+function App(props: { loginExpired: boolean }) {
   const [showConfig, setShowConfig] = createSignal(false)
   const [user, { refetch: refetchUser }] = createResource(fetchMe)
+  onLoggedOut(() => refetchUser())
   const sessionId = getSessionIdFromPath()
 
   return (
@@ -95,7 +97,7 @@ function App() {
         </div>
       </Match>
       <Match when={user.error || !user()}>
-        <LoginScreen onSettings={() => setShowConfig(true)} />
+        <LoginScreen onSettings={() => setShowConfig(true)} expired={props.loginExpired} />
       </Match>
       <Match when={user() && !sessionId}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
@@ -262,5 +264,7 @@ function App() {
 
 const root = document.getElementById("root")
 if (root) {
-  loadConfig().then(() => render(() => <App />, root))
+  loadConfig()
+    .then(() => completeLogin())
+    .then((result) => render(() => <App loginExpired={result === "expired"} />, root))
 }

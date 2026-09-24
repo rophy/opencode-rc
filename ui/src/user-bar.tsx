@@ -1,5 +1,6 @@
 import { type Component, Show } from "solid-js"
-import { getBaseUrl, isPreConfigured, type UserInfo } from "./api"
+import { isPreConfigured, type UserInfo } from "./api"
+import { logout } from "./auth"
 
 export const UserBar: Component<{ user: UserInfo; onSettings?: () => void }> = (props) => {
   const displayId = () => props.user.email.split("@")[0] || props.user.sub
@@ -28,9 +29,9 @@ export const UserBar: Component<{ user: UserInfo; onSettings?: () => void }> = (
         </Show>
         <button
           class="flex items-center justify-center size-6 rounded-md text-v2-icon-icon-muted hover:text-v2-text-text-base hover:bg-v2-background-bg-layer-01 cursor-pointer bg-transparent border-none p-0 transition-colors"
-          onClick={() => {
-            const base = getBaseUrl()
-            window.location.href = base ? `${base}/auth/logout` : "/auth/logout"
+          onClick={async () => {
+            await logout()
+            window.location.href = "/"
           }}
           title="Sign out"
         >

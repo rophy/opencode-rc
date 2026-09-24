@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, isPreConfigured, loadConfig, resetConfig, fetchMe, fetchSessions } from "./api"
+import { resetAuthState } from "./auth"
 
 beforeEach(() => {
   localStorage.clear()
   resetConfig()
+  resetAuthState()
 })
 
 describe("getBaseUrl / setBaseUrl", () => {
@@ -73,43 +75,76 @@ describe("isConfigured", () => {
   })
 })
 
+function mockFetchWithRefresh(otherUrlPart: string, otherResponse: () => Response) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = typeof input === "string" ? input : input.toString()
+    if (url.includes("/auth/refresh")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ access_token: "a", refresh_token: "r2", expires_in: 900 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      )
+    }
+    if (url.includes(otherUrlPart)) return Promise.resolve(otherResponse())
+    throw new Error(`unexpected fetch: ${url}`)
+  })
+}
+
 describe("fetchMe", () => {
   it("returns user info on success", async () => {
+    localStorage.setItem("opencode-rc-refresh", "r")
     const user = { sub: "alice", email: "alice@example.com", name: "Alice" }
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })
+    mockFetchWithRefresh(
+      "/api/me",
+      () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })
     )
     expect(await fetchMe()).toEqual(user)
     vi.restoreAllMocks()
   })
 
   it("returns null on 401", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 401 }))
+    localStorage.setItem("opencode-rc-refresh", "r")
+    mockFetchWithRefresh("/api/me", () => new Response("", { status: 401 }))
     expect(await fetchMe()).toBeNull()
     vi.restoreAllMocks()
   })
 
   it("uses base URL when configured", async () => {
+    localStorage.setItem("opencode-rc-refresh", "r")
     setBaseUrl("https://rc.example.com")
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 401 }))
+    const user = { sub: "alice", email: "alice@example.com", name: "Alice" }
+    const spy = mockFetchWithRefresh(
+      "/api/me",
+      () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })
+    )
     await fetchMe()
-    expect(spy).toHaveBeenCalledWith("https://rc.example.com/api/me")
+    expect(spy.mock.calls.some(([u]) => u === "https://rc.example.com/api/me")).toBe(true)
     vi.restoreAllMocks()
+  })
+
+  it("fetchMe returns null without a session and makes no request", async () => {
+    const spy = vi.spyOn(globalThis, "fetch")
+    expect(await fetchMe()).toBeNull()
+    expect(spy).not.toHaveBeenCalled()
   })
 })
 
 describe("fetchSessions", () => {
   it("returns sessions on success", async () => {
+    localStorage.setItem("opencode-rc-refresh", "r")
     const sessions = [{ id: "s1", userID: "u1", endpoint: "e", directory: "/p", lastHeartbeat: "2026-01-01T00:00:00Z" }]
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
+    mockFetchWithRefresh(
+      "/gateway/sessions",
+      () => new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
     )
     expect(await fetchSessions()).toEqual(sessions)
     vi.restoreAllMocks()
   })
 
   it("returns empty array on error", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 500 }))
+    localStorage.setItem("opencode-rc-refresh", "r")
+    mockFetchWithRefresh("/gateway/sessions", () => new Response("", { status: 500 }))
     expect(await fetchSessions()).toEqual([])
     vi.restoreAllMocks()
   })
