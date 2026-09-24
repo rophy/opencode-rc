@@ -123,6 +123,11 @@ function decodeServerTextFrame(buf: Buffer): string {
   return buf.subarray(2, 2 + len).toString("utf8");
 }
 
+function encodeServerTextFrame(text: string): Buffer {
+  const payload = Buffer.from(text, "utf8");
+  return Buffer.concat([Buffer.from([0x81, payload.length]), payload]);
+}
+
 describe("proxyToLocal", () => {
   it("proxies a GET request", async () => {
     vi.stubGlobal(
@@ -248,7 +253,7 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
       // Simulate the gateway forwarding an already-framed browser message as
       // FRAME_DATA — this must reach the local server as valid wire bytes,
       // not get re-framed by a higher-level WebSocket client.
-      handleBodyFrame(7, FRAME_DATA, encodeClientTextFrame("hello"));
+      handleBodyFrame(ws as unknown as WebSocket, 7, FRAME_DATA, encodeClientTextFrame("hello"));
 
       await vi.waitFor(() => {
         const dataFrames = decodeFrames(ws.sent).filter((f) => f.type === FRAME_DATA);
@@ -258,7 +263,7 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
       expect(decodeServerTextFrame(Buffer.from(dataFrame.payload))).toBe("echo:hello");
 
       // Browser closing the stream closes the local socket too.
-      handleBodyFrame(7, FRAME_END, new Uint8Array());
+      handleBodyFrame(ws as unknown as WebSocket, 7, FRAME_END, new Uint8Array());
       await vi.waitFor(() => {
         expect(decodeFrames(ws.sent).some((f) => f.type === FRAME_END)).toBe(true);
       });
@@ -290,6 +295,184 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
     const respHeaders: ResponseHeaders = JSON.parse(new TextDecoder().decode(frames[0].payload));
     expect(respHeaders.status).toBe(502);
     expect(frames.map((f) => f.type)).toEqual([FRAME_RESPONSE_HEADERS, FRAME_DATA, FRAME_END]);
+  });
+
+  it("relays bytes the local server already sent past the upgrade response (head)", async () => {
+    // A raw server, not the `ws` library, so we control exactly what goes out
+    // on the wire: the 101 response and a full WS frame written back-to-back,
+    // synchronously, so Node's http client is very likely to hand them to us
+    // together as (response headers, `head` = the frame bytes) rather than as
+    // two separate reads — reproducing what opencode's pty connect handler
+    // does when it writes its cursor/replay frame right after upgrading.
+    const localServer = createServer();
+    let serverSideSocket: import("node:net").Socket | undefined;
+    localServer.on("upgrade", (_req, socket) => {
+      serverSideSocket = socket;
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\n" +
+          "Upgrade: websocket\r\n" +
+          "Connection: Upgrade\r\n" +
+          "\r\n"
+      );
+      socket.write(encodeServerTextFrame("hello"));
+    });
+    await new Promise<void>((resolve) => localServer.listen(0, resolve));
+    const localAddress = localServer.address();
+    const localPort = typeof localAddress === "object" && localAddress ? localAddress.port : 0;
+
+    try {
+      const ws = createMockWs();
+      proxyToLocal(
+        ws as unknown as WebSocket,
+        13,
+        {
+          method: "GET",
+          path: "/pty/abc/connect",
+          headers: {
+            upgrade: "websocket",
+            connection: "Upgrade",
+            "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "sec-websocket-version": "13",
+          },
+          hasBody: false,
+        },
+        `http://127.0.0.1:${localPort}`
+      );
+
+      await vi.waitFor(() => {
+        expect(decodeFrames(ws.sent).some((f) => f.type === FRAME_DATA)).toBe(true);
+      });
+
+      const frames = decodeFrames(ws.sent);
+      expect(frames[0].type).toBe(FRAME_RESPONSE_HEADERS);
+      const dataFrame = frames.find((f) => f.type === FRAME_DATA)!;
+      expect(decodeServerTextFrame(Buffer.from(dataFrame.payload))).toBe("hello");
+    } finally {
+      // The raw hijacked connection is never ended, so plain close() would
+      // wait forever for it; destroy it directly instead of awaiting close().
+      serverSideSocket?.destroy();
+      localServer.close();
+    }
+  });
+});
+
+describe("WebSocket streams are scoped per tunnel connection", () => {
+  it("destroys local sockets when the tunnel closes, and a reused stream id on a new tunnel isn't shadowed", async () => {
+    const localWss = new WebSocketServer({ port: 0 });
+    await new Promise<void>((resolve) => localWss.once("listening", resolve));
+    const localAddress = localWss.address();
+    const localPort = typeof localAddress === "object" && localAddress ? localAddress.port : 0;
+
+    const localSocketClosed = new Promise<void>((resolve) => {
+      localWss.once("connection", (socket) => socket.once("close", () => resolve()));
+    });
+
+    try {
+      await withServer(async (wss, port) => {
+        const serverConn = new Promise<WSClient>((resolve) => wss.once("connection", (s) => resolve(s)));
+        const handle = await startTunnel(
+          makeConfig(port),
+          "test-token",
+          "sess-ws",
+          `http://127.0.0.1:${localPort}`,
+          "/tmp"
+        );
+        const serverWs = await serverConn;
+
+        const upgradeReceived = new Promise<void>((resolve) => {
+          serverWs.on("message", function onMsg(data: Buffer) {
+            const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+            const frame = decodeFrameHeader(buf);
+            if (frame.type === FRAME_RESPONSE_HEADERS) {
+              serverWs.off("message", onMsg);
+              resolve();
+            }
+          });
+        });
+
+        const wsReq: RequestHeaders = {
+          method: "GET",
+          path: "/pty/abc/connect",
+          headers: {
+            upgrade: "websocket",
+            connection: "Upgrade",
+            "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "sec-websocket-version": "13",
+          },
+          hasBody: false,
+        };
+        serverWs.send(encodeFrame(1, FRAME_REQUEST_HEADERS, new TextEncoder().encode(JSON.stringify(wsReq))));
+        await upgradeReceived;
+
+        // Closing the tunnel must tear down the local WebSocket it opened —
+        // observed here as the local server's end of that connection closing.
+        handle.close();
+      });
+      await localSocketClosed;
+    } finally {
+      localWss.close();
+      for (const client of localWss.clients) client.terminate();
+    }
+
+    // A brand-new tunnel that happens to reuse stream id 1 (gateway's mux
+    // restarts stream ids per tunnel) for an ordinary POST-with-body request
+    // must not be shadowed by the previous tunnel's now-dead WebSocket stream
+    // (handleBodyFrame checks the WebSocket-stream map before pendingRequests).
+    const echoServer: Server = createServer((req, res) => {
+      let body = "";
+      req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.end(`echo: ${body}`);
+      });
+    });
+    await new Promise<void>((resolve) => echoServer.listen(0, resolve));
+    const echoAddress = echoServer.address();
+    const echoPort = typeof echoAddress === "object" && echoAddress ? echoAddress.port : 0;
+
+    try {
+      await withServer(async (wss2, port2) => {
+        const serverConn2 = new Promise<WSClient>((resolve) => wss2.once("connection", (s) => resolve(s)));
+        const handle2 = await startTunnel(
+          makeConfig(port2),
+          "test-token",
+          "sess-http",
+          `http://127.0.0.1:${echoPort}`,
+          "/tmp"
+        );
+        const serverWs2 = await serverConn2;
+
+        const framesReceived = new Promise<{ type: number; payload: Uint8Array }[]>((resolve) => {
+          const frames: { type: number; payload: Uint8Array }[] = [];
+          serverWs2.on("message", (data: Buffer) => {
+            const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+            const frame = decodeFrameHeader(buf);
+            frames.push(frame);
+            if (frame.type === FRAME_END) resolve(frames);
+          });
+        });
+
+        const postReq: RequestHeaders = {
+          method: "POST",
+          path: "/submit",
+          headers: { "content-type": "text/plain" },
+          hasBody: true,
+        };
+        serverWs2.send(encodeFrame(1, FRAME_REQUEST_HEADERS, new TextEncoder().encode(JSON.stringify(postReq))));
+        serverWs2.send(encodeFrame(1, FRAME_DATA, new TextEncoder().encode("still works")));
+        serverWs2.send(encodeFrame(1, FRAME_END));
+
+        const frames = await framesReceived;
+        expect(frames.map((f) => f.type)).toEqual([FRAME_RESPONSE_HEADERS, FRAME_DATA, FRAME_END]);
+        const respHeaders: ResponseHeaders = JSON.parse(new TextDecoder().decode(frames[0].payload));
+        expect(respHeaders.status).toBe(200);
+        expect(new TextDecoder().decode(frames[1].payload)).toBe("echo: still works");
+
+        handle2.close();
+      });
+    } finally {
+      await new Promise<void>((resolve) => echoServer.close(() => resolve()));
+    }
   });
 });
 
@@ -646,7 +829,7 @@ describe("handleBodyFrame and proxyToLocal with body", () => {
 
   it("ignores handleBodyFrame for unknown streamId", async () => {
     const { handleBodyFrame } = await import("../src/tunnel.js");
-    handleBodyFrame(99999, FRAME_DATA, new Uint8Array([1, 2, 3]));
+    handleBodyFrame({} as unknown as WebSocket, 99999, FRAME_DATA, new Uint8Array([1, 2, 3]));
   });
 });
 

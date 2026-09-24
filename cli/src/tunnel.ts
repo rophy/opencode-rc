@@ -60,15 +60,45 @@ const pendingRequests = new Map<
 // by whatever real WebSocket client is on the browser/web end of the tunnel),
 // so they're written to the socket verbatim rather than re-sent through a
 // higher-level WebSocket client, which would re-frame and corrupt them.
-const activeWsStreams = new Map<number, Socket>();
+//
+// Scoped per tunnel connection (keyed by the tunnel's own `ws`) rather than
+// a single module-global map: gateway's mux restarts stream IDs at 1 for
+// each new tunnel, so a global map would let a stale entry from a previous
+// (reconnected/closed) tunnel intercept frames for an unrelated stream that
+// happens to reuse the same ID on the new tunnel.
+const wsStreamsByTunnel = new WeakMap<WebSocket, Map<number, Socket>>();
 
-export function handleBodyFrame(streamId: number, type: number, payload: Uint8Array): void {
-  const active = activeWsStreams.get(streamId);
+function streamsFor(ws: WebSocket, create: true): Map<number, Socket>;
+function streamsFor(ws: WebSocket, create?: false): Map<number, Socket> | undefined;
+function streamsFor(ws: WebSocket, create = false): Map<number, Socket> | undefined {
+  let streams = wsStreamsByTunnel.get(ws);
+  if (!streams && create) {
+    streams = new Map();
+    wsStreamsByTunnel.set(ws, streams);
+  }
+  return streams;
+}
+
+// Destroys every local socket opened for this tunnel and forgets its stream
+// map — called when the tunnel WebSocket itself closes, so sockets from a
+// dead tunnel never linger writing into it or shadowing a future tunnel's
+// stream IDs.
+function closeAllStreamsFor(ws: WebSocket): void {
+  const streams = wsStreamsByTunnel.get(ws);
+  if (!streams) return;
+  for (const socket of streams.values()) socket.destroy();
+  streams.clear();
+  wsStreamsByTunnel.delete(ws);
+}
+
+export function handleBodyFrame(ws: WebSocket, streamId: number, type: number, payload: Uint8Array): void {
+  const streams = streamsFor(ws);
+  const active = streams?.get(streamId);
   if (active) {
     if (type === FRAME_DATA) {
       active.write(Buffer.from(payload));
     } else if (type === FRAME_END) {
-      activeWsStreams.delete(streamId);
+      streams!.delete(streamId);
       active.end();
     }
     return;
@@ -160,19 +190,33 @@ function proxyWebSocketToLocal(
     headers: fwdHeaders,
   });
 
-  upgradeReq.on("upgrade", (res, socket) => {
-    activeWsStreams.set(streamId, socket);
+  upgradeReq.on("upgrade", (res, socket, head) => {
+    streamsFor(ws, true).set(streamId, socket);
     sendResponseHeaders(ws, streamId, res.statusCode ?? 101, headerPairsToRecord(res.rawHeaders));
+    // `head` holds any bytes the local server already sent past the response
+    // headers before we attached the "data" listener below (opencode's pty
+    // connect handler writes its cursor/replay frames right after
+    // upgrading) — relay it first or the stream starts mid-frame.
+    if (head.length > 0) {
+      ws.send(encodeFrame(streamId, FRAME_DATA, new Uint8Array(head)));
+    }
+
+    // Only clear our own entry: a stale close/error firing after this stream
+    // id has already been reused (e.g. by a reconnected tunnel) must not
+    // delete the newer socket that's now registered under the same id.
+    const forgetIfCurrent = () => {
+      if (streamsFor(ws)?.get(streamId) === socket) streamsFor(ws)!.delete(streamId);
+    };
 
     socket.on("data", (chunk: Buffer) => {
       ws.send(encodeFrame(streamId, FRAME_DATA, new Uint8Array(chunk)));
     });
     socket.on("close", () => {
-      activeWsStreams.delete(streamId);
+      forgetIfCurrent();
       ws.send(encodeFrame(streamId, FRAME_END));
     });
     socket.on("error", () => {
-      activeWsStreams.delete(streamId);
+      forgetIfCurrent();
       ws.send(encodeFrame(streamId, FRAME_END));
     });
   });
@@ -191,7 +235,8 @@ function proxyWebSocketToLocal(
   });
 
   upgradeReq.on("error", (err: Error) => {
-    activeWsStreams.delete(streamId);
+    // The dial itself failed, so the "upgrade" handler above never ran and
+    // never registered anything for this stream id — nothing to clean up.
     sendResponseHeaders(ws, streamId, 502, { "content-type": "text/plain" });
     const errBody = new TextEncoder().encode(`proxy error: ${err.message || String(err)}`);
     ws.send(encodeFrame(streamId, FRAME_DATA, errBody));
@@ -342,7 +387,7 @@ export async function startTunnel(
         const req: RequestHeaders = JSON.parse(json);
         proxyToLocal(ws as unknown as WebSocket, frame.streamId, req, localUrl);
       } else if (frame.type === FRAME_DATA || frame.type === FRAME_END) {
-        handleBodyFrame(frame.streamId, frame.type, frame.payload);
+        handleBodyFrame(ws as unknown as WebSocket, frame.streamId, frame.type, frame.payload);
       }
     });
 
@@ -368,6 +413,7 @@ export async function startTunnel(
     });
 
     ws.on("close", (code: number, reason: Buffer) => {
+      closeAllStreamsFor(ws as unknown as WebSocket);
       const reasonStr = reason.toString();
       if (!connected) {
         const hints: string[] = [];
