@@ -33,7 +33,6 @@ const config: Config = {
   allowedOrigins: [],
   secureCookies: false,
   redisUrl: "redis://localhost:6379/0",
-  webUiDir: "",
   gatewayUrl: "",
   tlsInsecureSkipVerify: false,
 };

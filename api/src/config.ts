@@ -15,7 +15,6 @@ export interface Config {
   allowedOrigins: string[];
   secureCookies: boolean;
   redisUrl: string;
-  webUiDir: string;
   gatewayUrl: string;
   tlsInsecureSkipVerify: boolean;
 }
@@ -66,7 +65,6 @@ export function loadConfig(): Config {
       .filter(Boolean),
     secureCookies: process.env.COOKIE_SECURE !== "false",
     redisUrl: requireEnv("REDIS_URL"),
-    webUiDir: process.env.WEBUI_DIR ?? "",
     gatewayUrl: process.env.GATEWAY_URL ?? "",
     tlsInsecureSkipVerify: process.env.TLS_INSECURE_SKIP_VERIFY === "true",
   };
