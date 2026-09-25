@@ -106,10 +106,11 @@ Exposed hosts, derived from the release name and expose.host.
 {{- end -}}
 
 {{/*
-"true" when the bundled oidc-mock (profile local) gets its own exposed host.
+"true" when the bundled oidc-mock (profile local) gets its own exposed host;
+not when a real IdP is configured with oidc.issuer.
 */}}
 {{- define "opencode-rc.oidcMockExposed" -}}
-{{- if and (eq .Values.profile "local") (ne (include "opencode-rc.exposeType" .) "none") -}}
+{{- if and (eq .Values.profile "local") (ne (include "opencode-rc.exposeType" .) "none") (not .Values.oidc.issuer) -}}
 true
 {{- end -}}
 {{- end -}}
@@ -150,7 +151,7 @@ oidc.issuer / oidcMock.issuer). Servers then discover the mock in-cluster and ov
 the external parts: the mock advertises every endpoint under its external issuer.
 */}}
 {{- define "opencode-rc.oidcMockSplit" -}}
-{{- if and (include "opencode-rc.oidcMockExposed" .) (not .Values.oidc.issuer) (not .Values.oidcMock.issuer) -}}
+{{- if and (include "opencode-rc.oidcMockExposed" .) (not .Values.oidcMock.issuer) -}}
 true
 {{- end -}}
 {{- end -}}
@@ -273,7 +274,7 @@ expose.* checks; per-component ingress values were replaced by expose.* in 0.6.
 {{- if and (eq $type "virtualService") (not .Values.expose.virtualService.gateways) -}}
 {{- fail "expose.virtualService.gateways is required when expose.type is virtualService" -}}
 {{- end -}}
-{{- if or (hasKey .Values.api "ingress") (hasKey .Values.ui "ingress") (hasKey .Values.gateway "ingress") -}}
+{{- if or .Values.api.ingress .Values.ui.ingress .Values.gateway.ingress -}}
 {{- fail "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)" -}}
 {{- end -}}
 {{- end -}}

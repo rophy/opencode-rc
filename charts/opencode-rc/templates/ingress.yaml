@@ -1,5 +1,11 @@
 {{- if eq (include "opencode-rc.exposeType" .) "ingress" }}
 {{- $fullname := include "opencode-rc.fullname" . }}
+{{- /* Long-lived CLI tunnel, SSE and terminal WebSockets; user annotations win. */}}
+{{- $defaultAnnotations := dict
+  "nginx.ingress.kubernetes.io/proxy-read-timeout" "3600"
+  "nginx.ingress.kubernetes.io/proxy-send-timeout" "3600"
+}}
+{{- $annotations := merge (deepCopy (.Values.expose.ingress.annotations | default dict)) $defaultAnnotations }}
 {{- $hosts := list (include "opencode-rc.apiHost" .) }}
 {{- if .Values.ui.enabled }}
 {{- $hosts = append $hosts (include "opencode-rc.uiHost" .) }}
@@ -13,10 +19,8 @@ metadata:
   name: {{ $fullname }}
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
-  {{- with .Values.expose.ingress.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- toYaml $annotations | nindent 4 }}
 spec:
   {{- with .Values.expose.ingress.className }}
   ingressClassName: {{ . }}

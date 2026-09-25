@@ -135,6 +135,16 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-oidc-mock
 
+  - it: omits the oidc-mock VirtualService when a real IdP is configured in the local profile
+    set:
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - hasDocuments:
+          count: 2
+      - notEqual:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-oidc-mock
+
   - it: applies annotations
     set:
       expose.virtualService.annotations:

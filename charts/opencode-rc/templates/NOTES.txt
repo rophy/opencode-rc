@@ -26,4 +26,4 @@ Not exposed (expose.type=none). To reach the services locally:
 
 CLI setup:
   npm install -g opencode-rc
-  OPENCODE_RC_GATEWAY_URL={{ $gatewayUrl }} opencode-rc
+  OPENCODE_RC_GATEWAY_URL={{ $gatewayUrl }} OIDC_ISSUER={{ include "opencode-rc.oidcIssuer" . }} OIDC_CLIENT_ID={{ .Values.oidc.cliClientId }} opencode-rc

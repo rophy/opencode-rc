@@ -45,6 +45,15 @@ tests:
       - failedTemplate:
           errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
 
+  - it: accepts legacy ingress keys removed with null
+    set:
+      gateway.ingress: null
+      api.ingress: null
+      ui.ingress: null
+    asserts:
+      - isKind:
+          of: Deployment
+
   - it: accepts ingress with a host
     set:
       expose.type: ingress

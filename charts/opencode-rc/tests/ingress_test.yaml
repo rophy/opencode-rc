@@ -98,6 +98,14 @@ tests:
             host: RELEASE-NAME-oidc.example.com
           any: true
 
+  - it: has no oidc-mock rule when a real IdP is configured in the local profile
+    set:
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.rules
+          count: 2
+
   - it: omits the ui rule when ui is disabled
     set:
       ui.enabled: false
@@ -129,22 +137,40 @@ tests:
                 - RELEASE-NAME-ui.example.com
                 - RELEASE-NAME-oidc.example.com
 
-  - it: omits ingressClassName and annotations by default
+  - it: omits ingressClassName by default and sets nginx timeout defaults
     asserts:
       - isNull:
           path: spec.ingressClassName
-      - isNull:
+      - equal:
           path: metadata.annotations
+          value:
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
-  - it: sets ingressClassName and annotations
+  - it: user annotations override the nginx timeout defaults
+    set:
+      expose.ingress.annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "7200"
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "7200"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"]
+          value: "3600"
+
+  - it: sets ingressClassName and merges user annotations with the defaults
     set:
       expose.ingress.className: nginx
       expose.ingress.annotations:
-        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     asserts:
       - equal:
           path: spec.ingressClassName
           value: nginx
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-body-size"]
+          value: "50m"
       - equal:
           path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
           value: "3600"

@@ -135,3 +135,14 @@ tests:
       - matchRegex:
           path: data["oidc-config.yaml"]
           pattern: "issuer: https://oidc-mock.corp.example.com\n"
+
+  - it: keeps the in-cluster issuer when a real IdP is configured
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "issuer: http://RELEASE-NAME-opencode-rc-oidc-mock:8080\n"

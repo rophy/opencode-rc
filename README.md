@@ -81,14 +81,9 @@ helm install opencode-rc ./charts/opencode-rc \
 
 The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly. Public URLs are `{expose.scheme}://<host>` (`https` by default — TLS usually terminates at the ingress controller, load balancer or Istio gateway); set `api.publicUrl` / `ui.publicUrl` to override them. The OIDC redirect URI defaults to `<api public URL>/auth/callback`, e.g. `https://opencode-rc.example.com/auth/callback`. The CLI gateway URL is the API host, e.g. `https://opencode-rc.example.com`. Only `/tunnel` of the gateway is exposed; its `/healthz` is not reachable from outside the cluster.
 
-With ingress-nginx, raise the proxy timeouts so idle CLI tunnels, SSE streams and terminal WebSockets are not cut after 60 seconds:
+The Ingress sets `nginx.ingress.kubernetes.io/proxy-read-timeout` and `proxy-send-timeout` to `"3600"` by default so ingress-nginx does not cut idle CLI tunnels, SSE streams and terminal WebSockets; values in `expose.ingress.annotations` override them. With other ingress controllers, configure the equivalent long timeouts through `expose.ingress.annotations`.
 
-```bash
-  --set-string 'expose.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout=3600' \
-  --set-string 'expose.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout=3600'
-```
-
-With Istio, point `expose.virtualService.gateways` at existing Istio Gateways that accept the hosts above (e.g. a `*.example.com` server). The chart creates VirtualServices and disables the route timeout for `/tunnel` and `/proxy/`:
+With Istio (1.22+, for `networking.istio.io/v1`), point `expose.virtualService.gateways` at existing Istio Gateways that accept the hosts above (e.g. a `*.example.com` server). The chart creates VirtualServices and disables the route timeout for `/tunnel` and `/proxy/`:
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc \
@@ -126,9 +121,9 @@ The `existingSecret` must contain:
 | `expose.host` | `""` | Base domain; hosts are `{release}.{host}`, `{release}-ui.{host}` and, for `profile=local`, `{release}-oidc.{host}`. Required unless `expose.type=none` |
 | `expose.scheme` | `https` | Scheme browsers and the CLI use to reach the hosts |
 | `expose.ingress.className` | `""` | `ingressClassName` of the Ingress |
-| `expose.ingress.annotations` | `{}` | Ingress annotations |
+| `expose.ingress.annotations` | `{}` | Ingress annotations, merged over the default ingress-nginx `proxy-read-timeout`/`proxy-send-timeout` of `"3600"` |
 | `expose.ingress.tlsSecretName` | `""` | TLS secret covering all hosts (e.g. a wildcard certificate); no `tls` section when empty |
-| `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` |
+| `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` (Istio 1.22+) |
 | `expose.virtualService.annotations` | `{}` | VirtualService annotations |
 | `api.publicUrl` | `""` | Browser-facing API URL; overrides the URL derived from `expose.*`. Required when `ui.publicUrl` is set with `expose.type=none` |
 | `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |
@@ -145,7 +140,7 @@ The `local` profile deploys an OIDC mock server with test users (alice/bob) and 
 helm install opencode-rc ./charts/opencode-rc
 ```
 
-With `expose.type` set, the OIDC mock is exposed on `{release}-oidc.{host}` and uses `{expose.scheme}://{release}-oidc.{host}` as its issuer. The API and the gateway still fetch discovery, tokens and keys from the in-cluster service, and only send browsers to the external host.
+With `expose.type` set (and no `oidc.issuer`), the OIDC mock is exposed on `{release}-oidc.{host}` and uses `{expose.scheme}://{release}-oidc.{host}` as its issuer. The API and the gateway still fetch discovery, tokens and keys from the in-cluster service, and only send browsers to the external host.
 
 If the OIDC mock is reachable from outside the cluster some other way, set `oidcMock.issuer` to its external URL:
 
@@ -178,10 +173,10 @@ Images to mirror:
 0.6 splits the web UI out of the API server into its own image and host:
 
 - Chart values `web.*` were renamed to `api.*`. The chart fails (`chart values web.* were renamed to api.*`) if any `web.*` value is still set, instead of silently ignoring it.
-- Per-component ingress values (`api.ingress`, `ui.ingress`, `gateway.ingress`, and `web.ingress` before the rename) were replaced by `expose.*`, which exposes all of them together. The chart fails (`per-component ingress settings ... were replaced by expose.*`) if any of them is still set.
+- Per-component ingress values (`api.ingress`, `ui.ingress`, `gateway.ingress`, and `web.ingress` before the rename) were replaced by `expose.*`, which exposes all of them together. The chart fails (`per-component ingress settings ... were replaced by expose.*`) if any of them is still set; remove them from your values or with `--set gateway.ingress=null` (and likewise for the others).
 - **Hostnames change.** Hosts are now derived from the release name: the API and the CLI gateway share `{release}.{host}` (`/tunnel` goes to the gateway), and the UI gets `{release}-ui.{host}`. For release `opencode-rc` and `expose.host=example.com` that is `https://opencode-rc.example.com` (API, OIDC redirect URI `https://opencode-rc.example.com/auth/callback`, CLI `gatewayUrl`) and `https://opencode-rc-ui.example.com` (UI). Update DNS/certificates, the redirect URI registered at your OIDC provider, and the CLI `gatewayUrl`.
 - The gateway's `/healthz` is no longer exposed outside the cluster; only `/tunnel` is (the CLI only uses `/tunnel`).
-- The default `nginx.ingress.kubernetes.io/proxy-{read,send}-timeout: "3600"` annotations of the old gateway Ingress are gone; set them in `expose.ingress.annotations` when using ingress-nginx.
+- The `nginx.ingress.kubernetes.io/proxy-{read,send}-timeout: "3600"` defaults of the old gateway Ingress now apply to the single Ingress (all hosts); override them in `expose.ingress.annotations`.
 - The API host no longer serves the UI. Old bookmarks pointing at the API host (e.g. `/`, `/s/<session>/`) now return `404`; point users at the UI host instead.
 - Air-gapped mirrors: mirror the new `ghcr.io/rophy/opencode-rc/api` and `ghcr.io/rophy/opencode-rc/ui` images instead of `ghcr.io/rophy/opencode-rc/web` (see the table above).
 - Everyone is logged out once: bearer tokens issued before the upgrade are invalidated.
