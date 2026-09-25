@@ -65,15 +65,40 @@ helm install opencode-rc ./charts/opencode-rc \
   --set oidc.clientId=opencode-rc \
   --set oidc.cliClientId=opencode-rc-cli \
   --set existingSecret=opencode-rc-secrets \
-  --set api.ingress.enabled=true \
-  --set api.ingress.host=opencode-rc-api.corp.example.com \
-  --set api.publicUrl=https://opencode-rc-api.corp.example.com \
-  --set ui.ingress.enabled=true \
-  --set ui.ingress.host=opencode-rc.corp.example.com \
-  --set ui.publicUrl=https://opencode-rc.corp.example.com
+  --set expose.type=ingress \
+  --set expose.host=example.com \
+  --set expose.ingress.className=nginx \
+  --set expose.ingress.tlsSecretName=wildcard-example-com-tls
 ```
 
-The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly, so both must be reachable from users' browsers. Public URLs are derived from each ingress (`https://<host>` when the ingress has `tls`, else `http://<host>`); set `api.publicUrl` / `ui.publicUrl` when that derivation is wrong — for example when TLS is terminated at a load balancer in front of an ingress without `tls`. The OIDC redirect URI defaults to `<api public URL>/auth/callback`.
+`expose.*` exposes the API, the gateway and the UI on hosts derived from the Helm release name and `expose.host`:
+
+| Host | Routes |
+|------|--------|
+| `{release}.{host}` (e.g. `opencode-rc.example.com`) | `/tunnel` → gateway (CLI tunnel), everything else → API |
+| `{release}-ui.{host}` (e.g. `opencode-rc-ui.example.com`) | web UI (when `ui.enabled`) |
+| `{release}-oidc.{host}` (e.g. `opencode-rc-oidc.example.com`) | bundled oidc-mock (`profile=local` only) |
+
+The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly. Public URLs are `{expose.scheme}://<host>` (`https` by default — TLS usually terminates at the ingress controller, load balancer or Istio gateway); set `api.publicUrl` / `ui.publicUrl` to override them. The OIDC redirect URI defaults to `<api public URL>/auth/callback`, e.g. `https://opencode-rc.example.com/auth/callback`. The CLI gateway URL is the API host, e.g. `https://opencode-rc.example.com`. Only `/tunnel` of the gateway is exposed; its `/healthz` is not reachable from outside the cluster.
+
+With ingress-nginx, raise the proxy timeouts so idle CLI tunnels, SSE streams and terminal WebSockets are not cut after 60 seconds:
+
+```bash
+  --set-string 'expose.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout=3600' \
+  --set-string 'expose.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout=3600'
+```
+
+With Istio, point `expose.virtualService.gateways` at existing Istio Gateways that accept the hosts above (e.g. a `*.example.com` server). The chart creates VirtualServices and disables the route timeout for `/tunnel` and `/proxy/`:
+
+```bash
+helm install opencode-rc ./charts/opencode-rc \
+  --set profile=production \
+  --set oidc.issuer=https://sso.corp.example.com \
+  --set existingSecret=opencode-rc-secrets \
+  --set expose.type=virtualService \
+  --set expose.host=example.com \
+  --set 'expose.virtualService.gateways={istio-system/public-gateway}'
+```
 
 The `existingSecret` must contain:
 
@@ -97,14 +122,17 @@ The `existingSecret` must contain:
 | `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
-| `api.ingress.enabled` | `false` | Create Ingress for API server |
-| `api.ingress.host` | `""` | Hostname for the API Ingress |
-| `api.publicUrl` | `""` | Browser-facing API URL (e.g. `https://api.example.com`); overrides the URL derived from `api.ingress`. Required when the UI is exposed without an API ingress |
+| `expose.type` | `none` | `none`, `ingress` (one Ingress) or `virtualService` (Istio VirtualServices) |
+| `expose.host` | `""` | Base domain; hosts are `{release}.{host}`, `{release}-ui.{host}` and, for `profile=local`, `{release}-oidc.{host}`. Required unless `expose.type=none` |
+| `expose.scheme` | `https` | Scheme browsers and the CLI use to reach the hosts |
+| `expose.ingress.className` | `""` | `ingressClassName` of the Ingress |
+| `expose.ingress.annotations` | `{}` | Ingress annotations |
+| `expose.ingress.tlsSecretName` | `""` | TLS secret covering all hosts (e.g. a wildcard certificate); no `tls` section when empty |
+| `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` |
+| `expose.virtualService.annotations` | `{}` | VirtualService annotations |
+| `api.publicUrl` | `""` | Browser-facing API URL; overrides the URL derived from `expose.*`. Required when `ui.publicUrl` is set with `expose.type=none` |
 | `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |
-| `ui.ingress.enabled` | `false` | Create Ingress for the UI |
-| `ui.ingress.host` | `""` | Hostname for the UI Ingress; must differ from `api.ingress.host` |
-| `ui.publicUrl` | `""` | Browser-facing UI URL (e.g. `https://rc.example.com`); overrides the URL derived from `ui.ingress`. Added to the API's allowed origins |
-| `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
+| `ui.publicUrl` | `""` | Browser-facing UI URL; overrides the URL derived from `expose.*`. Added to the API's allowed origins |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
 See [`charts/opencode-rc/values.yaml`](charts/opencode-rc/values.yaml) for all options.
@@ -117,7 +145,9 @@ The `local` profile deploys an OIDC mock server with test users (alice/bob) and 
 helm install opencode-rc ./charts/opencode-rc
 ```
 
-If the OIDC mock needs to be reachable from outside the cluster (e.g. via Ingress), set `oidcMock.issuer` to the external URL:
+With `expose.type` set, the OIDC mock is exposed on `{release}-oidc.{host}` and uses `{expose.scheme}://{release}-oidc.{host}` as its issuer. The API and the gateway still fetch discovery, tokens and keys from the in-cluster service, and only send browsers to the external host.
+
+If the OIDC mock is reachable from outside the cluster some other way, set `oidcMock.issuer` to its external URL:
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc \
@@ -148,32 +178,37 @@ Images to mirror:
 0.6 splits the web UI out of the API server into its own image and host:
 
 - Chart values `web.*` were renamed to `api.*`. The chart fails (`chart values web.* were renamed to api.*`) if any `web.*` value is still set, instead of silently ignoring it.
-- The UI needs its own host: set `ui.ingress.enabled` and `ui.ingress.host` to a hostname **different** from `api.ingress.host` — `helm template` fails if both ingresses are enabled with the same host.
+- Per-component ingress values (`api.ingress`, `ui.ingress`, `gateway.ingress`, and `web.ingress` before the rename) were replaced by `expose.*`, which exposes all of them together. The chart fails (`per-component ingress settings ... were replaced by expose.*`) if any of them is still set.
+- **Hostnames change.** Hosts are now derived from the release name: the API and the CLI gateway share `{release}.{host}` (`/tunnel` goes to the gateway), and the UI gets `{release}-ui.{host}`. For release `opencode-rc` and `expose.host=example.com` that is `https://opencode-rc.example.com` (API, OIDC redirect URI `https://opencode-rc.example.com/auth/callback`, CLI `gatewayUrl`) and `https://opencode-rc-ui.example.com` (UI). Update DNS/certificates, the redirect URI registered at your OIDC provider, and the CLI `gatewayUrl`.
+- The gateway's `/healthz` is no longer exposed outside the cluster; only `/tunnel` is (the CLI only uses `/tunnel`).
+- The default `nginx.ingress.kubernetes.io/proxy-{read,send}-timeout: "3600"` annotations of the old gateway Ingress are gone; set them in `expose.ingress.annotations` when using ingress-nginx.
 - The API host no longer serves the UI. Old bookmarks pointing at the API host (e.g. `/`, `/s/<session>/`) now return `404`; point users at the UI host instead.
 - Air-gapped mirrors: mirror the new `ghcr.io/rophy/opencode-rc/api` and `ghcr.io/rophy/opencode-rc/ui` images instead of `ghcr.io/rophy/opencode-rc/web` (see the table above).
 - Everyone is logged out once: bearer tokens issued before the upgrade are invalidated.
 
-The simplest upgrade is a full values file: export the current values, rename the top-level `web:` key to `api:`, add a `ui:` section, and upgrade without reusing values:
+The simplest upgrade is a full values file: export the current values, rename the top-level `web:` key to `api:`, replace the `ingress:` blocks with `expose:`, and upgrade without reusing values:
 
 ```bash
 helm get values opencode-rc -o yaml > values.yaml
-# edit values.yaml: rename `web:` to `api:`, then add
-#   ui:
+# edit values.yaml: rename `web:` to `api:`, delete every `ingress:` block
+# (web/api, ui, gateway), then add
+#   expose:
+#     type: ingress
+#     host: example.com
 #     ingress:
-#       enabled: true
-#       host: opencode-rc.corp.example.com
+#       className: nginx
+#       tlsSecretName: wildcard-example-com-tls
 helm upgrade opencode-rc ./charts/opencode-rc -f values.yaml
 ```
 
-Alternatively, with Helm 3.14+ use `--reset-then-reuse-values` and move each `web.*` value you had set to `api.*` explicitly, removing the old keys with `--set web=null` (plain `--reuse-values` does not pick up the new chart defaults and must not be used):
+Alternatively, with Helm 3.14+ use `--reset-then-reuse-values` and move each `web.*` value you had set to `api.*` explicitly, removing the old keys with `--set web=null` and `--set gateway.ingress=null` (plain `--reuse-values` does not pick up the new chart defaults and must not be used):
 
 ```bash
 helm upgrade opencode-rc ./charts/opencode-rc --reset-then-reuse-values \
   --set web=null \
-  --set api.ingress.enabled=true \
-  --set api.ingress.host=opencode-rc-api.corp.example.com \
-  --set ui.ingress.enabled=true \
-  --set ui.ingress.host=opencode-rc.corp.example.com
+  --set gateway.ingress=null \
+  --set expose.type=ingress \
+  --set expose.host=example.com
 ```
 
 ## CLI Usage
@@ -188,7 +223,7 @@ Configure `~/.config/opencode/rc.json`:
 
 ```json
 {
-  "gatewayUrl": "https://opencode-rc.corp.example.com",
+  "gatewayUrl": "https://opencode-rc.example.com",
   "oidc": {
     "issuer": "https://sso.corp.example.com",
     "clientId": "opencode-rc-cli"
