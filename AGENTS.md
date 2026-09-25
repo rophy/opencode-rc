@@ -55,7 +55,7 @@ cd vendor/opencode && bun install
 cd ui && bun install && bun run build
 ```
 
-Output: `ui/dist/` — static SPA served by the web server via `WEBUI_DIR`.
+Output: `ui/dist/` — static SPA served by the API server via `WEBUI_DIR`.
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 

@@ -2,7 +2,7 @@
 
 Remote control for [OpenCode](https://github.com/anomalyco/opencode) in corporate environments.
 
-OpenCode RC lets developers run OpenCode on their machines while accessing it from a browser through a centralized web server with OIDC authentication. A reverse WebSocket tunnel means dev machines don't need inbound network access — they connect outward to the gateway.
+OpenCode RC lets developers run OpenCode on their machines while accessing it from a browser through a centralized API server with OIDC authentication. A reverse WebSocket tunnel means dev machines don't need inbound network access — they connect outward to the gateway.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ flowchart LR
 
 1. Developer runs `opencode-rc` CLI — it authenticates via OIDC, starts `opencode serve`, and opens a WebSocket tunnel to the gateway
 2. The gateway registers the session in Redis and multiplexes browser traffic through the tunnel
-3. The web server authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the gateway
+3. The API server authenticates browser users via OIDC, looks up sessions in Redis, and proxies requests through the gateway
 4. The web UI provides a session picker and wraps the OpenCode web interface
 
 ## Components

@@ -68,8 +68,8 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 2. CLI authenticates via OIDC (opens browser), starts `opencode serve`, connects tunnel to gateway
 3. Gateway registers the session in Redis
 4. User opens the web UI in a browser, authenticates via OIDC
-5. Web server shows the session picker with the user's active sessions
-6. User clicks a session — web server proxies all requests through gateway tunnel to the dev machine
+5. API server shows the session picker with the user's active sessions
+6. User clicks a session — API server proxies all requests through gateway tunnel to the dev machine
 7. User interacts with the OpenCode agent through the standard web UI
 
 ## URL Routing
