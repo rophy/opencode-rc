@@ -50,6 +50,7 @@ up: ## Create kind cluster and deploy e2e environment
 		if [ "$$i" -eq 120 ]; then \
 			echo "ERROR: tunnel not established after 240s"; \
 			$(KUBECTL) logs deployment/opencode-rc-api --tail=30; \
+			$(KUBECTL) logs deployment/opencode-rc-ui --tail=30; \
 			$(KUBECTL) logs deployment/opencode-rc-gateway --tail=30; \
 			$(KUBECTL) logs deployment/dev-machine --tail=30; \
 			exit 1; \
@@ -74,6 +75,7 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 		echo ""; \
 		echo "=== Logs on failure ==="; \
 		$(KUBECTL) logs deployment/opencode-rc-api --tail=50 || true; \
+		$(KUBECTL) logs deployment/opencode-rc-ui --tail=50 || true; \
 		$(KUBECTL) logs deployment/opencode-rc-gateway --tail=50 || true; \
 		$(KUBECTL) logs deployment/dev-machine --tail=50 || true; \
 	fi; \

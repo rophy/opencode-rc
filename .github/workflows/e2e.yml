@@ -109,6 +109,7 @@ jobs:
         if: failure()
         run: |
           kubectl logs deployment/opencode-rc-api --tail=50 || true
+          kubectl logs deployment/opencode-rc-ui --tail=50 || true
           kubectl logs deployment/opencode-rc-gateway --tail=50 || true
           kubectl logs deployment/dev-machine --tail=50 || true
           kubectl logs deployment/tls-test-trusted --tail=20 || true
