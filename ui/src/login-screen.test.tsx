@@ -100,6 +100,20 @@ describe("LoginScreen", () => {
     await vi.waitFor(() => expect(screen.getByText("Sign-in failed, try again")).toBeTruthy())
   })
 
+  it("ignores a second click while sign-in is in flight", async () => {
+    let resolveLogin: (value: "ok" | "failed" | "cancelled") => void = () => {}
+    const loginPromise = new Promise<"ok" | "failed" | "cancelled">((resolve) => {
+      resolveLogin = resolve
+    })
+    const loginSpy = vi.spyOn(auth, "login").mockReturnValue(loginPromise)
+    render(() => <LoginScreen onSettings={vi.fn()} />)
+    const button = screen.getByText("Sign in with OIDC")
+    await fireEvent.click(button)
+    await fireEvent.click(button)
+    resolveLogin("ok")
+    await vi.waitFor(() => expect(loginSpy).toHaveBeenCalledOnce())
+  })
+
   it("stays quiet when sign-in is cancelled", async () => {
     vi.spyOn(auth, "login").mockResolvedValue("cancelled")
     const onLoggedIn = vi.fn()

@@ -4,11 +4,18 @@ import { login } from "./auth"
 
 export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () => void; expired?: boolean }> = (props) => {
   const [failed, setFailed] = createSignal(false)
+  const [pending, setPending] = createSignal(false)
   const signIn = async () => {
+    if (pending()) return
+    setPending(true)
     setFailed(false)
-    const result = await login()
-    if (result === "ok") props.onLoggedIn?.()
-    else if (result === "failed") setFailed(true)
+    try {
+      const result = await login()
+      if (result === "ok") props.onLoggedIn?.()
+      else if (result === "failed") setFailed(true)
+    } finally {
+      setPending(false)
+    }
   }
   return (
     <div class="flex flex-1 flex-col items-center bg-v2-background-bg-base">
@@ -33,7 +40,8 @@ export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () =>
 
         <button
           onClick={() => void signIn()}
-          class="inline-flex items-center gap-2 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-4 py-2 text-[13px] font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-hover cursor-pointer"
+          disabled={pending()}
+          class="inline-flex items-center gap-2 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-4 py-2 text-[13px] font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-hover cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
             <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2.5a2 2 0 110 4 2 2 0 010-4zm0 9.5a5.5 5.5 0 01-4.24-2c.02-1.4 2.83-2.17 4.24-2.17s4.22.78 4.24 2.17A5.5 5.5 0 018 13z" fill="currentColor" opacity="0.5" />
