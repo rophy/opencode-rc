@@ -107,22 +107,39 @@ OIDC Redirect URI — explicit value, or auto-derived from api ingress, or fallb
 {{- end }}
 
 {{/*
-Public URL of a component: https://<host> with ingress+TLS, http://<host> with ingress,
-else the in-cluster service URL.
+Public URL of a component: <component>.publicUrl if set (trailing slash trimmed),
+else https://<host> with ingress+TLS, http://<host> with ingress, else the in-cluster service URL.
 */}}
+{{- define "opencode-rc.apiServiceUrl" -}}
+http://{{ include "opencode-rc.fullname" . }}-api:8080
+{{- end -}}
+
 {{- define "opencode-rc.apiPublicUrl" -}}
-{{- if and .Values.api.ingress.enabled .Values.api.ingress.host -}}
+{{- if .Values.api.publicUrl -}}
+{{ trimSuffix "/" .Values.api.publicUrl }}
+{{- else if and .Values.api.ingress.enabled .Values.api.ingress.host -}}
 {{ if .Values.api.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.api.ingress.host }}
 {{- else -}}
-http://{{ include "opencode-rc.fullname" . }}-api:8080
+{{ include "opencode-rc.apiServiceUrl" . }}
 {{- end -}}
 {{- end -}}
 
 {{- define "opencode-rc.uiPublicUrl" -}}
-{{- if and .Values.ui.ingress.enabled .Values.ui.ingress.host -}}
+{{- if .Values.ui.publicUrl -}}
+{{ trimSuffix "/" .Values.ui.publicUrl }}
+{{- else if and .Values.ui.ingress.enabled .Values.ui.ingress.host -}}
 {{ if .Values.ui.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.ui.ingress.host }}
 {{- else -}}
 http://{{ include "opencode-rc.fullname" . }}-ui:8080
+{{- end -}}
+{{- end -}}
+
+{{/*
+A browser-facing UI (ui.ingress enabled) needs an API URL the browser can reach.
+*/}}
+{{- define "opencode-rc.validateUiApiUrl" -}}
+{{- if and .Values.ui.enabled .Values.ui.ingress.enabled (eq (include "opencode-rc.apiPublicUrl" .) (include "opencode-rc.apiServiceUrl" .)) -}}
+{{- fail "the UI needs a browser-reachable API URL: enable api.ingress or set api.publicUrl" -}}
 {{- end -}}
 {{- end -}}
 

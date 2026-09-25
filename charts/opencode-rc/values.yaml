@@ -22,6 +22,9 @@ api:
   affinity: {}
   securityContext: {}
   containerSecurityContext: {}
+  # Browser-facing URL of the API (e.g. https://api.rc.example.com). Overrides the URL
+  # derived from api.ingress; set it when TLS is terminated before the ingress (load balancer).
+  publicUrl: ""
   service:
     type: ClusterIP
     nodePort: null
@@ -40,6 +43,9 @@ ui:
     repository: ghcr.io/rophy/opencode-rc/ui
     tag: "0.5.0"
     pullPolicy: IfNotPresent
+  # Browser-facing URL of the UI (e.g. https://rc.example.com). Overrides the URL derived
+  # from ui.ingress; set it when TLS is terminated before the ingress (load balancer).
+  publicUrl: ""
   replicas: 1
   resources: {}
   podAnnotations: {}

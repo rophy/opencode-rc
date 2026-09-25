@@ -1,4 +1,5 @@
 {{- if .Values.ui.enabled }}
+{{- include "opencode-rc.validateUiApiUrl" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

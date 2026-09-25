@@ -47,3 +47,33 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: uses api.publicUrl for API_URL, trimming a trailing slash
+    set:
+      api.publicUrl: https://api.rc.example.com/
+      api.ingress.enabled: true
+      api.ingress.host: api-internal.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_URL
+            value: https://api.rc.example.com
+
+  - it: fails when the ui is exposed but the api URL is the in-cluster service URL
+    set:
+      ui.ingress.enabled: true
+      ui.ingress.host: rc.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "the UI needs a browser-reachable API URL: enable api.ingress or set api.publicUrl"
+
+  - it: accepts an exposed ui when api.publicUrl is set
+    set:
+      ui.ingress.enabled: true
+      ui.ingress.host: rc.example.com
+      api.publicUrl: https://api.rc.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+

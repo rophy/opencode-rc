@@ -64,9 +64,16 @@ helm install opencode-rc ./charts/opencode-rc \
   --set oidc.issuer=https://sso.corp.example.com \
   --set oidc.clientId=opencode-rc \
   --set oidc.cliClientId=opencode-rc-cli \
-  --set oidc.redirectUri=https://opencode-rc.corp.example.com/auth/callback \
-  --set existingSecret=opencode-rc-secrets
+  --set existingSecret=opencode-rc-secrets \
+  --set api.ingress.enabled=true \
+  --set api.ingress.host=opencode-rc-api.corp.example.com \
+  --set api.publicUrl=https://opencode-rc-api.corp.example.com \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.host=opencode-rc.corp.example.com \
+  --set ui.publicUrl=https://opencode-rc.corp.example.com
 ```
+
+The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly, so both must be reachable from users' browsers. Public URLs are derived from each ingress (`https://<host>` when the ingress has `tls`, else `http://<host>`); set `api.publicUrl` / `ui.publicUrl` when that derivation is wrong — for example when TLS is terminated at a load balancer in front of an ingress without `tls`. The OIDC redirect URI defaults to `<api public URL>/auth/callback`.
 
 The `existingSecret` must contain:
 
@@ -84,16 +91,19 @@ The `existingSecret` must contain:
 | `oidc.issuer` | `""` | OIDC provider URL (required for production) |
 | `oidc.clientId` | `opencode-rc` | Web client ID (confidential) |
 | `oidc.cliClientId` | `opencode-rc-cli` | CLI client ID (public, PKCE) |
-| `oidc.redirectUri` | auto-derived | OAuth callback URL |
+| `oidc.redirectUri` | auto-derived | OAuth callback URL; defaults to `<api public URL>/auth/callback` |
 | `auth.accessTokenTTL` | `15m` | Access token lifetime |
 | `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |
 | `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `api.ingress.enabled` | `false` | Create Ingress for API server |
+| `api.ingress.host` | `""` | Hostname for the API Ingress |
+| `api.publicUrl` | `""` | Browser-facing API URL (e.g. `https://api.example.com`); overrides the URL derived from `api.ingress`. Required when the UI is exposed without an API ingress |
 | `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |
 | `ui.ingress.enabled` | `false` | Create Ingress for the UI |
 | `ui.ingress.host` | `""` | Hostname for the UI Ingress; must differ from `api.ingress.host` |
+| `ui.publicUrl` | `""` | Browser-facing UI URL (e.g. `https://rc.example.com`); overrides the URL derived from `ui.ingress`. Added to the API's allowed origins |
 | `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
@@ -129,7 +139,7 @@ Images to mirror:
 |-------|-----|
 | `ghcr.io/rophy/opencode-rc/api` | `0.6.0` |
 | `ghcr.io/rophy/opencode-rc/ui` | `0.5.0` |
-| `ghcr.io/rophy/opencode-rc/gateway` | `0.4.0` |
+| `ghcr.io/rophy/opencode-rc/gateway` | `0.6.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
 

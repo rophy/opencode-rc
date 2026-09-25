@@ -431,3 +431,47 @@ tests:
       - failedTemplate:
           errorMessage: "chart values web.* were renamed to api.* (see Upgrading to 0.6 in README)"
 
+  - it: uses api.publicUrl for the OIDC redirect URI
+    set:
+      api.publicUrl: https://api.rc.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://api.rc.example.com/auth/callback
+
+  - it: api.publicUrl takes precedence over the api ingress and loses its trailing slash
+    set:
+      api.publicUrl: https://api.rc.example.com/
+      api.ingress.enabled: true
+      api.ingress.host: api-internal.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://api.rc.example.com/auth/callback
+
+  - it: explicit oidc.redirectUri wins over api.publicUrl
+    set:
+      api.publicUrl: https://api.rc.example.com
+      oidc.redirectUri: https://other.example.com/auth/callback
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://other.example.com/auth/callback
+
+  - it: allows the ui.publicUrl origin (trailing slash trimmed)
+    set:
+      ui.publicUrl: https://rc.example.com/
+      ui.ingress.enabled: true
+      ui.ingress.host: rc-internal.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: https://rc.example.com
