@@ -60,7 +60,9 @@ spec:
               value: {{ include "opencode-rc.redirectUri" . | quote }}
             - name: OIDC_CLI_CLIENT_ID
               value: {{ .Values.oidc.cliClientId | quote }}
-            {{- include "opencode-rc.oidcOverrideEnv" . | nindent 12 }}
+            {{- with include "opencode-rc.oidcOverrideEnv" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             - name: TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

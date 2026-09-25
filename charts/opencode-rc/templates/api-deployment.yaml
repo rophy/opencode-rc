@@ -78,7 +78,9 @@ spec:
             - name: ALLOWED_ORIGINS
               value: {{ join "," . | quote }}
             {{- end }}
-            {{- include "opencode-rc.oidcOverrideEnv" . | nindent 12 }}
+            {{- with include "opencode-rc.oidcOverrideEnv" . }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
             {{- if .Values.tlsInsecureSkipVerify }}
             - name: TLS_INSECURE_SKIP_VERIFY
               value: "true"
