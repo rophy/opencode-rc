@@ -126,6 +126,15 @@ http://{{ include "opencode-rc.fullname" . }}-ui:8080
 {{- end -}}
 {{- end -}}
 
+{{/*
+Values web.* were renamed to api.* in 0.6; fail instead of silently ignoring them.
+*/}}
+{{- define "opencode-rc.validateNoLegacyWeb" -}}
+{{- if .Values.web -}}
+{{- fail "chart values web.* were renamed to api.* (see Upgrading to 0.6 in README)" -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "opencode-rc.validateHosts" -}}
 {{- if and .Values.ui.ingress.enabled .Values.api.ingress.enabled (eq .Values.ui.ingress.host .Values.api.ingress.host) -}}
 {{- fail "ui.ingress.host must differ from api.ingress.host: the API host must not serve the UI" -}}

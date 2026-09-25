@@ -354,7 +354,7 @@ tests:
             name: SESSION_TTL
             value: "7d"
 
-  - it: falls back to TTL defaults when auth values are missing (upgrade with --reuse-values)
+  - it: falls back to TTL defaults when auth is null
     set:
       auth: null
     asserts:
@@ -422,3 +422,12 @@ tests:
           content:
             name: ALLOWED_ORIGINS
           any: true
+
+  - it: fails on legacy web.* values renamed to api.*
+    set:
+      web.ingress.enabled: true
+      web.ingress.host: rc.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "chart values web.* were renamed to api.* (see Upgrading to 0.6 in README)"
+

@@ -1,4 +1,5 @@
 {{- include "opencode-rc.validateProduction" . -}}
+{{- include "opencode-rc.validateNoLegacyWeb" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -63,7 +64,6 @@ spec:
                   key: cookie-secret
             - name: COOKIE_SECURE
               value: {{ if eq .Values.profile "production" }}"true"{{ else }}"false"{{ end }}
-            {{- /* auth may be absent when upgrading a 0.5.x release with --reuse-values */}}
             {{- $auth := .Values.auth | default dict }}
             - name: ACCESS_TOKEN_TTL
               value: {{ dig "accessTokenTTL" "15m" $auth | quote }}

@@ -137,15 +137,33 @@ Images to mirror:
 
 0.6 splits the web UI out of the API server into its own image and host:
 
-- Chart values `web.*` were renamed to `api.*`.
-- Set `ui.ingress.host` to a hostname **different** from `api.ingress.host` — `helm template` fails if both ingresses are enabled with the same host.
+- Chart values `web.*` were renamed to `api.*`. The chart fails (`chart values web.* were renamed to api.*`) if any `web.*` value is still set, instead of silently ignoring it.
+- The UI needs its own host: set `ui.ingress.enabled` and `ui.ingress.host` to a hostname **different** from `api.ingress.host` — `helm template` fails if both ingresses are enabled with the same host.
 - The API host no longer serves the UI. Old bookmarks pointing at the API host (e.g. `/`, `/s/<session>/`) now return `404`; point users at the UI host instead.
-- Because chart value keys were renamed, upgrade with `helm upgrade --reset-then-reuse-values` (or pass a full values file) rather than `--reuse-values`.
+- Air-gapped mirrors: mirror the new `ghcr.io/rophy/opencode-rc/api` and `ghcr.io/rophy/opencode-rc/ui` images instead of `ghcr.io/rophy/opencode-rc/web` (see the table above).
 - Everyone is logged out once: bearer tokens issued before the upgrade are invalidated.
+
+The simplest upgrade is a full values file: export the current values, rename the top-level `web:` key to `api:`, add a `ui:` section, and upgrade without reusing values:
+
+```bash
+helm get values opencode-rc -o yaml > values.yaml
+# edit values.yaml: rename `web:` to `api:`, then add
+#   ui:
+#     ingress:
+#       enabled: true
+#       host: opencode-rc.corp.example.com
+helm upgrade opencode-rc ./charts/opencode-rc -f values.yaml
+```
+
+Alternatively, with Helm 3.14+ use `--reset-then-reuse-values` and move each `web.*` value you had set to `api.*` explicitly, removing the old keys with `--set web=null` (plain `--reuse-values` does not pick up the new chart defaults and must not be used):
 
 ```bash
 helm upgrade opencode-rc ./charts/opencode-rc --reset-then-reuse-values \
-  --set ui.ingress.host=opencode-rc-ui.corp.example.com
+  --set web=null \
+  --set api.ingress.enabled=true \
+  --set api.ingress.host=opencode-rc-api.corp.example.com \
+  --set ui.ingress.enabled=true \
+  --set ui.ingress.host=opencode-rc.corp.example.com
 ```
 
 ## CLI Usage
