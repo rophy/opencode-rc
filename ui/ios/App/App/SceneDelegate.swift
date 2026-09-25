@@ -2,6 +2,10 @@ import UIKit
 import Capacitor
 
 class SafeAreaViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(SystemAuthPlugin())
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         guard let webView = self.webView else { return }
