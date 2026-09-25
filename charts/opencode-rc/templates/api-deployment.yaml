@@ -69,7 +69,11 @@ spec:
               value: {{ dig "accessTokenTTL" "15m" $auth | quote }}
             - name: SESSION_TTL
               value: {{ dig "sessionTTL" "7d" $auth | quote }}
-            {{- with (dig "allowedOrigins" list $auth) }}
+            {{- $origins := dig "allowedOrigins" list $auth }}
+            {{- if .Values.ui.enabled }}
+            {{- $origins = prepend $origins (include "opencode-rc.uiPublicUrl" .) }}
+            {{- end }}
+            {{- with $origins }}
             - name: ALLOWED_ORIGINS
               value: {{ join "," . | quote }}
             {{- end }}

@@ -8,6 +8,15 @@ API URL: http{{ if .Values.api.ingress.tls }}s{{ end }}://{{ .Values.api.ingress
 API: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-api 8080:8080
 {{- end }}
 
+{{- if .Values.ui.enabled }}
+{{- if .Values.ui.ingress.enabled }}
+UI URL: {{ include "opencode-rc.uiPublicUrl" . }}
+{{- else }}
+UI URL: {{ include "opencode-rc.uiPublicUrl" . }}
+UI: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-ui 8081:8080
+{{- end }}
+{{- end }}
+
 {{- if .Values.gateway.ingress.enabled }}
 Gateway URL: http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}
 {{- else }}

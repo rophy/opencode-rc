@@ -1,0 +1,18 @@
+suite: ui service
+templates:
+  - templates/ui-service.yaml
+tests:
+  - it: exposes port 8080
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-ui
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+  - it: is not rendered when ui is disabled
+    set:
+      ui.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

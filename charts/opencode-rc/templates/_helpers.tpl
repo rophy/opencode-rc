@@ -101,16 +101,36 @@ OIDC Redirect URI — explicit value, or auto-derived from api ingress, or fallb
 {{- define "opencode-rc.redirectUri" -}}
 {{- if .Values.oidc.redirectUri -}}
   {{- .Values.oidc.redirectUri -}}
-{{- else if and .Values.api.ingress.enabled .Values.api.ingress.host -}}
-  {{- if .Values.api.ingress.tls -}}
-    https://{{ .Values.api.ingress.host }}/auth/callback
-  {{- else -}}
-    http://{{ .Values.api.ingress.host }}/auth/callback
-  {{- end -}}
 {{- else -}}
-  http://{{ include "opencode-rc.fullname" . }}-api:8080/auth/callback
+  {{- include "opencode-rc.apiPublicUrl" . }}/auth/callback
 {{- end -}}
 {{- end }}
+
+{{/*
+Public URL of a component: https://<host> with ingress+TLS, http://<host> with ingress,
+else the in-cluster service URL.
+*/}}
+{{- define "opencode-rc.apiPublicUrl" -}}
+{{- if and .Values.api.ingress.enabled .Values.api.ingress.host -}}
+{{ if .Values.api.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.api.ingress.host }}
+{{- else -}}
+http://{{ include "opencode-rc.fullname" . }}-api:8080
+{{- end -}}
+{{- end -}}
+
+{{- define "opencode-rc.uiPublicUrl" -}}
+{{- if and .Values.ui.ingress.enabled .Values.ui.ingress.host -}}
+{{ if .Values.ui.ingress.tls }}https{{ else }}http{{ end }}://{{ .Values.ui.ingress.host }}
+{{- else -}}
+http://{{ include "opencode-rc.fullname" . }}-ui:8080
+{{- end -}}
+{{- end -}}
+
+{{- define "opencode-rc.validateHosts" -}}
+{{- if and .Values.ui.ingress.enabled .Values.api.ingress.enabled (eq .Values.ui.ingress.host .Values.api.ingress.host) -}}
+{{- fail "ui.ingress.host must differ from api.ingress.host: the API host must not serve the UI" -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Validation — production profile checks.

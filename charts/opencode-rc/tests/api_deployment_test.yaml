@@ -379,7 +379,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: ALLOWED_ORIGINS
-            value: "https://a.example.com,https://b.example.com"
+            value: "http://RELEASE-NAME-opencode-rc-ui:8080,https://a.example.com,https://b.example.com"
 
   - it: does not set COOKIE_DOMAIN
     asserts:
@@ -387,4 +387,38 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: COOKIE_DOMAIN
+          any: true
+
+  - it: allows the ui origin (service URL) by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: http://RELEASE-NAME-opencode-rc-ui:8080
+
+  - it: allows the ui ingress origin plus extra origins
+    set:
+      ui.ingress.enabled: true
+      ui.ingress.host: rc.example.com
+      ui.ingress.tls:
+        - hosts: [rc.example.com]
+          secretName: ui-tls
+      auth.allowedOrigins:
+        - https://other.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: https://rc.example.com,https://other.example.com
+
+  - it: omits ALLOWED_ORIGINS when ui is disabled and no extras are set
+    set:
+      ui.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
           any: true

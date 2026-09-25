@@ -1,0 +1,49 @@
+suite: ui deployment
+templates:
+  - templates/ui-deployment.yaml
+tests:
+  - it: renders the ui deployment with the api URL from the service
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc-ui
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/rophy/opencode-rc/ui:0.5.0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_URL
+            value: http://RELEASE-NAME-opencode-rc-api:8080
+
+  - it: uses https api URL when the api ingress has TLS
+    set:
+      api.ingress.enabled: true
+      api.ingress.host: api.rc.example.com
+      api.ingress.tls:
+        - hosts: [api.rc.example.com]
+          secretName: api-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_URL
+            value: https://api.rc.example.com
+
+  - it: uses http api URL when the api ingress has no TLS
+    set:
+      api.ingress.enabled: true
+      api.ingress.host: api.rc.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_URL
+            value: http://api.rc.example.com
+
+  - it: is not rendered when ui is disabled
+    set:
+      ui.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
