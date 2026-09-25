@@ -21,7 +21,17 @@ Custom Tabs on Android), not in its WebView: it opens
 `<api>/auth/start?return_to=com.opencode.rc:/auth/done`, the IdP may use any hosts,
 and the API finally redirects to `com.opencode.rc:/auth/done#code=…`, which the
 system hands back to the app. The app exchanges the code together with its
-verifier for tokens, so a code captured by another app is useless.
+verifier for tokens, so a callback stolen from this app's own login attempt is
+useless.
+
+Residual risk: a malicious app on the device can start its own login with its own
+verifier and register to receive the callback (iOS lets any app supply a matching
+`callbackURLScheme`; on Android another app can register the same custom scheme).
+With an active IdP session, that flow would complete and hand the malicious app
+tokens for the user — the verifier only protects flows the real app started (RFC
+8252 section 8.6). The same exposure existed with the previous `capacitor://`
+`return_to`. Mitigation would be claimed https redirects (Universal Links / App
+Links), currently a non-goal.
 
 The WebView loads only the bundled app (`allowNavigation: []`); every other link
 opens in Safari (Android: the default browser). API calls (`fetch`, WebSockets)

@@ -49,8 +49,10 @@ system browser.
 6. `login()` reads `code` from the fragment and posts `{ code, code_verifier }` to
    `/auth/token`, storing the tokens as today.
 
-A stolen callback (another app claiming the scheme) is useless: the login code only
-redeems together with the verifier, which never leaves the app.
+A callback stolen from *this* login attempt (another app claiming the scheme and
+receiving the app's own callback) is useless: the login code only redeems together
+with the verifier, which never leaves the app. See "Residual risks" below for the
+case where the other app starts its own login instead of stealing this one.
 
 ## Components
 
@@ -110,6 +112,18 @@ Only one login may be pending; a second `start` rejects the first with `cancelle
 | Callback without `code` | Login error shown |
 | `/auth/token` rejects the code (expired, wrong verifier) | Login error shown |
 | `return_to` not exactly `APP_CALLBACK` and not an allowed web origin/path | `/auth/start` returns 400 |
+
+## Residual risks
+
+A malicious app installed on the device can start its own login (with its own code
+verifier) and register to receive the callback: iOS lets any app supply a matching
+`callbackURLScheme` to `ASWebAuthenticationSession`, and on Android another app can
+register the same custom scheme. If the user has an active IdP session, that
+malicious app's login completes and it obtains tokens for the user. The verifier
+only protects flows the real app started (RFC 8252 section 8.6); it does not stop
+a different app from starting its own flow. The same exposure existed with the
+previous `capacitor://` `return_to`. Mitigation would be claimed https redirects
+(Universal Links / App Links), which is currently a non-goal.
 
 ## Testing
 

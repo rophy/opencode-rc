@@ -141,7 +141,7 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 | `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match the gateway. Falls back to `COOKIE_SECRET` |
 | `ACCESS_TOKEN_TTL` | No | Access token lifetime (default: `15m`; units `s`, `m`, `h`, `d`) |
 | `SESSION_TTL` | No | Absolute refresh-token chain lifetime from login (default: `7d`) |
-| `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS (`capacitor://localhost` and `https://localhost` are always allowed) |
+| `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS. The mobile app's WebView origins (`capacitor://localhost`, `https://localhost`) are always allowed for CORS only; the app signs in with the fixed `return_to` `com.opencode.rc:/auth/done` |
 | `COOKIE_SECURE` | No | Set to `false` for HTTP; applies to the short-lived login cookies only (default: `true`) |
 | `REDIS_URL` | Yes | Redis connection URL |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
