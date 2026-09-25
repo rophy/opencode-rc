@@ -17,7 +17,9 @@ spec:
   gateways:
     {{- toYaml .Values.expose.virtualService.gateways | nindent 4 }}
   http:
-    # Long-lived CLI WebSocket tunnel.
+    # Istio route timeouts are disabled by default, so the long-lived CLI tunnel, SSE streams
+    # and terminal WebSockets need no timeout override (and `timeout: 0s` is rejected by
+    # Istio before 1.22).
     - match:
         - uri:
             exact: /tunnel
@@ -26,17 +28,6 @@ spec:
             host: {{ $fullname }}-gateway
             port:
               number: 9090
-      timeout: 0s
-    # SSE streams and terminal WebSockets.
-    - match:
-        - uri:
-            prefix: /proxy/
-      route:
-        - destination:
-            host: {{ $fullname }}-api
-            port:
-              number: 8080
-      timeout: 0s
     - route:
         - destination:
             host: {{ $fullname }}-api

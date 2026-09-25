@@ -38,7 +38,7 @@ tests:
       - isAPIVersion:
           of: networking.istio.io/v1beta1
 
-  - it: routes /tunnel to the gateway, /proxy/ and the rest to the api, in that order
+  - it: routes /tunnel to the gateway and the rest to the api, with no route timeout
     documentIndex: 0
     asserts:
       - equal:
@@ -61,16 +61,6 @@ tests:
                     host: RELEASE-NAME-opencode-rc-gateway
                     port:
                       number: 9090
-              timeout: 0s
-            - match:
-                - uri:
-                    prefix: /proxy/
-              route:
-                - destination:
-                    host: RELEASE-NAME-opencode-rc-api
-                    port:
-                      number: 8080
-              timeout: 0s
             - route:
                 - destination:
                     host: RELEASE-NAME-opencode-rc-api
