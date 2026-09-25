@@ -1,8 +1,15 @@
-import { type Component, Show } from "solid-js"
+import { type Component, Show, createSignal } from "solid-js"
 import { isPreConfigured } from "./api"
 import { login } from "./auth"
 
-export const LoginScreen: Component<{ onSettings: () => void; expired?: boolean }> = (props) => {
+export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () => void; expired?: boolean }> = (props) => {
+  const [failed, setFailed] = createSignal(false)
+  const signIn = async () => {
+    setFailed(false)
+    const result = await login()
+    if (result === "ok") props.onLoggedIn?.()
+    else if (result === "failed") setFailed(true)
+  }
   return (
     <div class="flex flex-1 flex-col items-center bg-v2-background-bg-base">
       <div class="w-full max-w-lg px-6 pt-16 pb-8 text-center">
@@ -20,8 +27,12 @@ export const LoginScreen: Component<{ onSettings: () => void; expired?: boolean 
           <p class="text-13-regular text-red-500 mb-4">Sign-in expired, try again</p>
         </Show>
 
+        <Show when={failed()}>
+          <p class="text-13-regular text-red-500 mb-4">Sign-in failed, try again</p>
+        </Show>
+
         <button
-          onClick={() => void login()}
+          onClick={() => void signIn()}
           class="inline-flex items-center gap-2 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-4 py-2 text-[13px] font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-hover cursor-pointer"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

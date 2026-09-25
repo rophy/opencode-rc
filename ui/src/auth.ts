@@ -1,9 +1,17 @@
+import { Capacitor } from "@capacitor/core"
 import { apiUrl, getBaseUrl } from "./server"
 import { sha256 } from "./sha256"
+import { SystemAuth } from "./system-auth"
 
 export const REFRESH_KEY = "opencode-rc-refresh"
 export const VERIFIER_KEY = "opencode-rc-login-verifier"
 const EARLY_REFRESH_MS = 30_000
+
+// The mobile app's sign-in callback; must match APP_CALLBACK in api/src/origins.ts.
+export const APP_CALLBACK_SCHEME = "com.opencode.rc"
+export const APP_CALLBACK = `${APP_CALLBACK_SCHEME}:/auth/done`
+
+export type LoginResult = "redirected" | "ok" | "cancelled" | "failed"
 
 export interface TokenResponse {
   access_token: string
@@ -164,17 +172,60 @@ async function codeChallenge(verifier: string): Promise<string> {
   return base64url(await sha256(new TextEncoder().encode(verifier)))
 }
 
-export async function login(): Promise<void> {
+function codeFromFragment(url: string): string | null {
+  const match = url.match(/#(?:.*&)?code=([^&]+)/)
+  if (!match) return null
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return null
+  }
+}
+
+async function exchangeCode(code: string, verifier: string): Promise<boolean> {
+  try {
+    const res = await postJson("/auth/token", { code, code_verifier: verifier })
+    if (!res.ok) return false
+    save((await res.json()) as TokenResponse)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Native apps sign in through the system browser (RFC 8252): the WebView never leaves
+// the app, so the verifier stays in memory.
+async function nativeLogin(verifier: string, challenge: string): Promise<LoginResult> {
+  if (!getBaseUrl()) return "failed"
+  let callback: string
+  try {
+    const result = await SystemAuth.start({
+      url: apiUrl(`/auth/start?return_to=${encodeURIComponent(APP_CALLBACK)}&code_challenge=${challenge}`),
+      callbackScheme: APP_CALLBACK_SCHEME,
+    })
+    callback = result.url
+  } catch (err) {
+    return (err as { code?: string } | null)?.code === "cancelled" ? "cancelled" : "failed"
+  }
+  const code = codeFromFragment(callback)
+  if (!code) return "failed"
+  return (await exchangeCode(code, verifier)) ? "ok" : "failed"
+}
+
+export async function login(): Promise<LoginResult> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)))
-  saveVerifier(verifier)
   const challenge = await codeChallenge(verifier)
-  // Served by the server itself: return to a path. Otherwise (the app): absolute URL.
+  if (Capacitor.isNativePlatform()) return nativeLogin(verifier, challenge)
+
+  saveVerifier(verifier)
+  // Served by the server itself: return to a path. Otherwise (separate UI host): absolute URL.
   const returnTo = getBaseUrl()
     ? window.location.href.split("#")[0]
     : window.location.pathname + window.location.search
   window.location.href = apiUrl(
     `/auth/start?return_to=${encodeURIComponent(returnTo)}&code_challenge=${challenge}`,
   )
+  return "redirected"
 }
 
 export async function completeLogin(): Promise<"none" | "ok" | "expired"> {
@@ -183,17 +234,13 @@ export async function completeLogin(): Promise<"none" | "ok" | "expired"> {
   window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search)
   const verifier = takeVerifier()
   if (!verifier) return "expired"
+  let code: string
   try {
-    const res = await postJson("/auth/token", {
-      code: decodeURIComponent(match[1]),
-      code_verifier: verifier,
-    })
-    if (!res.ok) return "expired"
-    save((await res.json()) as TokenResponse)
-    return "ok"
+    code = decodeURIComponent(match[1])
   } catch {
     return "expired"
   }
+  return (await exchangeCode(code, verifier)) ? "ok" : "expired"
 }
 
 export async function logout(): Promise<void> {

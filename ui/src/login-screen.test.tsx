@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest"
 import { render, screen, fireEvent, cleanup } from "@solidjs/testing-library"
 import { LoginScreen } from "./login-screen"
 import { loadConfig, resetConfig } from "./api"
+import * as auth from "./auth"
 
 beforeEach(() => {
   localStorage.clear()
@@ -81,5 +82,31 @@ describe("LoginScreen", () => {
   it("shows the expired notice", () => {
     render(() => <LoginScreen onSettings={() => {}} expired />)
     expect(screen.getByText("Sign-in expired, try again")).toBeTruthy()
+  })
+
+  it("calls onLoggedIn after a successful native sign-in", async () => {
+    vi.spyOn(auth, "login").mockResolvedValue("ok")
+    const onLoggedIn = vi.fn()
+    render(() => <LoginScreen onSettings={vi.fn()} onLoggedIn={onLoggedIn} />)
+    await fireEvent.click(screen.getByText("Sign in with OIDC"))
+    await vi.waitFor(() => expect(onLoggedIn).toHaveBeenCalledOnce())
+    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
+  })
+
+  it("shows an error when sign-in fails", async () => {
+    vi.spyOn(auth, "login").mockResolvedValue("failed")
+    render(() => <LoginScreen onSettings={vi.fn()} />)
+    await fireEvent.click(screen.getByText("Sign in with OIDC"))
+    await vi.waitFor(() => expect(screen.getByText("Sign-in failed, try again")).toBeTruthy())
+  })
+
+  it("stays quiet when sign-in is cancelled", async () => {
+    vi.spyOn(auth, "login").mockResolvedValue("cancelled")
+    const onLoggedIn = vi.fn()
+    render(() => <LoginScreen onSettings={vi.fn()} onLoggedIn={onLoggedIn} />)
+    await fireEvent.click(screen.getByText("Sign in with OIDC"))
+    await Promise.resolve()
+    expect(onLoggedIn).not.toHaveBeenCalled()
+    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
   })
 })

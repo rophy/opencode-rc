@@ -97,7 +97,7 @@ function App(props: { loginExpired: boolean }) {
         </div>
       </Match>
       <Match when={user.error || !user()}>
-        <LoginScreen onSettings={() => setShowConfig(true)} expired={props.loginExpired} />
+        <LoginScreen onSettings={() => setShowConfig(true)} onLoggedIn={() => refetchUser()} expired={props.loginExpired} />
       </Match>
       <Match when={user() && !sessionId}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
