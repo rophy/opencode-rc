@@ -40,10 +40,11 @@ flowchart LR
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| API Server | `api/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
+| API Server | `api/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway (serves no UI) |
 | Gateway | `gateway/` (Go) | WebSocket tunnel server, session registration, request multiplexing |
 | CLI | `cli/` (Node) | OIDC login via PKCE, starts opencode serve, maintains tunnel to gateway |
 | Web UI | `ui/` (SolidJS) | Session picker, user bar, wraps OpenCode's web interface |
+| UI Image | `ui/web/` (nginx) | Serves the built SPA on its own host, configured with the API URL at container start |
 
 ## Deploy with Helm
 
@@ -90,6 +91,9 @@ The `existingSecret` must contain:
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `api.ingress.enabled` | `false` | Create Ingress for API server |
+| `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |
+| `ui.ingress.enabled` | `false` | Create Ingress for the UI |
+| `ui.ingress.host` | `""` | Hostname for the UI Ingress; must differ from `api.ingress.host` |
 | `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
@@ -124,9 +128,25 @@ Images to mirror:
 | Image | Tag |
 |-------|-----|
 | `ghcr.io/rophy/opencode-rc/api` | `0.6.0` |
+| `ghcr.io/rophy/opencode-rc/ui` | `0.5.0` |
 | `ghcr.io/rophy/opencode-rc/gateway` | `0.4.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
+
+### Upgrading to 0.6
+
+0.6 splits the web UI out of the API server into its own image and host:
+
+- Chart values `web.*` were renamed to `api.*`.
+- Set `ui.ingress.host` to a hostname **different** from `api.ingress.host` — `helm template` fails if both ingresses are enabled with the same host.
+- The API host no longer serves the UI. Old bookmarks pointing at the API host (e.g. `/`, `/s/<session>/`) now return `404`; point users at the UI host instead.
+- Because chart value keys were renamed, upgrade with `helm upgrade --reset-then-reuse-values` (or pass a full values file) rather than `--reuse-values`.
+- Everyone is logged out once: bearer tokens issued before the upgrade are invalidated.
+
+```bash
+helm upgrade opencode-rc ./charts/opencode-rc --reset-then-reuse-values \
+  --set ui.ingress.host=opencode-rc-ui.corp.example.com
+```
 
 ## CLI Usage
 

@@ -40,7 +40,7 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 - Manages session cookies (HMAC-SHA256 signed)
 - Looks up active sessions in Redis
 - Proxies browser requests through the gateway's tunnel to dev machines
-- Serves the SPA (session picker + OpenCode web UI)
+- Serves no UI; every non-API path returns a JSON 404
 
 ### Gateway (`gateway/` — Go)
 
@@ -61,6 +61,12 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 - Session picker: lists the user's active sessions
 - User bar: shows logged-in user, logout, home navigation
 - Wraps the upstream OpenCode web interface for individual sessions
+
+### UI Image (`ui/web/` — nginx)
+
+- Serves the built SPA (`ui/dist`) on its own host, separate from the API
+- Writes `/config.json` (`{"serverUrl": "<API_URL>"}`) at container start from the `API_URL` env var
+- The SPA reads `/config.json` and calls the API cross-origin using bearer auth
 
 ## User Flow
 

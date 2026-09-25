@@ -3,10 +3,11 @@
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, SPA serving, proxy to gateway
+api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, proxy to gateway (serves no UI)
 gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
+ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf, runtime config)
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream OpenCode source (build dependency for ui/)
@@ -47,7 +48,7 @@ cd vendor/opencode && bun install
 cd ../../ui && bun install && bun run build
 ```
 
-Output: `ui/dist/` — static SPA served by the API server via `WEBUI_DIR`.
+Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
 ### UI Dev Server
 
@@ -138,7 +139,6 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 | `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS (`capacitor://localhost` and `https://localhost` are always allowed) |
 | `COOKIE_SECURE` | No | Set to `false` for HTTP; applies to the short-lived login cookies only (default: `true`) |
 | `REDIS_URL` | Yes | Redis connection URL |
-| `WEBUI_DIR` | No | Directory of the built UI (`ui/dist`) to serve |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
 
 ## Versioning

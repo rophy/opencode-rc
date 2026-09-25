@@ -6,8 +6,9 @@ Package the rc-web UI as a native iOS app using Capacitor for corporate distribu
 
 ## Architecture
 
-Capacitor wraps the rc-web SPA in a WKWebView. The app loads the gateway URL
-(e.g. `https://gateway.internal/`) — it does not bundle API endpoints.
+Capacitor wraps the rc-web SPA in a WKWebView. The app is configured with the
+API host (e.g. `https://api.internal/`), which serves no HTML — it does not
+bundle API endpoints.
 
 Login runs inside the WebView: the app sends the user to
 `/auth/start?return_to=capacitor://localhost/&code_challenge=…`, and after the IdP

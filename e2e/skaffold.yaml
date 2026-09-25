@@ -5,11 +5,16 @@ metadata:
 build:
   local:
     push: false
+    useBuildkit: true
   artifacts:
     - image: opencode-rc-api
       context: ..
       docker:
         dockerfile: api/Dockerfile
+    - image: opencode-rc-ui
+      context: ..
+      docker:
+        dockerfile: ui/web/Dockerfile
     - image: opencode-rc-gateway
       context: ..
       docker:
@@ -33,6 +38,7 @@ deploy:
         setValues:
           fullnameOverride: opencode-rc
           api.image.pullPolicy: Never
+          ui.image.pullPolicy: Never
           gateway.image.pullPolicy: Never
           oidcMock.image.pullPolicy: IfNotPresent
           redis.image.pullPolicy: IfNotPresent
@@ -40,6 +46,9 @@ deploy:
           api.image.registry: ""
           api.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
           api.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
+          ui.image.registry: ""
+          ui.image.repository: "{{.IMAGE_REPO_opencode_rc_ui}}"
+          ui.image.tag: "{{.IMAGE_TAG_opencode_rc_ui}}"
           gateway.image.registry: ""
           gateway.image.repository: "{{.IMAGE_REPO_opencode_rc_gateway}}"
           gateway.image.tag: "{{.IMAGE_TAG_opencode_rc_gateway}}"
@@ -47,7 +56,7 @@ profiles:
   - name: dev
     patches:
       - op: replace
-        path: /build/artifacts/1/docker/buildArgs
+        path: /build/artifacts/2/docker/buildArgs
         value: {}
       - op: replace
         path: /manifests/rawYaml

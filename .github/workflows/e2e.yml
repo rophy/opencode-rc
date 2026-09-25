@@ -81,6 +81,9 @@ jobs:
       - name: Wait for api
         run: kubectl wait --for=condition=Available deployment/opencode-rc-api --timeout=120s
 
+      - name: Wait for ui
+        run: kubectl wait --for=condition=Available deployment/opencode-rc-ui --timeout=120s
+
       - name: Wait for dev-machine
         run: kubectl wait --for=condition=Available deployment/dev-machine --timeout=120s
 
@@ -94,13 +97,13 @@ jobs:
             sleep 2
           done
           kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && API_URL=http://opencode-rc-api:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
+            "cd /e2e && API_URL=http://opencode-rc-api:8080 UI_URL=http://opencode-rc-ui:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run"
 
       - name: Run playwright e2e tests
         run: |
           DEV_POD=$(kubectl get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
           kubectl exec "$DEV_POD" -- sh -c \
-            "cd /e2e && API_URL=http://opencode-rc-api:8080 npx playwright test --config playwright.config.ts"
+            "cd /e2e && UI_URL=http://opencode-rc-ui:8080 npx playwright test --config playwright.config.ts"
 
       - name: Show logs on failure
         if: failure()

@@ -39,6 +39,7 @@ up: ## Create kind cluster and deploy e2e environment
 	@echo ""
 	@echo "=== Waiting for services ==="
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-api --timeout=120s
+	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-ui --timeout=120s
 	@$(KUBECTL) wait --for=condition=Available deployment/dev-machine --timeout=120s
 	@echo "Waiting for tunnel establishment..."
 	@for i in $$(seq 1 120); do \
@@ -64,11 +65,11 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	@DEV_POD=$$($(KUBECTL) get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}'); \
 	TEST_EXIT=0; \
 	$(KUBECTL) exec "$$DEV_POD" -- sh -c \
-		"cd /e2e && API_URL=http://opencode-rc-api:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$$?; \
+		"cd /e2e && API_URL=http://opencode-rc-api:8080 UI_URL=http://opencode-rc-ui:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$$?; \
 	echo ""; \
 	echo "=== Running playwright e2e tests ==="; \
 	$(KUBECTL) exec "$$DEV_POD" -- sh -c \
-		"cd /e2e && API_URL=http://opencode-rc-api:8080 npx playwright test --config playwright.config.ts" || TEST_EXIT=$$?; \
+		"cd /e2e && UI_URL=http://opencode-rc-ui:8080 npx playwright test --config playwright.config.ts" || TEST_EXIT=$$?; \
 	if [ "$$TEST_EXIT" -ne 0 ]; then \
 		echo ""; \
 		echo "=== Logs on failure ==="; \

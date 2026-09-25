@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import { createHash, randomBytes } from "node:crypto";
 
 const API_URL = process.env.API_URL ?? "http://opencode-rc-api:8080";
+const UI_URL = process.env.UI_URL ?? "http://opencode-rc-ui:8080";
 const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:9090";
 const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
@@ -118,11 +119,10 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("web / serves SPA", async () => {
+  it("web / serves no HTML", async () => {
     const res = await fetch(`${API_URL}/`);
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toContain("root");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type") ?? "").toContain("application/json");
   });
 
   it("OIDC login flow returns tokens", async () => {
@@ -206,9 +206,10 @@ describe("auth edge cases", () => {
     expect(body.error).toBe("unauthorized");
   });
 
-  it("unauthenticated / serves SPA (auth handled client-side)", async () => {
+  it("unauthenticated / serves no HTML", async () => {
     const res = await fetch(`${API_URL}/`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type") ?? "").toContain("application/json");
   });
 
   it("unauthenticated session proxy returns 401", async () => {
@@ -386,16 +387,52 @@ describe("session metadata", () => {
   });
 });
 
-describe("web UI serving", () => {
+describe("API and UI are separate hosts", () => {
   beforeAll(async () => {
     await waitFor("api", `${API_URL}/healthz`, 30);
+    await waitFor("ui", `${UI_URL}/healthz`, 30);
   });
 
-  it("session route serves the SPA without auth", async () => {
-    const res = await fetch(`${API_URL}/s/${SESSION_ID}/some/client/route`);
+  it("the API host serves no HTML", async () => {
+    for (const path of [
+      "/",
+      "/index.html",
+      `/s/${SESSION_ID}/`,
+      "/assets/app.js",
+      "/api/nope",
+      "/auth/nope",
+      "/gateway/nope",
+    ]) {
+      const res = await fetch(`${API_URL}${path}`);
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type") ?? "").toContain("application/json");
+    }
+  });
+
+  it("the UI host serves the SPA for client routes", async () => {
+    const res = await fetch(`${UI_URL}/s/${SESSION_ID}/some/client/route`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("text/html");
     expect(await res.text()).toContain("<html");
+  });
+
+  it("the UI is configured with the API URL", async () => {
+    const res = await fetch(`${UI_URL}/config.json`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ serverUrl: API_URL });
+  });
+
+  it("the API allows the UI origin", async () => {
+    const res = await fetch(`${API_URL}/api/me`, {
+      method: "OPTIONS",
+      headers: {
+        origin: UI_URL,
+        "access-control-request-method": "GET",
+        "access-control-request-headers": "authorization",
+      },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe(UI_URL);
   });
 });
 
