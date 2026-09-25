@@ -1,46 +1,52 @@
-name: API
+name: UI
 
 on:
   push:
     branches: [main]
     paths:
-      - 'api/**'
-      - '.github/workflows/api.yml'
+      - 'ui/**'
+      - 'vendor/opencode'
+      - '.github/workflows/ui.yml'
   pull_request:
     paths:
-      - 'api/**'
-      - '.github/workflows/api.yml'
+      - 'ui/**'
+      - 'vendor/opencode'
+      - '.github/workflows/ui.yml'
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: api
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
-      - run: bun run test
+      - run: cd vendor/opencode && bun install --frozen-lockfile --ignore-scripts
+      - run: cd ui && bun install --frozen-lockfile && bun run test
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-      - name: Build api image
+      - name: Build ui image
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: api/Dockerfile
+          file: ui/web/Dockerfile
           push: false
-          tags: opencode-rc-api:test
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
+          load: true
+          tags: opencode-rc-ui:test
+          cache-from: type=gha,scope=ui
+          cache-to: type=gha,mode=max,scope=ui
+      - name: Smoke test ui image
+        run: ui/web/smoke-test.sh opencode-rc-ui:test
 
   publish:
     needs: [test, build]
@@ -51,14 +57,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: true
 
       - name: Check if version exists on ghcr.io
         id: check
         run: |
-          VERSION=$(node -p "require('./api/package.json').version")
-          if docker manifest inspect ghcr.io/${{ github.repository }}/api:$VERSION > /dev/null 2>&1; then
+          VERSION=$(node -p "require('./ui/package.json').version")
+          if docker manifest inspect ghcr.io/${{ github.repository }}/ui:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "API $VERSION already exists, skipping publish"
+            echo "UI $VERSION already exists, skipping publish"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -76,23 +84,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push api
+      - name: Build and push ui
         if: steps.check.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: api/Dockerfile
+          file: ui/web/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/api:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/api:latest
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
+            ghcr.io/${{ github.repository }}/ui:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/ui:latest
+          cache-from: type=gha,scope=ui
+          cache-to: type=gha,mode=max,scope=ui
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag "api/${{ steps.check.outputs.version }}"
-          git push origin "api/${{ steps.check.outputs.version }}"
+          git tag "ui/${{ steps.check.outputs.version }}"
+          git push origin "ui/${{ steps.check.outputs.version }}"
