@@ -13,7 +13,7 @@ flowchart LR
         OC["opencode serve"]
     end
     subgraph K8s["Kubernetes"]
-        WEB["Web Server"]
+        WEB["API Server"]
         GW["Gateway"]
         REDIS["Redis"]
     end
@@ -40,7 +40,7 @@ flowchart LR
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| Web Server | `web/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
+| API Server | `api/` (TypeScript) | OIDC auth, session lookup, reverse proxy to gateway, serves web UI |
 | Gateway | `gateway/` (Go) | WebSocket tunnel server, session registration, request multiplexing |
 | CLI | `cli/` (Node) | OIDC login via PKCE, starts opencode serve, maintains tunnel to gateway |
 | Web UI | `ui/` (SolidJS) | Session picker, user bar, wraps OpenCode's web interface |
@@ -52,7 +52,7 @@ flowchart LR
 - Kubernetes cluster
 - An OIDC provider (Keycloak, Dex, Azure AD, etc.)
 - Two OIDC clients configured:
-  - **Web client** (confidential): for browser login via the web server. Redirect URI: `https://<web-host>/auth/callback`
+  - **API client** (confidential): for browser login via the API server. Redirect URI: `https://<api-host>/auth/callback`
   - **CLI client** (public): for developer CLI login via PKCE. Redirect URI: `http://127.0.0.1:0/callback`
 
 ### Install
@@ -89,7 +89,7 @@ The `existingSecret` must contain:
 | `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
-| `web.ingress.enabled` | `false` | Create Ingress for web server |
+| `api.ingress.enabled` | `false` | Create Ingress for API server |
 | `gateway.ingress.enabled` | `false` | Create Ingress for gateway |
 | `global.imageRegistry` | `""` | Override image registry for all components (e.g. `registry.corp.example.com`) |
 
@@ -123,7 +123,7 @@ Images to mirror:
 
 | Image | Tag |
 |-------|-----|
-| `ghcr.io/rophy/opencode-rc/web` | `0.4.0` |
+| `ghcr.io/rophy/opencode-rc/api` | `0.6.0` |
 | `ghcr.io/rophy/opencode-rc/gateway` | `0.4.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |

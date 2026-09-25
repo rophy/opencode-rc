@@ -8,7 +8,7 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-web/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, SPA serving, proxy to gateway
+api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, SPA serving, proxy to gateway
 gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
@@ -36,10 +36,10 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 
 ## Package Managers
 
-- `web/`, `ui/`, `vendor/opencode` — **bun** (`bun.lock`)
+- `api/`, `ui/`, `vendor/opencode` — **bun** (`bun.lock`)
 - `cli/` — **npm** (`package-lock.json`)
 
-Do not mix them: don't run `bun install` in `cli/` or `npm install` in `web/`/`ui/`.
+Do not mix them: don't run `bun install` in `cli/` or `npm install` in `api/`/`ui/`.
 
 ## Building
 
@@ -59,10 +59,10 @@ Output: `ui/dist/` — static SPA served by the web server via `WEBUI_DIR`.
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 
-### Web Server
+### API Server
 
 ```bash
-cd web && bun install && bun run src/index.ts
+cd api && bun install && bun run src/index.ts
 ```
 
 ### Gateway
@@ -104,7 +104,7 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
 
 The test environment deploys:
-- The Helm chart (web, gateway, redis, oidc-mock) with `local` profile
+- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 

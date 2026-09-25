@@ -58,7 +58,7 @@ up: ## Create kind cluster and deploy e2e environment
 	@echo ""
 	@echo "=== Cluster ready ==="
 
-# Coverage is collected from the Go gateway only; web is a Bun server covered by its vitest unit tests.
+# Coverage is collected from the Go gateway only; api is a Bun server covered by its vitest unit tests.
 e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	@echo "=== Running vitest e2e tests ==="
 	@DEV_POD=$$($(KUBECTL) get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}'); \

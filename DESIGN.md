@@ -34,7 +34,7 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 
 ## Components
 
-### Web Server (`web/` — TypeScript, Hono + Bun)
+### API Server (`api/` — TypeScript, Hono + Bun)
 
 - Authenticates browser users via OIDC (authorization code flow with confidential client)
 - Manages session cookies (HMAC-SHA256 signed)
@@ -89,7 +89,7 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 ## Key Design Decisions
 
 - **Reverse tunnel over direct proxy**: Dev machines connect outward, eliminating the need for inbound network access. This is essential for corporate environments with strict firewall rules.
-- **Two images, not one**: Web server (Bun) and gateway (Go) are separate containers. The web server handles auth and static serving; the gateway handles tunnel multiplexing. They scale independently.
-- **Redis as session store**: Shared state between web server and gateway. Gateway writes sessions; web server reads them. Enables horizontal scaling of both components.
+- **Two images, not one**: API server (Bun) and gateway (Go) are separate containers. The API server handles auth and static serving; the gateway handles tunnel multiplexing. They scale independently.
+- **Redis as session store**: Shared state between API server and gateway. Gateway writes sessions; API server reads them. Enables horizontal scaling of both components.
 - **HMAC-SHA256 cookies**: Simple, stateless cookie signing. Incompatible with the previous Go gorilla/securecookie format — upgrading requires a one-time re-login.
-- **Two OIDC clients**: Web uses a confidential client (server-side secret). CLI uses a public client with PKCE (no secret on dev machines).
+- **Two OIDC clients**: API uses a confidential client (server-side secret). CLI uses a public client with PKCE (no secret on dev machines).

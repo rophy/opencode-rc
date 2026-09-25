@@ -3,7 +3,7 @@
 ## Project Structure
 
 ```
-web/            # TypeScript (Hono + Bun) — web server: OIDC auth, dashboard, SPA serving, proxy to gateway
+api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, SPA serving, proxy to gateway
 gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
@@ -47,7 +47,7 @@ cd vendor/opencode && bun install
 cd ../../ui && bun install && bun run build
 ```
 
-Output: `ui/dist/` — static SPA served by the web server via `WEBUI_DIR`.
+Output: `ui/dist/` — static SPA served by the API server via `WEBUI_DIR`.
 
 ### UI Dev Server
 
@@ -78,16 +78,16 @@ E2e tests run on a kind cluster using Skaffold to build images and deploy the ac
 ```
 
 The test environment deploys:
-- The Helm chart (web, gateway, redis, oidc-mock) with `local` profile
+- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 
 Tests run inside the dev-machine pod via `kubectl exec`.
 
-### Web Server Unit Tests
+### API Server Unit Tests
 
 ```bash
-cd web && bun run test
+cd api && bun run test
 ```
 
 ### CLI Unit Tests
@@ -119,18 +119,18 @@ cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <n
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
 | `OIDC_CLIENT_ID` | Yes | CLI OAuth client ID (public, PKCE) |
 | `OIDC_REDIRECT_URI` | Yes | OAuth callback URL |
-| `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match web. Falls back to `COOKIE_SECRET` |
+| `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match api. Falls back to `COOKIE_SECRET` |
 | `REDIS_URL` | Yes | Redis connection URL |
 | `POD_IP` | Yes | Pod IP for session registration |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |
 
-## Web Environment Variables
+## API Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
-| `OIDC_CLIENT_ID` | Yes | Web OAuth client ID |
-| `OIDC_CLIENT_SECRET` | No | Web OAuth client secret |
+| `OIDC_CLIENT_ID` | Yes | API OAuth client ID |
+| `OIDC_CLIENT_SECRET` | No | API OAuth client secret |
 | `OIDC_REDIRECT_URI` | Yes | OAuth callback URL (`https://<host>/auth/callback`); its origin is always allowed |
 | `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match the gateway. Falls back to `COOKIE_SECRET` |
 | `ACCESS_TOKEN_TTL` | No | Access token lifetime (default: `15m`; units `s`, `m`, `h`, `d`) |
@@ -149,16 +149,16 @@ Each component is versioned independently. Only bump what changed.
 
 | Component | File | Field |
 |-----------|------|-------|
-| Web | `web/package.json` | `version` |
+| API | `api/package.json` | `version` |
 | UI | `ui/package.json` | `version` |
 | Gateway | `gateway/VERSION` | entire file (read at build time via ldflags) |
 | CLI | `cli/package.json` | `version` |
 | Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` |
-| Helm defaults | `charts/opencode-rc/values.yaml` | `web.image.tag` + `gateway.image.tag` |
+| Helm defaults | `charts/opencode-rc/values.yaml` | `api.image.tag` + `gateway.image.tag` |
 
 When bumping, update every location that references the changed version:
 
-- **Web or UI code changed** → bump `web/package.json`, `ui/package.json`, update `web.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
+- **API or UI code changed** → bump `api/package.json`, `ui/package.json`, update `api.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
 - **Gateway code changed** → bump `gateway/VERSION`, update `gateway.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
 - **Chart-only change** (no image rebuild) → bump chart version in `Chart.yaml`, image tags stay as-is
 - **CLI code changed** → bump `cli/package.json`
