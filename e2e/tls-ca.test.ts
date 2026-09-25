@@ -44,14 +44,14 @@ function waitForLogs(
 
 describe("extraCACerts TLS CA trust", () => {
   let gatewayImage: string;
-  let webImage: string;
+  let apiImage: string;
 
   beforeAll(() => {
     // Discover the image tags skaffold assigned to gateway and web
     gatewayImage = kubectl(
       "get deploy opencode-rc-gateway -o jsonpath={.spec.template.spec.containers[0].image}"
     );
-    webImage = kubectl(
+    apiImage = kubectl(
       "get deploy opencode-rc-api -o jsonpath={.spec.template.spec.containers[0].image}"
     );
 
@@ -158,7 +158,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ${webImage}
+          image: ${apiImage}
           env:
             - name: OIDC_ISSUER
               value: "https://https-trusted"
@@ -243,8 +243,8 @@ spec:
     expect(logs).not.toMatch(/x509|unable to verify|self.signed/i);
   });
 
-  it("web with NODE_EXTRA_CA_CERTS trusts private CA", () => {
-    const logs = waitForLogs("tls-test-web-trusted", /OIDC discovery complete|web starting/i);
+  it("api with NODE_EXTRA_CA_CERTS trusts private CA", () => {
+    const logs = waitForLogs("tls-test-web-trusted", /OIDC discovery complete|api starting/i);
     expect(logs).not.toMatch(
       /x509|unable to verify|self.signed|UNABLE_TO_VERIFY/i
     );

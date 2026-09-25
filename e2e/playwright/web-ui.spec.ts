@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
 
+const UI_ORIGIN = new URL(process.env.UI_URL || "http://opencode-rc-ui:8080").origin;
+
+// Login round-trips through the API host and the OIDC provider; it must end on the UI host.
+function expectOnUiHost(page: import("@playwright/test").Page) {
+  expect(new URL(page.url()).origin).toBe(UI_ORIGIN);
+}
+
 async function loginAs(page: import("@playwright/test").Page, name: string) {
   await page.goto("/");
   // SPA loads, detects 401 from /api/me, shows login screen
@@ -11,6 +18,7 @@ async function loginAs(page: import("@playwright/test").Page, name: string) {
   await page.locator("button.user-card", { hasText: name }).click();
   // After OIDC callback, lands on the session picker
   await page.waitForURL(/\/$/);
+  expectOnUiHost(page);
 }
 
 test.describe("authentication", () => {
@@ -121,6 +129,7 @@ test.describe("token session", () => {
     await page.waitForURL("**/authorize**");
     await page.locator("button.user-card", { hasText: "Alice" }).click();
     await page.waitForURL(/\/s\/alice-dev\//);
+    expectOnUiHost(page);
     // completeLogin() strips the "#code=" fragment via replaceState only after
     // exchanging it for tokens, a few ms after the URL first lands here.
     await page.waitForFunction(() => !location.hash.includes("code="));

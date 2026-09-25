@@ -107,7 +107,7 @@ describe("opencode-rc e2e", () => {
     await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
-  it("web /healthz returns ok", async () => {
+  it("api /healthz returns ok", async () => {
     const res = await fetch(`${API_URL}/healthz`);
     const body = await res.json();
     expect(body.status).toBe("ok");
@@ -119,7 +119,7 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("web / serves no HTML", async () => {
+  it("api / serves no HTML", async () => {
     const res = await fetch(`${API_URL}/`);
     expect(res.status).toBe(404);
     expect(res.headers.get("content-type") ?? "").toContain("application/json");
