@@ -14,6 +14,13 @@ tests:
           path: spec.rules[0].http.paths[0].backend.service.name
           value: RELEASE-NAME-opencode-rc-ui
 
+  - it: requires a host when enabled
+    set:
+      ui.ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "ui.ingress.host is required when ui.ingress.enabled is true"
+
   - it: refuses the same host as the api
     set:
       ui.ingress.enabled: true

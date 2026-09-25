@@ -20,7 +20,7 @@ spec:
     {{- toYaml .Values.ui.ingress.tls | nindent 4 }}
   {{- end }}
   rules:
-    - host: {{ .Values.ui.ingress.host }}
+    - host: {{ required "ui.ingress.host is required when ui.ingress.enabled is true" .Values.ui.ingress.host }}
       http:
         paths:
           - path: /

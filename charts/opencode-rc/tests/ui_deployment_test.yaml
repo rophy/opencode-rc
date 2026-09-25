@@ -77,3 +77,15 @@ tests:
       - hasDocuments:
           count: 1
 
+  - it: mounts an emptyDir at /tmp so a read-only root filesystem works
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
