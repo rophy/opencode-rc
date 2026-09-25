@@ -96,7 +96,7 @@ OIDC Issuer — explicit value, or oidc-mock service URL in local profile.
 {{- end }}
 
 {{/*
-OIDC Redirect URI — explicit value, or auto-derived from api ingress, or fallback to service.
+OIDC Redirect URI — explicit value, else <api public URL>/auth/callback (api.publicUrl, api ingress, or service).
 */}}
 {{- define "opencode-rc.redirectUri" -}}
 {{- if .Values.oidc.redirectUri -}}
