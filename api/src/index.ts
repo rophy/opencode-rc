@@ -80,7 +80,7 @@ if (config.webUiDir) {
   app.get("*", spaHandler(config.webUiDir));
 }
 
-console.log(`web starting version=${version} addr=:${config.port}`);
+console.log(`api starting version=${version} addr=:${config.port}`);
 
 export default {
   port: config.port,

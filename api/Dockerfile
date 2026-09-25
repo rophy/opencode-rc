@@ -11,9 +11,9 @@ RUN cd ui && OPENCODE_ROOT=/src/vendor/opencode bun run build
 
 FROM oven/bun:1-slim
 WORKDIR /app
-COPY web/package.json web/bun.lock* ./
+COPY api/package.json api/bun.lock* ./
 RUN bun install --production --frozen-lockfile 2>/dev/null || bun install --production
-COPY web/src/ src/
+COPY api/src/ src/
 COPY --from=ui /src/ui/dist /webui
 ENV WEBUI_DIR=/webui
 EXPOSE 8080

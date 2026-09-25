@@ -6,10 +6,10 @@ build:
   local:
     push: false
   artifacts:
-    - image: opencode-rc-web
+    - image: opencode-rc-api
       context: ..
       docker:
-        dockerfile: web/Dockerfile
+        dockerfile: api/Dockerfile
     - image: opencode-rc-gateway
       context: ..
       docker:
@@ -38,8 +38,8 @@ deploy:
           redis.image.pullPolicy: IfNotPresent
         setValueTemplates:
           web.image.registry: ""
-          web.image.repository: "{{.IMAGE_REPO_opencode_rc_web}}"
-          web.image.tag: "{{.IMAGE_TAG_opencode_rc_web}}"
+          web.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
+          web.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
           gateway.image.registry: ""
           gateway.image.repository: "{{.IMAGE_REPO_opencode_rc_gateway}}"
           gateway.image.tag: "{{.IMAGE_TAG_opencode_rc_gateway}}"

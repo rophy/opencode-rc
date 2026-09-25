@@ -13,8 +13,8 @@ unit-test: ## Run unit tests for all packages with coverage
 	@echo "=== Gateway (Go) ==="
 	@cd gateway && go test -cover ./...
 	@echo ""
-	@echo "=== Web (TypeScript) ==="
-	@cd web && npx vitest run --coverage
+	@echo "=== API (TypeScript) ==="
+	@cd api && npx vitest run --coverage
 	@echo ""
 	@echo "=== CLI (TypeScript) ==="
 	@cd cli && npx vitest run --coverage

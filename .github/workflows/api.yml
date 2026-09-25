@@ -1,19 +1,19 @@
-name: Web
+name: API
 
 on:
   push:
     branches: [main]
     paths:
-      - 'web/**'
+      - 'api/**'
       - 'ui/**'
       - 'vendor/opencode'
-      - '.github/workflows/web.yml'
+      - '.github/workflows/api.yml'
   pull_request:
     paths:
-      - 'web/**'
+      - 'api/**'
       - 'ui/**'
       - 'vendor/opencode'
-      - '.github/workflows/web.yml'
+      - '.github/workflows/api.yml'
   workflow_dispatch:
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: api
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -38,15 +38,15 @@ jobs:
           submodules: true
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-      - name: Build web image
+      - name: Build api image
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: web/Dockerfile
+          file: api/Dockerfile
           push: false
-          tags: opencode-rc-web:test
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          tags: opencode-rc-api:test
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
   publish:
     needs: [test, build]
@@ -63,10 +63,10 @@ jobs:
       - name: Check if version exists on ghcr.io
         id: check
         run: |
-          VERSION=$(node -p "require('./web/package.json').version")
-          if docker manifest inspect ghcr.io/${{ github.repository }}/web:$VERSION > /dev/null 2>&1; then
+          VERSION=$(node -p "require('./api/package.json').version")
+          if docker manifest inspect ghcr.io/${{ github.repository }}/api:$VERSION > /dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "Web $VERSION already exists, skipping publish"
+            echo "API $VERSION already exists, skipping publish"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -84,23 +84,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push web
+      - name: Build and push api
         if: steps.check.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: web/Dockerfile
+          file: api/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/web:${{ steps.check.outputs.version }}
-            ghcr.io/${{ github.repository }}/web:latest
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+            ghcr.io/${{ github.repository }}/api:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}/api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
       - name: Tag release
         if: steps.check.outputs.publish == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag "web/${{ steps.check.outputs.version }}"
-          git push origin "web/${{ steps.check.outputs.version }}"
+          git tag "api/${{ steps.check.outputs.version }}"
+          git push origin "api/${{ steps.check.outputs.version }}"

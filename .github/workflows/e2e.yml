@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'web/**'
+      - 'api/**'
       - 'gateway/**'
       - 'ui/**'
       - 'vendor/opencode'
@@ -14,7 +14,7 @@ on:
       - '.github/workflows/e2e.yml'
   pull_request:
     paths:
-      - 'web/**'
+      - 'api/**'
       - 'gateway/**'
       - 'ui/**'
       - 'vendor/opencode'

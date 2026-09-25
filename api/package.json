@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-rc/web",
+  "name": "@opencode-rc/api",
   "version": "0.6.0",
   "private": true,
   "type": "module",
