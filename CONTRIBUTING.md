@@ -56,7 +56,7 @@ Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and
 cd ui && bun run dev
 ```
 
-Proxies `/api`, `/auth`, `/gateway`, `/s`, `/healthz` to `localhost:12029`.
+Proxies `/api`, `/auth`, `/gateway`, `/proxy`, `/healthz` to `localhost:12029`.
 
 ## Running Tests
 
@@ -79,7 +79,7 @@ E2e tests run on a kind cluster using Skaffold to build images and deploy the ac
 ```
 
 The test environment deploys:
-- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
+- The Helm chart (api, ui, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 
@@ -154,14 +154,17 @@ Each component is versioned independently. Only bump what changed.
 | Gateway | `gateway/VERSION` | entire file (read at build time via ldflags) |
 | CLI | `cli/package.json` | `version` |
 | Helm chart | `charts/opencode-rc/Chart.yaml` | `version` + `appVersion` |
-| Helm defaults | `charts/opencode-rc/values.yaml` | `api.image.tag` + `gateway.image.tag` |
+| Helm defaults | `charts/opencode-rc/values.yaml` | `api.image.tag` + `ui.image.tag` + `gateway.image.tag` |
 
-When bumping, update every location that references the changed version:
+The API and UI are separate images with independent versions. When bumping, update every location that references the changed version:
 
-- **API or UI code changed** → bump `api/package.json`, `ui/package.json`, update `api.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
+- **API code changed** (`api/**`) → bump `api/package.json`, update `api.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
+- **UI code changed** (`ui/**`, `vendor/opencode`) → bump `ui/package.json`, update `ui.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`. The iOS and Android builds also consume `ui/dist`, so a UI change may need a mobile release too
 - **Gateway code changed** → bump `gateway/VERSION`, update `gateway.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
 - **Chart-only change** (no image rebuild) → bump chart version in `Chart.yaml`, image tags stay as-is
 - **CLI code changed** → bump `cli/package.json`
+
+The chart version is bumped whenever any pinned image tag in `values.yaml` changes.
 
 Follow [semver](https://semver.org/): patch for bug fixes, minor for new features, major for breaking changes.
 

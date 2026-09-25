@@ -105,7 +105,7 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
 
 The test environment deploys:
-- The Helm chart (api, gateway, redis, oidc-mock) with `local` profile
+- The Helm chart (api, ui, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
 

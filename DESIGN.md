@@ -80,22 +80,28 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 
 ## URL Routing
 
+The UI and the API are served from two different hosts.
+
+**UI host** (nginx, `ui` image): serves the built SPA (session picker + OpenCode web UI) and `/config.json`, which tells the SPA the API URL. It has no API routes.
+
+**API host** (`api` image): serves no HTML. Every path not listed below returns `404 {"error":"not found"}`.
+
 | Path | Handler | Auth |
 |------|---------|------|
 | `/healthz` | Health check | None |
-| `/auth/login` | OIDC login page | None |
-| `/auth/callback` | OIDC callback | None |
-| `/auth/logout` | Logout | None |
-| `/api/me` | Current user info | Cookie |
-| `/gateway/sessions` | List user's sessions | Cookie |
-| `/s/{sessionId}/*` | Proxy to dev machine via tunnel | Cookie |
-| `/assets/*` | SPA static assets | Cookie |
-| `/` | Session picker (SPA) | Cookie |
+| `/auth/start` | Start OIDC login (PKCE, `return_to` must be an allowed origin) | None |
+| `/auth/callback` | OIDC callback; redirects back to the UI with a one-time code | None |
+| `/auth/token` | Exchange the login code for access + refresh tokens | Login code + PKCE verifier |
+| `/auth/refresh` | Rotate the refresh token | Refresh token |
+| `/auth/logout` | Revoke the refresh token | Refresh token (optional) |
+| `/api/me` | Current user info | Bearer |
+| `/gateway/sessions` | List user's sessions | Bearer |
+| `/proxy/{sessionId}/*` | Proxy to dev machine via tunnel (HTTP + WebSocket) | Bearer |
 
 ## Key Design Decisions
 
 - **Reverse tunnel over direct proxy**: Dev machines connect outward, eliminating the need for inbound network access. This is essential for corporate environments with strict firewall rules.
-- **Two images, not one**: API server (Bun) and gateway (Go) are separate containers. The API server handles auth and static serving; the gateway handles tunnel multiplexing. They scale independently.
+- **Two images, not one**: API server (Bun) and gateway (Go) are separate containers. The API server handles auth and proxying (the UI is a separate static image on its own host); the gateway handles tunnel multiplexing. They scale independently.
 - **Redis as session store**: Shared state between API server and gateway. Gateway writes sessions; API server reads them. Enables horizontal scaling of both components.
 - **HMAC-SHA256 cookies**: Simple, stateless cookie signing. Incompatible with the previous Go gorilla/securecookie format — upgrading requires a one-time re-login.
 - **Two OIDC clients**: API uses a confidential client (server-side secret). CLI uses a public client with PKCE (no secret on dev machines).
