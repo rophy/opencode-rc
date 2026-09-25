@@ -2,7 +2,10 @@ import type { Handler, MiddlewareHandler } from "hono";
 import type { SessionStore, SessionMeta } from "./store.js";
 import type { AuthEnv } from "./auth.js";
 
-export type ProxyEnv = AuthEnv & { Variables: { session: SessionMeta } };
+// Under Bun, Hono's env is the Bun server.
+type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
+
+export type ProxyEnv = AuthEnv & ServerEnv & { Variables: { session: SessionMeta } };
 
 export function proxyRest(path: string, sessionId: string): string {
   const rest = path.slice(`/proxy/${sessionId}`.length).replace(/\/{2,}/g, "/");
@@ -66,6 +69,10 @@ export function proxyHttp(): Handler<ProxyEnv> {
     const out = new Headers(upstream.headers);
     for (const name of [...out.keys()]) {
       if (name.startsWith("access-control-")) out.delete(name);
+    }
+    // Bun closes connections idle for 10s, which would cut SSE streams between heartbeats.
+    if (out.get("content-type")?.startsWith("text/event-stream")) {
+      c.env?.timeout?.(c.req.raw, 0);
     }
     return new Response(upstream.body, { status: upstream.status, headers: out });
   };

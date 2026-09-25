@@ -76,4 +76,27 @@ describe("proxy routes", () => {
     expect(headers.get("origin")).toBeNull();
     expect(headers.get("host")).toBeNull();
   });
+
+  // Bun closes connections idle for 10s by default; opencode's SSE heartbeat is also 10s.
+  it("disables the server idle timeout for event streams", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("data: {}\n\n", { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    const server = { timeout: vi.fn() };
+    const res = await makeApp("alice@example.com").request("/proxy/alice-dev/global/event", {}, server);
+    expect(res.status).toBe(200);
+    expect(server.timeout).toHaveBeenCalledTimes(1);
+    const [req, seconds] = server.timeout.mock.calls[0];
+    expect(req).toBeInstanceOf(Request);
+    expect(seconds).toBe(0);
+  });
+
+  it("keeps the server idle timeout for ordinary responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200, headers: { "content-type": "application/json; charset=utf-8" } }),
+    );
+    const server = { timeout: vi.fn() };
+    await makeApp("alice@example.com").request("/proxy/alice-dev/api/health", {}, server);
+    expect(server.timeout).not.toHaveBeenCalled();
+  });
 });
