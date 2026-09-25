@@ -1,6 +1,6 @@
-suite: web deployment
+suite: api deployment
 templates:
-  - templates/web-deployment.yaml
+  - templates/api-deployment.yaml
 values:
   - ../values.yaml
 tests:
@@ -10,7 +10,7 @@ tests:
           of: Deployment
       - equal:
           path: metadata.name
-          value: RELEASE-NAME-opencode-rc-web
+          value: RELEASE-NAME-opencode-rc-api
       - equal:
           path: spec.replicas
           value: 1
@@ -18,7 +18,7 @@ tests:
           path: spec.template.spec.containers[0].args
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "ghcr.io/rophy/opencode-rc/web:0.6.0"
+          value: "ghcr.io/rophy/opencode-rc/api:0.6.0"
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -31,28 +31,28 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/web:0.6.0"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/api:0.6.0"
 
   - it: uses per-component registry
     set:
-      web.image.registry: my-registry.io
+      api.image.registry: my-registry.io
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "my-registry.io/ghcr.io/rophy/opencode-rc/web:0.6.0"
+          value: "my-registry.io/ghcr.io/rophy/opencode-rc/api:0.6.0"
 
   - it: global registry overrides per-component
     set:
       global.imageRegistry: harbor.corp.example.com
-      web.image.registry: my-registry.io
+      api.image.registry: my-registry.io
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/web:0.6.0"
+          value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/api:0.6.0"
 
   - it: sets replicas from values
     set:
-      web.replicas: 3
+      api.replicas: 3
     asserts:
       - equal:
           path: spec.replicas
@@ -149,7 +149,7 @@ tests:
 
   - it: applies tolerations
     set:
-      web.tolerations:
+      api.tolerations:
         - key: "dedicated"
           operator: "Equal"
           value: "web"
@@ -161,7 +161,7 @@ tests:
 
   - it: applies nodeSelector
     set:
-      web.nodeSelector:
+      api.nodeSelector:
         tier: frontend
     asserts:
       - equal:
@@ -170,7 +170,7 @@ tests:
 
   - it: applies resources
     set:
-      web.resources:
+      api.resources:
         requests:
           cpu: 100m
           memory: 128Mi
@@ -181,7 +181,7 @@ tests:
 
   - it: applies podAnnotations
     set:
-      web.podAnnotations:
+      api.podAnnotations:
         prometheus.io/scrape: "true"
     asserts:
       - equal:
@@ -190,7 +190,7 @@ tests:
 
   - it: applies podLabels
     set:
-      web.podLabels:
+      api.podLabels:
         team: platform
     asserts:
       - equal:
@@ -209,7 +209,7 @@ tests:
 
   - it: applies securityContext
     set:
-      web.securityContext:
+      api.securityContext:
         runAsNonRoot: true
     asserts:
       - equal:
@@ -218,7 +218,7 @@ tests:
 
   - it: applies containerSecurityContext
     set:
-      web.containerSecurityContext:
+      api.containerSecurityContext:
         readOnlyRootFilesystem: true
     asserts:
       - equal:

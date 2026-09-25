@@ -52,7 +52,7 @@ describe("extraCACerts TLS CA trust", () => {
       "get deploy opencode-rc-gateway -o jsonpath={.spec.template.spec.containers[0].image}"
     );
     webImage = kubectl(
-      "get deploy opencode-rc-web -o jsonpath={.spec.template.spec.containers[0].image}"
+      "get deploy opencode-rc-api -o jsonpath={.spec.template.spec.containers[0].image}"
     );
 
     // Generate CA certs

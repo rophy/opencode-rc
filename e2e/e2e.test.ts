@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
 import { createHash, randomBytes } from "node:crypto";
 
-const WEB_URL = process.env.WEB_URL ?? "http://opencode-rc-web:8080";
+const API_URL = process.env.API_URL ?? "http://opencode-rc-api:8080";
 const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gateway:9090";
 const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
@@ -41,7 +41,7 @@ function cookieHeader(res: Response): string {
 }
 
 async function postJson(path: string, body: unknown): Promise<Response> {
-  return fetch(`${WEB_URL}${path}`, {
+  return fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -56,7 +56,7 @@ interface LoginCode {
 async function loginCode(sub: string): Promise<LoginCode> {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  const startRes = await fetch(`${WEB_URL}/auth/start?return_to=%2F&code_challenge=${challenge}`, {
+  const startRes = await fetch(`${API_URL}/auth/start?return_to=%2F&code_challenge=${challenge}`, {
     redirect: "manual",
   });
   expect(startRes.status).toBe(302);
@@ -83,7 +83,7 @@ async function loginCode(sub: string): Promise<LoginCode> {
     redirect: "manual",
   });
   expect(webCallback.status).toBe(302);
-  const landing = new URL(webCallback.headers.get("location")!, WEB_URL);
+  const landing = new URL(webCallback.headers.get("location")!, API_URL);
   const code = new URLSearchParams(landing.hash.slice(1)).get("code");
   expect(code).toBeTruthy();
   return { code: code!, verifier };
@@ -102,12 +102,12 @@ describe("opencode-rc e2e", () => {
 
   beforeAll(async () => {
     await waitFor("oidc-mock", `${OIDC_URL}/.well-known/openid-configuration`, 30);
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
   it("web /healthz returns ok", async () => {
-    const res = await fetch(`${WEB_URL}/healthz`);
+    const res = await fetch(`${API_URL}/healthz`);
     const body = await res.json();
     expect(body.status).toBe("ok");
   });
@@ -119,7 +119,7 @@ describe("opencode-rc e2e", () => {
   });
 
   it("web / serves SPA", async () => {
-    const res = await fetch(`${WEB_URL}/`);
+    const res = await fetch(`${API_URL}/`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain("root");
@@ -135,7 +135,7 @@ describe("opencode-rc e2e", () => {
     let sessions: any[] = [];
     for (let i = 0; i < 60; i++) {
       try {
-        const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
+        const res = await jar.fetch(`${API_URL}/gateway/sessions`);
         sessions = await res.json();
         if (sessions.length >= 1) break;
       } catch {}
@@ -145,13 +145,13 @@ describe("opencode-rc e2e", () => {
   });
 
   it("session visible in dashboard", async () => {
-    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${API_URL}/gateway/sessions`);
     const sessions = await res.json();
     expect(sessions.length).toBeGreaterThanOrEqual(1);
   });
 
   it("expected session found by ID", async () => {
-    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const found = sessions.some((s: any) => s.id === SESSION_ID);
     expect(found).toBe(true);
@@ -162,7 +162,7 @@ describe("opencode-rc e2e", () => {
     for (let i = 0; i < 30; i++) {
       try {
         const res = await jar.fetch(
-          `${WEB_URL}/proxy/${SESSION_ID}/api/health`
+          `${API_URL}/proxy/${SESSION_ID}/api/health`
         );
         body = await res.json();
         if (body) break;
@@ -174,14 +174,14 @@ describe("opencode-rc e2e", () => {
 
   it("proxied /api/session returns JSON", async () => {
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/session`
+      `${API_URL}/proxy/${SESSION_ID}/api/session`
     );
     const body = await res.json();
     expect(body).toBeTruthy();
   });
 
   it("/api/me returns user info", async () => {
-    const res = await jar.fetch(`${WEB_URL}/api/me`);
+    const res = await jar.fetch(`${API_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("alice@example.com");
   });
@@ -189,30 +189,30 @@ describe("opencode-rc e2e", () => {
 
 describe("auth edge cases", () => {
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
   });
 
   it("unauthenticated /api/me returns 401", async () => {
-    const res = await fetch(`${WEB_URL}/api/me`);
+    const res = await fetch(`${API_URL}/api/me`);
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
   });
 
   it("unauthenticated /gateway/sessions returns 401", async () => {
-    const res = await fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await fetch(`${API_URL}/gateway/sessions`);
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
   });
 
   it("unauthenticated / serves SPA (auth handled client-side)", async () => {
-    const res = await fetch(`${WEB_URL}/`);
+    const res = await fetch(`${API_URL}/`);
     expect(res.status).toBe(200);
   });
 
   it("unauthenticated session proxy returns 401", async () => {
-    const res = await fetch(`${WEB_URL}/proxy/${SESSION_ID}/api/health`);
+    const res = await fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`);
     expect(res.status).toBe(401);
   });
 
@@ -230,7 +230,7 @@ describe("auth edge cases", () => {
     const b = await (await postJson("/auth/refresh", { refresh_token: session.refresh })).json();
     expect(a.refresh_token).not.toBe(session.refresh);
     expect(b.refresh_token).toBe(a.refresh_token);
-    const me = await new TokenSession(a.access_token, a.refresh_token).fetch(`${WEB_URL}/api/me`);
+    const me = await new TokenSession(a.access_token, a.refresh_token).fetch(`${API_URL}/api/me`);
     expect(me.status).toBe(200);
   });
 
@@ -252,7 +252,7 @@ describe("auth edge cases", () => {
   });
 
   it("CORS preflight allows the mobile app origin", async () => {
-    const res = await fetch(`${WEB_URL}/api/me`, {
+    const res = await fetch(`${API_URL}/api/me`, {
       method: "OPTIONS",
       headers: {
         origin: "capacitor://localhost",
@@ -270,34 +270,34 @@ describe("multi-user isolation", () => {
   let bobJar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     aliceJar = await loginAs("user1");
     bobJar = await loginAs("user2");
   });
 
   it("alice /api/me returns alice", async () => {
-    const res = await aliceJar.fetch(`${WEB_URL}/api/me`);
+    const res = await aliceJar.fetch(`${API_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("alice@example.com");
     expect(body.name).toBe("Alice");
   });
 
   it("bob /api/me returns bob", async () => {
-    const res = await bobJar.fetch(`${WEB_URL}/api/me`);
+    const res = await bobJar.fetch(`${API_URL}/api/me`);
     const body = await res.json();
     expect(body.email).toBe("bob@example.com");
     expect(body.name).toBe("Bob");
   });
 
   it("alice sees her own sessions", async () => {
-    const res = await aliceJar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await aliceJar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     expect(sessions.length).toBeGreaterThanOrEqual(1);
     expect(sessions.some((s) => s.id === SESSION_ID)).toBe(true);
   });
 
   it("bob does not see alice's sessions", async () => {
-    const res = await bobJar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await bobJar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const hasAlice = sessions.some((s) => s.id === SESSION_ID);
     expect(hasAlice).toBe(false);
@@ -305,7 +305,7 @@ describe("multi-user isolation", () => {
 
   it("bob cannot proxy to alice's session", async () => {
     const res = await bobJar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/health`
+      `${API_URL}/proxy/${SESSION_ID}/api/health`
     );
     expect(res.status).toBe(404);
   });
@@ -315,7 +315,7 @@ describe("tunnel proxy", () => {
   let jar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
   });
 
@@ -324,7 +324,7 @@ describe("tunnel proxy", () => {
     // browser → web → gateway → tunnel WebSocket (with FRAME_DATA) → CLI → opencode
     // Even if the endpoint rejects the payload, a non-502 response proves the body was forwarded.
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/session`,
+      `${API_URL}/proxy/${SESSION_ID}/api/session`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -337,7 +337,7 @@ describe("tunnel proxy", () => {
 
   it("proxied request preserves query string", async () => {
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/health?foo=bar`
+      `${API_URL}/proxy/${SESSION_ID}/api/health?foo=bar`
     );
     // The request reaches the backend — query string doesn't break routing
     expect(res.status).toBe(200);
@@ -345,7 +345,7 @@ describe("tunnel proxy", () => {
 
   it("proxied non-existent API path returns from backend, not web", async () => {
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/nonexistent-path`
+      `${API_URL}/proxy/${SESSION_ID}/api/nonexistent-path`
     );
     // Should get a response from opencode (404), not a web server error (502)
     expect(res.status).not.toBe(502);
@@ -353,7 +353,7 @@ describe("tunnel proxy", () => {
 
   it("response headers are passed through tunnel", async () => {
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/${SESSION_ID}/api/health`
+      `${API_URL}/proxy/${SESSION_ID}/api/health`
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/json");
@@ -364,12 +364,12 @@ describe("session metadata", () => {
   let jar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
   });
 
   it("session has expected fields", async () => {
-    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const session = sessions.find((s: any) => s.id === SESSION_ID);
     expect(session).toBeDefined();
@@ -379,7 +379,7 @@ describe("session metadata", () => {
   });
 
   it("session user matches logged-in user", async () => {
-    const res = await jar.fetch(`${WEB_URL}/gateway/sessions`);
+    const res = await jar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const session = sessions.find((s: any) => s.id === SESSION_ID);
     expect(session.user).toBe("alice@example.com");
@@ -388,11 +388,11 @@ describe("session metadata", () => {
 
 describe("web UI serving", () => {
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
   });
 
   it("session route serves the SPA without auth", async () => {
-    const res = await fetch(`${WEB_URL}/s/${SESSION_ID}/some/client/route`);
+    const res = await fetch(`${API_URL}/s/${SESSION_ID}/some/client/route`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("text/html");
     expect(await res.text()).toContain("<html");
@@ -403,7 +403,7 @@ describe("SSE streaming through tunnel", () => {
   let jar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
   });
 
@@ -415,7 +415,7 @@ describe("SSE streaming through tunnel", () => {
 
     try {
       const res = await jar.fetch(
-        `${WEB_URL}/proxy/${SESSION_ID}/global/event`,
+        `${API_URL}/proxy/${SESSION_ID}/global/event`,
         { signal: controller.signal }
       );
       // Getting a response at all (not 502) proves the tunnel proxied it
@@ -433,12 +433,12 @@ describe("api error handling", () => {
   let jar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
   });
 
   it("healthz includes version field", async () => {
-    const res = await fetch(`${WEB_URL}/healthz`);
+    const res = await fetch(`${API_URL}/healthz`);
     const body = await res.json();
     expect(body).toHaveProperty("version");
     expect(typeof body.version).toBe("string");
@@ -446,7 +446,7 @@ describe("api error handling", () => {
 
   it("invalid session ID returns 404", async () => {
     const res = await jar.fetch(
-      `${WEB_URL}/proxy/nonexistent-session/api/health`
+      `${API_URL}/proxy/nonexistent-session/api/health`
     );
     expect(res.status).toBe(404);
   });
@@ -465,7 +465,7 @@ describe("api error handling", () => {
 
 describe("coverage endpoint", () => {
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     await waitFor("gateway", `${GATEWAY_URL}/healthz`, 30);
   });
 
@@ -507,12 +507,12 @@ describe("terminal WebSocket through /proxy", () => {
   let jar: TokenSession;
 
   beforeAll(async () => {
-    await waitFor("web", `${WEB_URL}/healthz`, 30);
+    await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
   });
 
   it("echoes a command through web, gateway and tunnel", async () => {
-    const created = await jar.fetch(`${WEB_URL}/proxy/${SESSION_ID}/pty`, {
+    const created = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/pty`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
@@ -522,7 +522,7 @@ describe("terminal WebSocket through /proxy", () => {
     expect(pty.id).toBeTruthy();
 
     const wsUrl =
-      WEB_URL.replace(/^http/, "ws") +
+      API_URL.replace(/^http/, "ws") +
       `/proxy/${SESSION_ID}/pty/${pty.id}/connect?cursor=0&access_token=${encodeURIComponent(jar.access)}`;
     const output = await new Promise<string>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
@@ -552,7 +552,7 @@ describe("terminal WebSocket through /proxy", () => {
   it("rejects a WebSocket without a token", async () => {
     // fetch() cannot send Upgrade/Connection headers, so attempt a real WebSocket.
     const failed = await new Promise<boolean>((resolve) => {
-      const ws = new WebSocket(WEB_URL.replace(/^http/, "ws") + `/proxy/${SESSION_ID}/pty/x/connect`);
+      const ws = new WebSocket(API_URL.replace(/^http/, "ws") + `/proxy/${SESSION_ID}/pty/x/connect`);
       ws.onopen = () => {
         ws.close();
         resolve(false);

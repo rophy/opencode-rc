@@ -2,25 +2,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "opencode-rc.fullname" . }}-web
+  name: {{ include "opencode-rc.fullname" . }}-api
   labels:
     {{- include "opencode-rc.labels" . | nindent 4 }}
-    app.kubernetes.io/component: web
+    app.kubernetes.io/component: api
 spec:
-  replicas: {{ .Values.web.replicas }}
+  replicas: {{ .Values.api.replicas }}
   selector:
     matchLabels:
       {{- include "opencode-rc.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: web
+      app.kubernetes.io/component: api
   template:
     metadata:
       labels:
         {{- include "opencode-rc.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: web
-        {{- with .Values.web.podLabels }}
+        app.kubernetes.io/component: api
+        {{- with .Values.api.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.web.podAnnotations }}
+      {{- with .Values.api.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -29,14 +29,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.web.securityContext }}
+      {{- with .Values.api.securityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: web
-          image: {{ include "opencode-rc.image" (dict "image" .Values.web.image "global" .Values.global) }}
-          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+        - name: api
+          image: {{ include "opencode-rc.image" (dict "image" .Values.api.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8080
@@ -109,7 +109,7 @@ spec:
             {{- end }}
             - name: GATEWAY_URL
               value: "http://{{ include "opencode-rc.fullname" . }}-gateway:9090"
-          {{- with .Values.web.resources }}
+          {{- with .Values.api.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -119,7 +119,7 @@ spec:
               mountPath: /etc/ssl/certs/extra
               readOnly: true
           {{- end }}
-          {{- with .Values.web.containerSecurityContext }}
+          {{- with .Values.api.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -129,15 +129,15 @@ spec:
           configMap:
             name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
       {{- end }}
-      {{- with .Values.web.nodeSelector }}
+      {{- with .Values.api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.web.affinity }}
+      {{- with .Values.api.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.web.tolerations }}
+      {{- with .Values.api.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

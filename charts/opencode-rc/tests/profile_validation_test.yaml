@@ -1,6 +1,6 @@
 suite: profile validation
 templates:
-  - templates/web-deployment.yaml
+  - templates/api-deployment.yaml
 tests:
   - it: production fails without existingSecret
     set:

@@ -32,14 +32,14 @@ deploy:
         chartPath: ../charts/opencode-rc
         setValues:
           fullnameOverride: opencode-rc
-          web.image.pullPolicy: Never
+          api.image.pullPolicy: Never
           gateway.image.pullPolicy: Never
           oidcMock.image.pullPolicy: IfNotPresent
           redis.image.pullPolicy: IfNotPresent
         setValueTemplates:
-          web.image.registry: ""
-          web.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
-          web.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
+          api.image.registry: ""
+          api.image.repository: "{{.IMAGE_REPO_opencode_rc_api}}"
+          api.image.tag: "{{.IMAGE_TAG_opencode_rc_api}}"
           gateway.image.registry: ""
           gateway.image.repository: "{{.IMAGE_REPO_opencode_rc_gateway}}"
           gateway.image.tag: "{{.IMAGE_TAG_opencode_rc_gateway}}"

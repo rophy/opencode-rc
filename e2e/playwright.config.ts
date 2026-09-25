@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: 0,
   use: {
-    baseURL: process.env.WEB_URL || "http://opencode-rc-web:8080",
+    baseURL: process.env.API_URL || "http://opencode-rc-api:8080",
     ignoreHTTPSErrors: true,
   },
   projects: [

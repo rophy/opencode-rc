@@ -1,6 +1,6 @@
-suite: web service
+suite: api service
 templates:
-  - templates/web-service.yaml
+  - templates/api-service.yaml
 tests:
   - it: renders ClusterIP service on port 8080
     asserts:
@@ -18,4 +18,4 @@ tests:
             name: http
       - equal:
           path: metadata.name
-          value: RELEASE-NAME-opencode-rc-web
+          value: RELEASE-NAME-opencode-rc-api

@@ -2,10 +2,10 @@ OpenCode RC has been deployed!
 
 Profile: {{ .Values.profile }}
 
-{{- if .Values.web.ingress.enabled }}
-Web URL: http{{ if .Values.web.ingress.tls }}s{{ end }}://{{ .Values.web.ingress.host }}
+{{- if .Values.api.ingress.enabled }}
+API URL: http{{ if .Values.api.ingress.tls }}s{{ end }}://{{ .Values.api.ingress.host }}
 {{- else }}
-Web: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-web 8080:8080
+API: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-api 8080:8080
 {{- end }}
 
 {{- if .Values.gateway.ingress.enabled }}

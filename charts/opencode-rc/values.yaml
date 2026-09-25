@@ -7,10 +7,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-web:
+api:
   image:
     registry: ""
-    repository: ghcr.io/rophy/opencode-rc/web
+    repository: ghcr.io/rophy/opencode-rc/api
     tag: "0.6.0"
     pullPolicy: IfNotPresent
   replicas: 1
