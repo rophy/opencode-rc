@@ -1,6 +1,6 @@
 {{- if eq (include "opencode-rc.exposeType" .) "virtualService" }}
 {{- $fullname := include "opencode-rc.fullname" . }}
-apiVersion: networking.istio.io/v1
+apiVersion: {{ .Values.expose.virtualService.apiVersion | default "networking.istio.io/v1" }}
 kind: VirtualService
 metadata:
   name: {{ $fullname }}-api
@@ -44,7 +44,7 @@ spec:
               number: 8080
 {{- if .Values.ui.enabled }}
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: {{ .Values.expose.virtualService.apiVersion | default "networking.istio.io/v1" }}
 kind: VirtualService
 metadata:
   name: {{ $fullname }}-ui
@@ -69,7 +69,7 @@ spec:
 {{- end }}
 {{- if include "opencode-rc.oidcMockExposed" . }}
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: {{ .Values.expose.virtualService.apiVersion | default "networking.istio.io/v1" }}
 kind: VirtualService
 metadata:
   name: {{ $fullname }}-oidc-mock

@@ -83,7 +83,7 @@ The UI and the API are served from two different hosts. The browser loads the UI
 
 The Ingress sets `nginx.ingress.kubernetes.io/proxy-read-timeout` and `proxy-send-timeout` to `"3600"` by default so ingress-nginx does not cut idle CLI tunnels, SSE streams and terminal WebSockets; values in `expose.ingress.annotations` override them. With other ingress controllers, configure the equivalent long timeouts through `expose.ingress.annotations`.
 
-With Istio (1.22+, for `networking.istio.io/v1`), point `expose.virtualService.gateways` at existing Istio Gateways that accept the hosts above (e.g. a `*.example.com` server). The chart creates VirtualServices and disables the route timeout for `/tunnel` and `/proxy/`:
+With Istio, point `expose.virtualService.gateways` at existing Istio Gateways that accept the hosts above (e.g. a `*.example.com` server). The chart creates VirtualServices (`networking.istio.io/v1` by default, which needs Istio 1.22+; set `expose.virtualService.apiVersion: networking.istio.io/v1beta1` for older Istio) and disables the route timeout for `/tunnel` and `/proxy/`:
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc \
@@ -123,7 +123,8 @@ The `existingSecret` must contain:
 | `expose.ingress.className` | `""` | `ingressClassName` of the Ingress |
 | `expose.ingress.annotations` | `{}` | Ingress annotations, merged over the default ingress-nginx `proxy-read-timeout`/`proxy-send-timeout` of `"3600"` |
 | `expose.ingress.tlsSecretName` | `""` | TLS secret covering all hosts (e.g. a wildcard certificate); no `tls` section when empty |
-| `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` (Istio 1.22+) |
+| `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` |
+| `expose.virtualService.apiVersion` | `networking.istio.io/v1` | VirtualService API version; `networking.istio.io/v1beta1` for Istio older than 1.22 |
 | `expose.virtualService.annotations` | `{}` | VirtualService annotations |
 | `api.publicUrl` | `""` | Browser-facing API URL; overrides the URL derived from `expose.*`. Required when `ui.publicUrl` is set with `expose.type=none` |
 | `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |

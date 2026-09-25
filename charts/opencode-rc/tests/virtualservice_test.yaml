@@ -29,6 +29,15 @@ tests:
       - isAPIVersion:
           of: networking.istio.io/v1
 
+  - it: uses expose.virtualService.apiVersion for every VirtualService (older Istio)
+    set:
+      expose.virtualService.apiVersion: networking.istio.io/v1beta1
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isAPIVersion:
+          of: networking.istio.io/v1beta1
+
   - it: routes /tunnel to the gateway, /proxy/ and the rest to the api, in that order
     documentIndex: 0
     asserts:

@@ -27,6 +27,8 @@ expose:
     # Existing Istio Gateways (namespace/name), required when type is virtualService.
     gateways: []
     annotations: {}
+    # networking.istio.io/v1 needs Istio 1.22+; set networking.istio.io/v1beta1 for older Istio.
+    apiVersion: networking.istio.io/v1
 
 api:
   image:
