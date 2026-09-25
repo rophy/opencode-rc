@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
-import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware } from "./origins.js";
+import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware, APP_CALLBACK } from "./origins.js";
 
 const isAllowed = makeOriginCheck("https://rc.example.com", ["https://dev.example.com/"]);
 
@@ -66,13 +66,37 @@ describe("validateReturnTo", () => {
   });
 
   it("accepts allowed absolute URLs", () => {
-    expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBe("capacitor://localhost/");
-    expect(validateReturnTo("https://localhost/s/x/#y", isAllowed)).toBe("https://localhost/s/x/");
+    expect(validateReturnTo("https://dev.example.com/", isAllowed)).toBe("https://dev.example.com/");
+    expect(validateReturnTo("https://dev.example.com/s/x/#y", isAllowed)).toBe("https://dev.example.com/s/x/");
   });
 
   it("rejects other absolute URLs", () => {
     expect(validateReturnTo("https://evil.example.com/", isAllowed)).toBeNull();
     expect(validateReturnTo("javascript:alert(1)", isAllowed)).toBeNull();
+  });
+
+  it("accepts exactly the mobile app callback", () => {
+    expect(APP_CALLBACK).toBe("com.opencode.rc:/auth/done");
+    expect(validateReturnTo("com.opencode.rc:/auth/done", isAllowed)).toBe("com.opencode.rc:/auth/done");
+    for (const bad of [
+      "com.opencode.rc:/auth/done/x",
+      "com.opencode.rc:/auth/done?x=1",
+      "com.opencode.rc:/auth/done#x",
+      "com.opencode.rc://auth/done",
+      "com.opencode.rcx:/auth/done",
+      "COM.OPENCODE.RC:/auth/done",
+      "other.app:/auth/done",
+    ]) {
+      expect(validateReturnTo(bad, isAllowed)).toBeNull();
+    }
+  });
+
+  it("no longer accepts the app's WebView origins as return_to", () => {
+    expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBeNull();
+    expect(validateReturnTo("https://localhost/s/x/", isAllowed)).toBeNull();
+    // They stay allowed for CORS.
+    expect(isAllowed("capacitor://localhost")).toBe(true);
+    expect(isAllowed("https://localhost")).toBe(true);
   });
 });
 

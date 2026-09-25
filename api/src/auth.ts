@@ -13,7 +13,7 @@ import {
   type AccessClaims,
 } from "./token.js";
 import type { TokenStore } from "./token-store.js";
-import { validateReturnTo } from "./origins.js";
+import { validateReturnTo, APP_CALLBACK } from "./origins.js";
 
 export type AuthEnv = {
   Variables: {
@@ -182,11 +182,12 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     deleteCookie(c, "orc_challenge", { path: "/auth" });
     console.log(`login: user=${claims.uid} name=${claims.name}`);
     const target = `${returnTo}#code=${encodeURIComponent(loginCode)}`;
-    // Same-origin paths use a normal redirect. Absolute targets (the mobile app's
-    // https://localhost or capacitor://localhost) get a script navigation instead:
-    // Android WebView does not route a server redirect to the app's local origin
-    // through Capacitor, but it does route a script-initiated navigation.
-    return returnTo.startsWith("/") ? c.redirect(target) : scriptRedirect(c, target);
+    // Paths and the app callback (followed by the system browser) use a normal redirect.
+    // Absolute web origins (the UI host) get a script navigation, which keeps the code
+    // fragment out of the Location header.
+    return returnTo.startsWith("/") || returnTo === APP_CALLBACK
+      ? c.redirect(target)
+      : scriptRedirect(c, target);
   });
 
   app.post("/auth/token", async (c) => {

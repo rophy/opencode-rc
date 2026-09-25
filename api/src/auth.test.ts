@@ -122,13 +122,13 @@ describe("authMiddleware", () => {
 describe("/auth/start", () => {
   it("redirects to the IdP and stores state, return_to and the code challenge", async () => {
     const res = await app.request(
-      `/auth/start?return_to=capacitor%3A%2F%2Flocalhost%2F&code_challenge=${challenge}`,
+      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/^https:\/\/idp\.example\.com\/authorize\?/);
     const cookies = res.headers.getSetCookie().join("\n");
     expect(cookies).toContain("orc_state=");
-    expect(cookies).toContain("orc_return=capacitor%3A%2F%2Flocalhost%2F");
+    expect(cookies).toContain("orc_return=com.opencode.rc%3A%2Fauth%2Fdone");
     expect(cookies).toMatch(new RegExp(`orc_challenge=${challenge}; Max-Age=300; Path=/auth; HttpOnly`));
   });
 
@@ -151,43 +151,47 @@ describe("/auth/start", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("rejects the old WebView return_to", async () => {
+    const res = await app.request(
+      `/auth/start?return_to=https%3A%2F%2Flocalhost%2F&code_challenge=${challenge}`,
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("/auth/callback", () => {
   const callback = (cookies: string) =>
     app.request("/auth/callback?state=st&code=idp-code", { headers: { cookie: cookies } });
 
-  it("binds the login code to the challenge from /auth/start", async () => {
+  it("redirects to the mobile app callback", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    const res = await callback(`orc_state=st; orc_return=%2Fs%2Fx%2F; orc_challenge=${challenge}`);
+    const res = await callback(
+      `orc_state=st; orc_return=com.opencode.rc%3A%2Fauth%2Fdone; orc_challenge=${challenge}`,
+    );
     expect(res.status).toBe(302);
     const location = res.headers.get("location")!;
-    expect(location).toMatch(/^\/s\/x\/#code=/);
+    expect(location).toMatch(/^com\.opencode\.rc:\/auth\/done#code=/);
     const code = decodeURIComponent(location.split("#code=")[1]);
-
     const ok = await post("/auth/token", { code, code_verifier: verifier });
     expect(ok.status).toBe(200);
   });
 
-  it("returns to the mobile app with a script navigation instead of a redirect", async () => {
+  it("returns to an absolute web origin with a script navigation", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
     const res = await callback(
-      `orc_state=st; orc_return=https%3A%2F%2Flocalhost%2F; orc_challenge=${challenge}`,
+      `orc_state=st; orc_return=https%3A%2F%2Frc.example.com%2Fs%2Fx%2F; orc_challenge=${challenge}`,
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(res.headers.get("cache-control")).toBe("no-store");
     const html = await res.text();
-    const match = html.match(/location\.replace\("(https:\/\/localhost\/#code=[^"]+)"\)/);
-    expect(match).not.toBeNull();
-    const code = decodeURIComponent(match![1].split("#code=")[1]);
-    const ok = await post("/auth/token", { code, code_verifier: verifier });
-    expect(ok.status).toBe(200);
+    expect(html).toMatch(/location\.replace\("https:\/\/rc\.example\.com\/s\/x\/#code=[^"]+"\)/);
   });
 
   it("escapes < in the script navigation target", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    const returnTo = encodeURIComponent("capacitor://localhost/?x=</script><script>alert(1)");
+    const returnTo = encodeURIComponent("https://rc.example.com/?x=</script><script>alert(1)");
     const res = await callback(`orc_state=st; orc_return=${returnTo}; orc_challenge=${challenge}`);
     expect(res.status).toBe(200);
     const html = await res.text();
