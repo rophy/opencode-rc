@@ -91,6 +91,14 @@ describe("validateReturnTo", () => {
     }
   });
 
+  it("returns the app callback unchanged, not normalized as a path", () => {
+    expect(validateReturnTo(APP_CALLBACK, isAllowed)).toBe(APP_CALLBACK);
+  });
+
+  it("treats a path-looking variant of the app callback as a normal same-origin path", () => {
+    expect(validateReturnTo("/com.opencode.rc:/auth/done", isAllowed)).toBe("/com.opencode.rc:/auth/done");
+  });
+
   it("no longer accepts the app's WebView origins as return_to", () => {
     expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBeNull();
     expect(validateReturnTo("https://localhost/s/x/", isAllowed)).toBeNull();

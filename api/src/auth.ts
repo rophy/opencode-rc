@@ -182,9 +182,8 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     deleteCookie(c, "orc_challenge", { path: "/auth" });
     console.log(`login: user=${claims.uid} name=${claims.name}`);
     const target = `${returnTo}#code=${encodeURIComponent(loginCode)}`;
-    // Paths and the app callback (followed by the system browser) use a normal redirect.
-    // Absolute web origins (the UI host) get a script navigation, which keeps the code
-    // fragment out of the Location header.
+    // Absolute web origins (the separately hosted web UI) get the script-navigation
+    // page, as before; paths and the app callback use a normal redirect.
     return returnTo.startsWith("/") || returnTo === APP_CALLBACK
       ? c.redirect(target)
       : scriptRedirect(c, target);
