@@ -7,6 +7,27 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# How api, gateway and ui are exposed outside the cluster.
+expose:
+  # none | ingress | virtualService
+  type: none
+  # Base domain. Hosts are derived from the Helm release name:
+  #   {release}.{host}       api + gateway (/tunnel -> gateway, everything else -> api)
+  #   {release}-ui.{host}    web UI
+  #   {release}-oidc.{host}  bundled oidc-mock (profile local only)
+  host: ""
+  # Scheme browsers and the CLI use to reach the hosts (TLS usually terminates at the edge).
+  scheme: https
+  ingress:
+    className: ""
+    annotations: {}
+    # Optional TLS secret covering all hosts (e.g. a wildcard certificate).
+    tlsSecretName: ""
+  virtualService:
+    # Existing Istio Gateways (namespace/name), required when type is virtualService.
+    gateways: []
+    annotations: {}
+
 api:
   image:
     registry: ""
@@ -23,17 +44,11 @@ api:
   securityContext: {}
   containerSecurityContext: {}
   # Browser-facing URL of the API (e.g. https://api.rc.example.com). Overrides the URL
-  # derived from api.ingress; set it when TLS is terminated before the ingress (load balancer).
+  # derived from expose.*.
   publicUrl: ""
   service:
     type: ClusterIP
     nodePort: null
-  ingress:
-    enabled: false
-    className: ""
-    host: ""
-    annotations: {}
-    tls: []
 
 ui:
   # Serve the web UI from its own image and host. The API host never serves HTML.
@@ -44,7 +59,7 @@ ui:
     tag: "0.5.0"
     pullPolicy: IfNotPresent
   # Browser-facing URL of the UI (e.g. https://rc.example.com). Overrides the URL derived
-  # from ui.ingress; set it when TLS is terminated before the ingress (load balancer).
+  # from expose.*.
   publicUrl: ""
   replicas: 1
   resources: {}
@@ -58,12 +73,6 @@ ui:
   service:
     type: ClusterIP
     nodePort: null
-  ingress:
-    enabled: false
-    className: ""
-    host: ""
-    annotations: {}
-    tls: []
 
 gateway:
   image:
@@ -80,12 +89,6 @@ gateway:
   affinity: {}
   securityContext: {}
   containerSecurityContext: {}
-  ingress:
-    enabled: false
-    className: ""
-    host: ""
-    annotations: {}
-    tls: []
 
 redis:
   enabled: true
@@ -104,7 +107,9 @@ redis:
   containerSecurityContext: {}
 
 oidcMock:
-  issuer: ""  # External URL for oidc-mock (e.g. https://oidc-mock.corp.example.com). Defaults to internal service URL.
+  # External URL for oidc-mock (e.g. https://oidc-mock.corp.example.com). Defaults to
+  # {expose.scheme}://{release}-oidc.{expose.host} when exposed, else the internal service URL.
+  issuer: ""
   image:
     registry: ""
     repository: ghcr.io/rophy/oidc-mock

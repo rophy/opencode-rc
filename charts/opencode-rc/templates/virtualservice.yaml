@@ -1,0 +1,95 @@
+{{- if eq (include "opencode-rc.exposeType" .) "virtualService" }}
+{{- $fullname := include "opencode-rc.fullname" . }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ $fullname }}-api
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  {{- with .Values.expose.virtualService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  hosts:
+    - {{ include "opencode-rc.apiHost" . }}
+  gateways:
+    {{- toYaml .Values.expose.virtualService.gateways | nindent 4 }}
+  http:
+    # Long-lived CLI WebSocket tunnel.
+    - match:
+        - uri:
+            exact: /tunnel
+      route:
+        - destination:
+            host: {{ $fullname }}-gateway
+            port:
+              number: 9090
+      timeout: 0s
+    # SSE streams and terminal WebSockets.
+    - match:
+        - uri:
+            prefix: /proxy/
+      route:
+        - destination:
+            host: {{ $fullname }}-api
+            port:
+              number: 8080
+      timeout: 0s
+    - route:
+        - destination:
+            host: {{ $fullname }}-api
+            port:
+              number: 8080
+{{- if .Values.ui.enabled }}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ $fullname }}-ui
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+  {{- with .Values.expose.virtualService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  hosts:
+    - {{ include "opencode-rc.uiHost" . }}
+  gateways:
+    {{- toYaml .Values.expose.virtualService.gateways | nindent 4 }}
+  http:
+    - route:
+        - destination:
+            host: {{ $fullname }}-ui
+            port:
+              number: 8080
+{{- end }}
+{{- if include "opencode-rc.oidcMockExposed" . }}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ $fullname }}-oidc-mock
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: oidc-mock
+  {{- with .Values.expose.virtualService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  hosts:
+    - {{ include "opencode-rc.oidcMockHost" . }}
+  gateways:
+    {{- toYaml .Values.expose.virtualService.gateways | nindent 4 }}
+  http:
+    - route:
+        - destination:
+            host: {{ $fullname }}-oidc-mock
+            port:
+              number: 8080
+{{- end }}
+{{- end }}

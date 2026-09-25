@@ -213,3 +213,53 @@ tests:
           content:
             name: COOKIE_DOMAIN
           any: true
+
+  - it: discovers the exposed oidc-mock in-cluster and accepts its external issuer
+    set:
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+            value: https://RELEASE-NAME-oidc.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+            value: https://RELEASE-NAME-oidc.example.com/authorize
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080/token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080/jwks
+
+  - it: production with expose uses the configured issuer without overrides
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: https://idp.corp.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+          any: true

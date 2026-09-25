@@ -397,13 +397,10 @@ tests:
             name: ALLOWED_ORIGINS
             value: http://RELEASE-NAME-opencode-rc-ui:8080
 
-  - it: allows the ui ingress origin plus extra origins
+  - it: allows the exposed ui origin plus extra origins
     set:
-      ui.ingress.enabled: true
-      ui.ingress.host: rc.example.com
-      ui.ingress.tls:
-        - hosts: [rc.example.com]
-          secretName: ui-tls
+      expose.type: ingress
+      expose.host: example.com
       auth.allowedOrigins:
         - https://other.example.com
     asserts:
@@ -411,7 +408,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: ALLOWED_ORIGINS
-            value: https://rc.example.com,https://other.example.com
+            value: https://RELEASE-NAME-ui.example.com,https://other.example.com
 
   - it: omits ALLOWED_ORIGINS when ui is disabled and no extras are set
     set:
@@ -441,11 +438,11 @@ tests:
             name: OIDC_REDIRECT_URI
             value: https://api.rc.example.com/auth/callback
 
-  - it: api.publicUrl takes precedence over the api ingress and loses its trailing slash
+  - it: api.publicUrl takes precedence over expose and loses its trailing slash
     set:
       api.publicUrl: https://api.rc.example.com/
-      api.ingress.enabled: true
-      api.ingress.host: api-internal.example.com
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -467,11 +464,180 @@ tests:
   - it: allows the ui.publicUrl origin (trailing slash trimmed)
     set:
       ui.publicUrl: https://rc.example.com/
-      ui.ingress.enabled: true
-      ui.ingress.host: rc-internal.example.com
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: ALLOWED_ORIGINS
             value: https://rc.example.com
+
+  - it: derives the OIDC redirect URI and ui origin from expose
+    set:
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://RELEASE-NAME.example.com/auth/callback
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: https://RELEASE-NAME-ui.example.com
+
+  - it: honours expose.scheme http
+    set:
+      expose.type: virtualService
+      expose.host: example.com
+      expose.scheme: http
+      expose.virtualService.gateways: [istio-system/public-gw]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: http://RELEASE-NAME.example.com/auth/callback
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOWED_ORIGINS
+            value: http://RELEASE-NAME-ui.example.com
+
+  - it: keeps service URLs when expose.type is none
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: http://RELEASE-NAME-opencode-rc-api:8080/auth/callback
+
+  - it: uses the in-cluster oidc-mock issuer when not exposed
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+          any: true
+
+  - it: discovers the exposed oidc-mock in-cluster and sends browsers to its external host
+    set:
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+            value: https://RELEASE-NAME-oidc.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+            value: https://RELEASE-NAME-oidc.example.com/authorize
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080/token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+            value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080/jwks
+
+  - it: explicit OIDC overrides win over the exposed oidc-mock defaults
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      oidc.issuerOverride: https://iss.example.com
+      oidc.authorizationEndpoint: https://auth.example.com/authorize
+      oidc.tokenEndpoint: https://token.example.com/token
+      oidc.jwksUri: https://jwks.example.com/jwks
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+            value: https://iss.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+            value: https://auth.example.com/authorize
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_TOKEN_ENDPOINT
+            value: https://token.example.com/token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_JWKS_URI
+            value: https://jwks.example.com/jwks
+
+  - it: an explicit oidcMock.issuer disables the derived oidc-mock overrides
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      oidcMock.issuer: https://oidc-mock.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: https://oidc-mock.corp.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+          any: true
+
+  - it: an explicit oidc.issuer disables the derived oidc-mock overrides
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: https://idp.corp.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORIZATION_ENDPOINT
+          any: true
+
+  - it: production with expose uses the configured issuer without overrides
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER
+            value: https://idp.corp.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_OVERRIDE
+          any: true

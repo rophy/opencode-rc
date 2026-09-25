@@ -16,30 +16,28 @@ tests:
             name: API_URL
             value: http://RELEASE-NAME-opencode-rc-api:8080
 
-  - it: uses https api URL when the api ingress has TLS
+  - it: uses the exposed api URL
     set:
-      api.ingress.enabled: true
-      api.ingress.host: api.rc.example.com
-      api.ingress.tls:
-        - hosts: [api.rc.example.com]
-          secretName: api-tls
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: API_URL
-            value: https://api.rc.example.com
+            value: https://RELEASE-NAME.example.com
 
-  - it: uses http api URL when the api ingress has no TLS
+  - it: honours expose.scheme http for the api URL
     set:
-      api.ingress.enabled: true
-      api.ingress.host: api.rc.example.com
+      expose.type: ingress
+      expose.host: example.com
+      expose.scheme: http
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: API_URL
-            value: http://api.rc.example.com
+            value: http://RELEASE-NAME.example.com
 
   - it: is not rendered when ui is disabled
     set:
@@ -51,8 +49,8 @@ tests:
   - it: uses api.publicUrl for API_URL, trimming a trailing slash
     set:
       api.publicUrl: https://api.rc.example.com/
-      api.ingress.enabled: true
-      api.ingress.host: api-internal.example.com
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -60,19 +58,26 @@ tests:
             name: API_URL
             value: https://api.rc.example.com
 
-  - it: fails when the ui is exposed but the api URL is the in-cluster service URL
+  - it: fails when ui.publicUrl is set but the api is not exposed
     set:
-      ui.ingress.enabled: true
-      ui.ingress.host: rc.example.com
+      ui.publicUrl: https://rc.example.com
     asserts:
       - failedTemplate:
-          errorMessage: "the UI needs a browser-reachable API URL: enable api.ingress or set api.publicUrl"
+          errorMessage: "ui.publicUrl is set but the API is not reachable by browsers: set expose.type and expose.host, or api.publicUrl"
 
-  - it: accepts an exposed ui when api.publicUrl is set
+  - it: accepts ui.publicUrl when api.publicUrl is set
     set:
-      ui.ingress.enabled: true
-      ui.ingress.host: rc.example.com
+      ui.publicUrl: https://rc.example.com
       api.publicUrl: https://api.rc.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: accepts ui.publicUrl when expose is enabled
+    set:
+      ui.publicUrl: https://rc.example.com
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - hasDocuments:
           count: 1

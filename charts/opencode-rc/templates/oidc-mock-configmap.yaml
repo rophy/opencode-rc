@@ -9,7 +9,7 @@ metadata:
 data:
   oidc-config.yaml: |
     port: 8080
-    issuer: {{ .Values.oidcMock.issuer | default (printf "http://%s-oidc-mock:8080" (include "opencode-rc.fullname" .)) }}
+    issuer: {{ include "opencode-rc.oidcMockIssuer" . }}
     clients:
       - id: {{ .Values.oidc.clientId }}
         secret: {{ .Values.secrets.oidcClientSecret }}

@@ -104,3 +104,34 @@ tests:
       - equal:
           path: spec.template.spec.tolerations[0].key
           value: test
+
+  - it: uses the in-cluster issuer when not exposed
+    template: templates/oidc-mock-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "issuer: http://RELEASE-NAME-opencode-rc-oidc-mock:8080\n"
+
+  - it: uses the exposed oidc host as issuer and the exposed api for the redirect URI
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "issuer: https://RELEASE-NAME-oidc.example.com\n"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "- https://RELEASE-NAME.example.com/auth/callback\n"
+
+  - it: an explicit oidcMock.issuer wins over the exposed oidc host
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      oidcMock.issuer: https://oidc-mock.corp.example.com
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "issuer: https://oidc-mock.corp.example.com\n"

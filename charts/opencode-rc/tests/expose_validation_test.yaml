@@ -1,0 +1,63 @@
+suite: expose validation
+templates:
+  - templates/api-deployment.yaml
+tests:
+  - it: rejects an unknown expose.type
+    set:
+      expose.type: route
+    asserts:
+      - failedTemplate:
+          errorMessage: "expose.type must be one of none, ingress, virtualService (got \"route\")"
+
+  - it: requires expose.host when exposed
+    set:
+      expose.type: ingress
+    asserts:
+      - failedTemplate:
+          errorMessage: "expose.host is required when expose.type is ingress"
+
+  - it: requires gateways for virtualService
+    set:
+      expose.type: virtualService
+      expose.host: example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "expose.virtualService.gateways is required when expose.type is virtualService"
+
+  - it: rejects legacy api.ingress
+    set:
+      api.ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+
+  - it: rejects legacy ui.ingress
+    set:
+      ui.ingress.host: rc.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+
+  - it: rejects legacy gateway.ingress
+    set:
+      gateway.ingress.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+
+  - it: accepts ingress with a host
+    set:
+      expose.type: ingress
+      expose.host: example.com
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: accepts virtualService with a host and gateways
+    set:
+      expose.type: virtualService
+      expose.host: example.com
+      expose.virtualService.gateways: [istio-system/public-gw]
+    asserts:
+      - isKind:
+          of: Deployment

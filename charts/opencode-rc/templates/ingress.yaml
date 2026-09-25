@@ -1,0 +1,72 @@
+{{- if eq (include "opencode-rc.exposeType" .) "ingress" }}
+{{- $fullname := include "opencode-rc.fullname" . }}
+{{- $hosts := list (include "opencode-rc.apiHost" .) }}
+{{- if .Values.ui.enabled }}
+{{- $hosts = append $hosts (include "opencode-rc.uiHost" .) }}
+{{- end }}
+{{- if include "opencode-rc.oidcMockExposed" . }}
+{{- $hosts = append $hosts (include "opencode-rc.oidcMockHost" .) }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "opencode-rc.labels" . | nindent 4 }}
+  {{- with .Values.expose.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.expose.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.expose.ingress.tlsSecretName }}
+  tls:
+    - secretName: {{ . }}
+      hosts:
+        {{- toYaml $hosts | nindent 8 }}
+  {{- end }}
+  rules:
+    - host: {{ include "opencode-rc.apiHost" . }}
+      http:
+        paths:
+          - path: /tunnel
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $fullname }}-gateway
+                port:
+                  number: 9090
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-api
+                port:
+                  number: 8080
+    {{- if .Values.ui.enabled }}
+    - host: {{ include "opencode-rc.uiHost" . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-ui
+                port:
+                  number: 8080
+    {{- end }}
+    {{- if include "opencode-rc.oidcMockExposed" . }}
+    - host: {{ include "opencode-rc.oidcMockHost" . }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-oidc-mock
+                port:
+                  number: 8080
+    {{- end }}
+{{- end }}

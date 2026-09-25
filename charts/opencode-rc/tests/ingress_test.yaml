@@ -1,0 +1,150 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+set:
+  expose.type: ingress
+  expose.host: example.com
+tests:
+  - it: is not rendered when expose.type is none
+    set:
+      expose.type: none
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is not rendered when expose.type is virtualService
+    set:
+      expose.type: virtualService
+      expose.virtualService.gateways: [istio-system/public-gw]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: routes /tunnel to the gateway and everything else to the api on the api host
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-opencode-rc
+      - equal:
+          path: spec.rules[0].host
+          value: RELEASE-NAME.example.com
+      - equal:
+          path: spec.rules[0].http.paths
+          value:
+            - path: /tunnel
+              pathType: Exact
+              backend:
+                service:
+                  name: RELEASE-NAME-opencode-rc-gateway
+                  port:
+                    number: 9090
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: RELEASE-NAME-opencode-rc-api
+                  port:
+                    number: 8080
+
+  - it: routes the ui host to the ui service
+    asserts:
+      - equal:
+          path: spec.rules[1].host
+          value: RELEASE-NAME-ui.example.com
+      - equal:
+          path: spec.rules[1].http.paths
+          value:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: RELEASE-NAME-opencode-rc-ui
+                  port:
+                    number: 8080
+
+  - it: routes the oidc-mock host to the oidc-mock service in the local profile
+    asserts:
+      - lengthEqual:
+          path: spec.rules
+          count: 3
+      - equal:
+          path: spec.rules[2].host
+          value: RELEASE-NAME-oidc.example.com
+      - equal:
+          path: spec.rules[2].http.paths
+          value:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: RELEASE-NAME-opencode-rc-oidc-mock
+                  port:
+                    number: 8080
+
+  - it: has no oidc-mock rule in the production profile
+    set:
+      profile: production
+      existingSecret: corp-secrets
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.rules
+          count: 2
+      - notContains:
+          path: spec.rules
+          content:
+            host: RELEASE-NAME-oidc.example.com
+          any: true
+
+  - it: omits the ui rule when ui is disabled
+    set:
+      ui.enabled: false
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            host: RELEASE-NAME-ui.example.com
+          any: true
+      - equal:
+          path: spec.rules[0].host
+          value: RELEASE-NAME.example.com
+
+  - it: has no tls without tlsSecretName
+    asserts:
+      - isNull:
+          path: spec.tls
+
+  - it: covers all hosts with tlsSecretName
+    set:
+      expose.ingress.tlsSecretName: wildcard-tls
+    asserts:
+      - equal:
+          path: spec.tls
+          value:
+            - secretName: wildcard-tls
+              hosts:
+                - RELEASE-NAME.example.com
+                - RELEASE-NAME-ui.example.com
+                - RELEASE-NAME-oidc.example.com
+
+  - it: omits ingressClassName and annotations by default
+    asserts:
+      - isNull:
+          path: spec.ingressClassName
+      - isNull:
+          path: metadata.annotations
+
+  - it: sets ingressClassName and annotations
+    set:
+      expose.ingress.className: nginx
+      expose.ingress.annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "3600"

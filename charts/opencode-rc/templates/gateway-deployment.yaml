@@ -48,7 +48,7 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: OIDC_ISSUER
-              value: {{ include "opencode-rc.oidcIssuer" . | quote }}
+              value: {{ include "opencode-rc.oidcDiscoveryIssuer" . | quote }}
             - name: OIDC_CLIENT_ID
               value: {{ .Values.oidc.clientId | quote }}
             - name: OIDC_CLIENT_SECRET
@@ -60,22 +60,7 @@ spec:
               value: {{ include "opencode-rc.redirectUri" . | quote }}
             - name: OIDC_CLI_CLIENT_ID
               value: {{ .Values.oidc.cliClientId | quote }}
-            {{- if .Values.oidc.issuerOverride }}
-            - name: OIDC_ISSUER_OVERRIDE
-              value: {{ .Values.oidc.issuerOverride | quote }}
-            {{- end }}
-            {{- if .Values.oidc.authorizationEndpoint }}
-            - name: OIDC_AUTHORIZATION_ENDPOINT
-              value: {{ .Values.oidc.authorizationEndpoint | quote }}
-            {{- end }}
-            {{- if .Values.oidc.tokenEndpoint }}
-            - name: OIDC_TOKEN_ENDPOINT
-              value: {{ .Values.oidc.tokenEndpoint | quote }}
-            {{- end }}
-            {{- if .Values.oidc.jwksUri }}
-            - name: OIDC_JWKS_URI
-              value: {{ .Values.oidc.jwksUri | quote }}
-            {{- end }}
+            {{- include "opencode-rc.oidcOverrideEnv" . | nindent 12 }}
             - name: TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

@@ -1,28 +1,29 @@
 OpenCode RC has been deployed!
 
 Profile: {{ .Values.profile }}
-
-{{- if .Values.api.ingress.enabled }}
-API URL: http{{ if .Values.api.ingress.tls }}s{{ end }}://{{ .Values.api.ingress.host }}
-{{- else }}
-API: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-api 8080:8080
+{{ $exposed := ne (include "opencode-rc.exposeType" .) "none" }}
+{{- $gatewayUrl := "http://localhost:9090" }}
+{{- if $exposed }}
+{{- $gatewayUrl = include "opencode-rc.apiPublicUrl" . }}
 {{- end }}
-
+API URL: {{ include "opencode-rc.apiPublicUrl" . }}
+CLI gateway URL: {{ $gatewayUrl }}
 {{- if .Values.ui.enabled }}
-{{- if .Values.ui.ingress.enabled }}
 UI URL: {{ include "opencode-rc.uiPublicUrl" . }}
-{{- else }}
-UI URL: {{ include "opencode-rc.uiPublicUrl" . }}
-UI: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-ui 8081:8080
 {{- end }}
+{{- if include "opencode-rc.oidcMockExposed" . }}
+OIDC mock issuer: {{ include "opencode-rc.oidcIssuer" . }}
 {{- end }}
+{{- if not $exposed }}
 
-{{- if .Values.gateway.ingress.enabled }}
-Gateway URL: http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}
-{{- else }}
-Gateway: kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-gateway 9090:9090
+Not exposed (expose.type=none). To reach the services locally:
+  kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-api 8080:8080
+{{- if .Values.ui.enabled }}
+  kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-ui 8081:8080
+{{- end }}
+  kubectl port-forward svc/{{ include "opencode-rc.fullname" . }}-gateway 9090:9090
 {{- end }}
 
 CLI setup:
   npm install -g opencode-rc
-  opencode-rc --gateway-url {{ if .Values.gateway.ingress.enabled }}http{{ if .Values.gateway.ingress.tls }}s{{ end }}://{{ .Values.gateway.ingress.host }}{{ else }}http://localhost:9090{{ end }}
+  OPENCODE_RC_GATEWAY_URL={{ $gatewayUrl }} opencode-rc
