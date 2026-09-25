@@ -1,10 +1,17 @@
-.PHONY: help unit-test up e2e-test down
+.PHONY: help unit-test check-context ns up e2e-test down
 
-# e2e config
-E2E_CLUSTER := opencode-rc-e2e
-E2E_NS      := default
-COVER_DIR   := .cover
-KUBECTL     := kubectl --context kind-$(E2E_CLUSTER) -n $(E2E_NS)
+# e2e config. The cluster must already exist; these targets never create or delete clusters.
+# KUBE_CONTEXT defaults to the current kubectl context and is resolved once, then passed
+# explicitly to every command.
+ifeq ($(origin KUBE_CONTEXT),undefined)
+KUBE_CONTEXT := $(shell kubectl config current-context 2>/dev/null)
+endif
+NAMESPACE    ?= opencode-rc
+NS_OWNER     := opencode-rc-e2e
+NS_LABEL     := app.kubernetes.io/managed-by=$(NS_OWNER)
+COVER_DIR    := .cover
+KUBECTL      := kubectl --context $(KUBE_CONTEXT) -n $(NAMESPACE)
+KUBECTL_CLUSTER := kubectl --context $(KUBE_CONTEXT)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -25,17 +32,32 @@ unit-test: ## Run unit tests for all packages with coverage
 	@echo "=== Chart (helm unittest) ==="
 	@helm unittest charts/opencode-rc
 
-up: ## Create kind cluster and deploy e2e environment
-	@echo "=== Creating kind cluster ==="
-	@if kind get clusters 2>/dev/null | grep -q "^$(E2E_CLUSTER)$$"; then \
-		echo "Cluster $(E2E_CLUSTER) already exists"; \
-		kubectl config use-context "kind-$(E2E_CLUSTER)"; \
-	else \
-		kind create cluster --config e2e/kind-config.yaml; \
+check-context:
+	@if [ -z "$(KUBE_CONTEXT)" ]; then \
+		echo "ERROR: no kubectl context. Set KUBE_CONTEXT=... or run 'kubectl config use-context ...'"; \
+		exit 1; \
 	fi
-	@echo ""
+	@if ! kubectl config get-contexts -o name | grep -qx "$(KUBE_CONTEXT)"; then \
+		echo "ERROR: kubectl context '$(KUBE_CONTEXT)' does not exist"; \
+		exit 1; \
+	fi
+	@case "$(KUBE_CONTEXT)" in kind-*) ;; *) \
+		echo "ERROR: '$(KUBE_CONTEXT)' is not a kind context; the e2e images are loaded with kind and never pushed"; \
+		exit 1;; \
+	esac
+	@echo "Context: $(KUBE_CONTEXT)  Namespace: $(NAMESPACE)"
+
+ns: check-context ## Create the e2e namespace (labeled as ours) and the dev-machine RoleBinding
+	@if ! $(KUBECTL_CLUSTER) get namespace $(NAMESPACE) >/dev/null 2>&1; then \
+		$(KUBECTL_CLUSTER) create namespace $(NAMESPACE) && \
+		$(KUBECTL_CLUSTER) label namespace $(NAMESPACE) $(NS_LABEL); \
+	fi
+	@$(KUBECTL) create rolebinding dev-machine-admin --clusterrole=admin \
+		--serviceaccount=$(NAMESPACE):dev-machine --dry-run=client -o yaml | $(KUBECTL) apply -f -
+
+up: ns ## Deploy the e2e environment into NAMESPACE on an existing cluster
 	@echo "=== Building and deploying ==="
-	cd e2e && skaffold run -n $(E2E_NS)
+	cd e2e && skaffold run --kube-context $(KUBE_CONTEXT) -n $(NAMESPACE)
 	@echo ""
 	@echo "=== Waiting for services ==="
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-api --timeout=120s
@@ -66,7 +88,7 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	@DEV_POD=$$($(KUBECTL) get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}'); \
 	TEST_EXIT=0; \
 	$(KUBECTL) exec "$$DEV_POD" -- sh -c \
-		"cd /e2e && API_URL=http://opencode-rc-api:8080 UI_URL=http://opencode-rc-ui:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$$?; \
+		"cd /e2e && NAMESPACE=$(NAMESPACE) API_URL=http://opencode-rc-api:8080 UI_URL=http://opencode-rc-ui:8080 GATEWAY_URL=http://opencode-rc-gateway:9090 OIDC_URL=http://opencode-rc-oidc-mock:8080 npx vitest run" || TEST_EXIT=$$?; \
 	echo ""; \
 	echo "=== Running playwright e2e tests ==="; \
 	$(KUBECTL) exec "$$DEV_POD" -- sh -c \
@@ -108,6 +130,15 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 	echo "Coverage data:   $(COVER_DIR)/coverage.out"; \
 	exit $$TEST_EXIT
 
-down: ## Tear down e2e kind cluster
-	cd e2e && skaffold delete -n $(E2E_NS) 2>/dev/null || true
-	kind delete cluster --name $(E2E_CLUSTER) 2>/dev/null || true
+# Deletes the namespace only if `make ns` created it; otherwise removes just what skaffold deployed.
+down: check-context ## Tear down the e2e environment (never the cluster)
+	@if ! $(KUBECTL_CLUSTER) get namespace $(NAMESPACE) >/dev/null 2>&1; then \
+		echo "Namespace $(NAMESPACE) does not exist"; \
+	elif [ "$$($(KUBECTL_CLUSTER) get namespace $(NAMESPACE) -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}')" = "$(NS_OWNER)" ]; then \
+		echo "Deleting namespace $(NAMESPACE)"; \
+		$(KUBECTL_CLUSTER) delete namespace $(NAMESPACE) --wait; \
+	else \
+		echo "Namespace $(NAMESPACE) was not created by 'make ns'; removing only what skaffold deployed"; \
+		cd e2e && skaffold delete --kube-context $(KUBE_CONTEXT) -n $(NAMESPACE); \
+		$(KUBECTL) delete rolebinding dev-machine-admin --ignore-not-found; \
+	fi

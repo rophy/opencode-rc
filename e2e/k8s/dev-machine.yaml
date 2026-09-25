@@ -52,19 +52,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: dev-machine
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: dev-machine-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-  - kind: ServiceAccount
-    name: dev-machine
-    namespace: default
+# The RoleBinding granting this account admin in its namespace is created by
+# `make ns`: a raw manifest cannot name the namespace the ServiceAccount lives in.
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -83,9 +83,12 @@ Proxies `/api`, `/auth`, `/gateway`, `/proxy`, `/healthz` to `localhost:12029`.
 
 ## E2E Tests
 
-E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build images and deploy the actual Helm chart. This ensures the chart is tested end-to-end.
+E2e tests run on an existing kind (Kubernetes in Docker) cluster using Skaffold to build images and deploy the actual Helm chart into a namespace. This ensures the chart is tested end-to-end. The scripts never create or delete clusters: create one once (`kind create cluster --config e2e/kind-config.yaml`, adding any machine-specific settings such as a registry mirror), then point `KUBE_CONTEXT` at it or make it the current context.
 
 ```bash
+# Target cluster and namespace (defaults: current kubectl context, opencode-rc)
+export KUBE_CONTEXT=kind-opencode-rc-e2e NAMESPACE=opencode-rc
+
 # Run all tests (vitest + playwright) with Go coverage
 ./e2e/run.sh
 
@@ -103,6 +106,8 @@ E2e tests run on a kind (Kubernetes in Docker) cluster using Skaffold to build i
 ```
 
 Coverage report is written to `.cover/coverage.html` and `.cover/coverage.out`.
+
+`make up` creates the namespace (labeled `app.kubernetes.io/managed-by=opencode-rc-e2e`) and deploys; `make down` deletes the namespace only when it carries that label, and otherwise removes just what Skaffold deployed. Use a different `NAMESPACE` for concurrent runs on one cluster.
 
 The test environment deploys:
 - The Helm chart (api, ui, gateway, redis, oidc-mock) with `local` profile
@@ -123,4 +128,4 @@ The CLI (`cli/`) is published to npm as `opencode-rc` using **npm trusted publis
 
 ## Kubectl
 
-This project uses `kind-opencode-rc-e2e` kubectl context for e2e tests and `kind-kind` for local development.
+E2e targets use `KUBE_CONTEXT` (default: the current kubectl context) and `NAMESPACE` (default: `opencode-rc`) and pass both explicitly to every command. Never create or delete clusters from scripts; clean up by deleting the namespace (`make down`).
