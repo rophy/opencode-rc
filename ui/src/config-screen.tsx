@@ -1,7 +1,5 @@
 import { type Component, createSignal } from "solid-js"
-import { Capacitor } from "@capacitor/core"
-import { getBaseUrl, setBaseUrl, navigationAllowlist } from "./api"
-import { hostAllowed } from "./nav-allowlist"
+import { getBaseUrl, setBaseUrl } from "./api"
 
 export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void }> = (props) => {
   const [url, setUrl] = createSignal(getBaseUrl())
@@ -15,18 +13,10 @@ export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void
       return
     }
 
-    let host: string
     try {
-      host = new URL(value).hostname
+      new URL(value)
     } catch {
       setError("Invalid URL")
-      return
-    }
-
-    // Sign-in navigates to the server; a host outside the app's allowlist would open in the
-    // system browser and never return to the app.
-    if (Capacitor.isNativePlatform() && !hostAllowed(host, navigationAllowlist())) {
-      setError(`This app build does not allow ${host}. Rebuild it with this server in config.json.`)
       return
     }
 

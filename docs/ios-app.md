@@ -10,34 +10,33 @@ Capacitor wraps the rc-web SPA in a WKWebView. The app is configured with the
 API host (e.g. `https://api.internal/`), which serves no HTML — it does not
 bundle API endpoints.
 
-Login runs inside the WebView: the app sends the user to
-`/auth/start?return_to=capacitor://localhost/&code_challenge=…`, and after the IdP
-the server redirects back with a one-time code that the app exchanges, together
-with the matching verifier, for an access token (15 min) and a refresh token
-(stored in `localStorage`, valid 7 days).
-API calls use `Authorization: Bearer`, so CapacitorHttp is not used.
+Login runs in the system browser (see "Sign-In and Navigation"); the app then
+holds an access token (15 min) and a refresh token (stored in `localStorage`,
+valid 7 days).
+
+## Sign-In and Navigation
+
+The app signs in through the system browser (`ASWebAuthenticationSession` on iOS,
+Custom Tabs on Android), not in its WebView: it opens
+`<api>/auth/start?return_to=com.opencode.rc:/auth/done`, the IdP may use any hosts,
+and the API finally redirects to `com.opencode.rc:/auth/done#code=…`, which the
+system hands back to the app. The app exchanges the code together with its
+verifier for tokens, so a code captured by another app is useless.
+
+The WebView loads only the bundled app (`allowNavigation: []`); every other link
+opens in Safari (Android: the default browser). API calls (`fetch`, WebSockets)
+are not navigations and are not affected.
 
 ## Build-Time config.json
 
-The app reads `config.json` from its bundle, like the web UI reads it from nginx.
-Write it into `ui/dist/` after `bun run build` and before `npx cap sync`:
+To preset the server, write `config.json` into `ui/dist/` after `bun run build` and
+before `npx cap sync`:
 
 ```json
-{
-  "serverUrl": "https://rc.corp.example.com",
-  "oidc": { "issuer": "https://sso.corp.example.com/realms/corp" }
-}
+{ "serverUrl": "https://rc.corp.example.com" }
 ```
 
-- `serverUrl` presets the API server, so users never see the server settings screen.
-- The WebView may load only the bundled app, the `serverUrl` host and the
-  `oidc.issuer` host; `npx cap sync` derives Capacitor's `allowNavigation` from
-  them. Every other link opens in Safari (Android: the default browser).
-  API calls (`fetch`, WebSockets) are not navigations and are not affected.
-- Without the file only the app itself loads, so sign-in cannot work: a build meant
-  for users must include it.
-- Identity providers whose login pages move to hosts other than the issuer's are
-  not supported yet.
+Users then never see the server settings screen.
 
 ## Docker Image as Transport
 

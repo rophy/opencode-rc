@@ -58,9 +58,9 @@ cd ui && bun install && bun run build
 
 Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
-For the iOS/Android apps, write `dist/config.json` (`serverUrl`, `oidc.issuer`) before
-`npx cap sync`; the WebView loads only the app, the server host and the issuer host, and opens
-every other link in the system browser (see `docs/ios-app.md`).
+The iOS/Android apps sign in through the system browser (local `SystemAuth` plugin, callback
+`com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server,
+write `dist/config.json` (`{"serverUrl": …}`) before `npx cap sync` (see `docs/ios-app.md`).
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 

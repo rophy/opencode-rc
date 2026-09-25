@@ -1,9 +1,6 @@
-import { deriveAllowNavigation } from "./nav-allowlist"
-
 const STORAGE_KEY = "opencode-rc-endpoint"
 
 let preConfiguredUrl: string | undefined
-let allowNavigation: string[] = []
 
 export async function loadConfig(): Promise<void> {
   try {
@@ -13,7 +10,6 @@ export async function loadConfig(): Promise<void> {
     if (config.serverUrl) {
       preConfiguredUrl = config.serverUrl.replace(/\/+$/, "")
     }
-    allowNavigation = deriveAllowNavigation(config)
   } catch {}
 }
 
@@ -23,12 +19,6 @@ export function isPreConfigured(): boolean {
 
 export function resetConfig() {
   preConfiguredUrl = undefined
-  allowNavigation = []
-}
-
-// Hosts the native WebView may load (same derivation as capacitor.config.ts).
-export function navigationAllowlist(): string[] {
-  return allowNavigation
 }
 
 export function getBaseUrl(): string {
