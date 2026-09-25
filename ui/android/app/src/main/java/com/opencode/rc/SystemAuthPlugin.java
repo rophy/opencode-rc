@@ -17,6 +17,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "SystemAuth")
 public class SystemAuthPlugin extends Plugin {
 
+    // Read and written only on the main thread: start() hops there via runOnUiThread, and
+    // handleOnNewIntent/handleOnResume already run on the main thread. If the OS kills the
+    // app while the tab is open, the callback arrives with no pending call and is ignored
+    // (the user signs in again).
     private PluginCall pending;
     private String callbackScheme;
 
@@ -28,17 +32,19 @@ public class SystemAuthPlugin extends Plugin {
             call.reject("url and callbackScheme are required", "failed");
             return;
         }
-        if (pending != null) {
-            pending.reject("superseded by a new sign-in", "cancelled");
-        }
-        pending = call;
-        callbackScheme = scheme;
-        try {
-            new CustomTabsIntent.Builder().build().launchUrl(getActivity(), Uri.parse(url));
-        } catch (ActivityNotFoundException e) {
-            pending = null;
-            call.reject("no browser available", "failed");
-        }
+        getActivity().runOnUiThread(() -> {
+            if (pending != null) {
+                pending.reject("superseded by a new sign-in", "cancelled");
+            }
+            pending = call;
+            callbackScheme = scheme;
+            try {
+                new CustomTabsIntent.Builder().build().launchUrl(getActivity(), Uri.parse(url));
+            } catch (ActivityNotFoundException e) {
+                pending = null;
+                call.reject("no browser available", "failed");
+            }
+        });
     }
 
     @Override
