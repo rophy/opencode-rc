@@ -4,9 +4,7 @@
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https",
-		"allowNavigation": [
-			"*"
-		]
+		"allowNavigation": []
 	},
 	"packageClassList": []
 }

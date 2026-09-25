@@ -17,6 +17,28 @@ with the matching verifier, for an access token (15 min) and a refresh token
 (stored in `localStorage`, valid 7 days).
 API calls use `Authorization: Bearer`, so CapacitorHttp is not used.
 
+## Build-Time config.json
+
+The app reads `config.json` from its bundle, like the web UI reads it from nginx.
+Write it into `ui/dist/` after `bun run build` and before `npx cap sync`:
+
+```json
+{
+  "serverUrl": "https://rc.corp.example.com",
+  "oidc": { "issuer": "https://sso.corp.example.com/realms/corp" }
+}
+```
+
+- `serverUrl` presets the API server, so users never see the server settings screen.
+- The WebView may load only the bundled app, the `serverUrl` host and the
+  `oidc.issuer` host; `npx cap sync` derives Capacitor's `allowNavigation` from
+  them. Every other link opens in Safari (Android: the default browser).
+  API calls (`fetch`, WebSockets) are not navigations and are not affected.
+- Without the file only the app itself loads, so sign-in cannot work: a build meant
+  for users must include it.
+- Identity providers whose login pages move to hosts other than the issuer's are
+  not supported yet.
+
 ## Docker Image as Transport
 
 The gateway Docker image serves double duty — runtime and iOS project transport:
@@ -49,9 +71,10 @@ No Node, bun, or opencode source repo needed on the corporate Mac — just Xcode
 ## Build Pipeline (CI side)
 
 ```bash
-# Build web
-cd opencode-rc/web
-OPENCODE_ROOT=../opencode bun run build
+# Build web, then add the build-time config
+cd opencode-rc/ui
+bun run build
+cp /path/to/config.json dist/config.json
 
 # Sync into Capacitor iOS project
 npx cap sync

@@ -58,6 +58,10 @@ cd ui && bun install && bun run build
 
 Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
+For the iOS/Android apps, write `dist/config.json` (`serverUrl`, `oidc.issuer`) before
+`npx cap sync`; the WebView loads only the app, the server host and the issuer host, and opens
+every other link in the system browser (see `docs/ios-app.md`).
+
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 
 ### API Server

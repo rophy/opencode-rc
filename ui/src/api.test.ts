@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, isPreConfigured, loadConfig, resetConfig, fetchMe, fetchSessions } from "./api"
+import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, isPreConfigured, loadConfig, resetConfig, navigationAllowlist, fetchMe, fetchSessions } from "./api"
 import { resetAuthState } from "./auth"
 
 beforeEach(() => {
@@ -197,6 +197,21 @@ describe("loadConfig / isPreConfigured", () => {
     )
     await loadConfig()
     expect(isPreConfigured()).toBe(false)
+    vi.restoreAllMocks()
+  })
+
+  it("derives the navigation allowlist from serverUrl and the OIDC issuer", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ serverUrl: "https://corp.example.com", oidc: { issuer: "https://sso.example.com/realms/x" } }),
+        { status: 200 },
+      )
+    )
+    expect(navigationAllowlist()).toEqual([])
+    await loadConfig()
+    expect(navigationAllowlist()).toEqual(["corp.example.com", "sso.example.com"])
+    resetConfig()
+    expect(navigationAllowlist()).toEqual([])
     vi.restoreAllMocks()
   })
 
