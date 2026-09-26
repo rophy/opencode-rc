@@ -68,7 +68,8 @@ A missing header, or one that isn't a valid integer, reads as `0`.
 - CORS adds the header to `Access-Control-Expose-Headers`, so browser code can read it.
   The request header is already allowed, because the CORS middleware reflects
   `Access-Control-Request-Headers`.
-- The client check applies to `/api/*`, `POST /auth/token` and `POST /auth/refresh`.
+- The client check applies to `/api/*`, `/gateway/*` (the UI's session list is served
+  under `/gateway/sessions`), `POST /auth/token` and `POST /auth/refresh`.
   If the client protocol is below `MIN_CLIENT_PROTOCOL`, the response is
   `426 Upgrade Required` with
   `{"error":"client_outdated","client":<n>,"minimum":<MIN>,"server":<PROTOCOL>}`.

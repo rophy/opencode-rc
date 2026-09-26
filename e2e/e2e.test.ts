@@ -9,6 +9,8 @@ const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 
+const PROTOCOL = { "OpenCode-RC-Protocol": "1" };
+
 async function waitFor(
   name: string,
   url: string,
@@ -30,6 +32,7 @@ class TokenSession {
   async fetch(url: string, init?: RequestInit): Promise<Response> {
     const headers = new Headers(init?.headers);
     headers.set("authorization", `Bearer ${this.access}`);
+    headers.set("OpenCode-RC-Protocol", "1");
     return fetch(url, { ...init, headers, redirect: "manual" });
   }
 }
@@ -44,7 +47,7 @@ function cookieHeader(res: Response): string {
 async function postJson(path: string, body: unknown): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...PROTOCOL },
     body: JSON.stringify(body),
   });
 }
@@ -193,14 +196,14 @@ describe("auth edge cases", () => {
   });
 
   it("unauthenticated /api/me returns 401", async () => {
-    const res = await fetch(`${API_URL}/api/me`);
+    const res = await fetch(`${API_URL}/api/me`, { headers: PROTOCOL });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
   });
 
   it("unauthenticated /gateway/sessions returns 401", async () => {
-    const res = await fetch(`${API_URL}/gateway/sessions`);
+    const res = await fetch(`${API_URL}/gateway/sessions`, { headers: PROTOCOL });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error).toBe("unauthorized");
@@ -521,20 +524,20 @@ describe("tunnel auth", () => {
   });
 
   it("gateway /tunnel without auth returns 401", async () => {
-    const res = await fetch(`${GATEWAY_URL}/tunnel`);
+    const res = await fetch(`${GATEWAY_URL}/tunnel`, { headers: PROTOCOL });
     expect(res.status).toBe(401);
   });
 
   it("gateway /tunnel with invalid bearer returns 401", async () => {
     const res = await fetch(`${GATEWAY_URL}/tunnel`, {
-      headers: { authorization: "Bearer invalid-token" },
+      headers: { authorization: "Bearer invalid-token", ...PROTOCOL },
     });
     expect(res.status).toBe(401);
   });
 
   it("gateway /tunnel with malformed auth header returns 401", async () => {
     const res = await fetch(`${GATEWAY_URL}/tunnel`, {
-      headers: { authorization: "NotBearer something" },
+      headers: { authorization: "NotBearer something", ...PROTOCOL },
     });
     expect(res.status).toBe(401);
   });
@@ -597,5 +600,26 @@ describe("terminal WebSocket through /proxy", () => {
       ws.onerror = () => resolve(true);
     });
     expect(failed).toBe(true);
+  });
+});
+
+describe("protocol versioning", () => {
+  it("API rejects a client without the protocol header", async () => {
+    const res = await fetch(`${API_URL}/api/me`);
+    expect(res.status).toBe(426);
+    expect(await res.json()).toMatchObject({ error: "client_outdated", client: 0, minimum: 1 });
+    expect(res.headers.get("OpenCode-RC-Protocol")).toBe("1");
+  });
+
+  it("API healthz reports its protocol", async () => {
+    expect(await (await fetch(`${API_URL}/healthz`)).json()).toMatchObject({ protocol: 1 });
+  });
+
+  it("gateway tells an old CLI to update", async () => {
+    const res = await fetch(`${GATEWAY_URL}/tunnel?sessionId=e2e-old-cli&directory=%2Ftmp`);
+    expect(res.status).toBe(403);
+    expect((await res.text()).trim()).toBe(
+      "opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest",
+    );
   });
 });

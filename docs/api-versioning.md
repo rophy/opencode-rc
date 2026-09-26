@@ -1,30 +1,36 @@
-# API Versioning (TODO)
+# Protocol Versioning
 
-## Problem
+Clients and servers exchange a small integer protocol version so that a client too old
+for its server, or a server too old for its client, fails with a clear message.
 
-External clients (mobile app, CLI) can drift behind server versions. We need a way to detect and reject incompatible clients.
+## Boundaries
 
-## Client-Server Boundaries
+| Boundary | Server constant | Client constant |
+|---|---|---|
+| UI (web and apps) ↔ API | `api/src/protocol.ts`: `PROTOCOL`, `MIN_CLIENT_PROTOCOL` | `ui/src/protocol.ts`: `PROTOCOL`, `MIN_SERVER_PROTOCOL` |
+| CLI ↔ gateway | `gateway/protocol.go`: `TunnelProtocol`, `MinCLIProtocol` | `cli/src/protocol.ts`: `PROTOCOL`, `MIN_GATEWAY_PROTOCOL` |
 
-API + Gateway are co-deployed via the Helm chart, so their internal compatibility is guaranteed. External clients can drift:
+The API and gateway are deployed together by the chart, so they need no versioning
+between them.
 
-| Server | Client | Risk |
-|--------|--------|------|
-| API | UI (web/mobile) | Mobile app versions lag behind server (app store review delays) |
-| Gateway | CLI | Users may not update CLI promptly |
+## Mechanism
 
-UI always connects to the API. CLI always connects to Gateway. UI never talks to Gateway directly.
+- Requests and responses carry `OpenCode-RC-Protocol: <n>`. A missing or invalid value
+  counts as 0. `/healthz` also reports `"protocol"`.
+- The API checks the client on `/api/*`, `/gateway/*`, `POST /auth/token` and
+  `POST /auth/refresh` and answers `426 {"error":"client_outdated", ...}` when it is too
+  old. `/auth/start`, `/auth/callback`, `/auth/logout`, `/proxy/*` and `/healthz` are not
+  checked.
+- The gateway checks `/tunnel` before authentication: `426` JSON for a versioned but
+  outdated CLI, and a plain-text `403` for CLIs that send no header (older CLIs print
+  that body).
+- The UI shows a full-screen message: update the app, reload the page, or ask the
+  administrator to upgrade the server. The CLI prints the matching message and exits.
 
-## Proposed Design
+## When to change the numbers
 
-Each server advertises an integer `apiVersion`, bumped only on breaking API changes (independent of the release version). The two `apiVersion` values (API and Gateway) are independent.
-
-- Client sends its understood `apiVersion` (e.g. via header or handshake)
-- Server rejects clients below its minimum with a descriptive error ("please update to >= X")
-- Server accepts clients with equal or higher `apiVersion` (newer client, older server is fine)
-
-## Open Questions
-
-- Where to expose `apiVersion` — `/healthz` response? Dedicated endpoint?
-- Header name for client version (e.g. `X-Api-Version`)
-- How to surface upgrade prompts in mobile app vs CLI
+- A server change that old clients cannot handle: bump the server's protocol. Raise its
+  minimum client protocol when those clients are no longer supported.
+- A client that relies on new server behaviour: raise the client's minimum server
+  protocol.
+- Release versions are independent of protocol numbers.
