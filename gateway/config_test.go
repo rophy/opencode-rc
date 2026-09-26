@@ -14,7 +14,6 @@ func TestLoadConfigAllFields(t *testing.T) {
 	t.Setenv("OIDC_REDIRECT_URI", "http://redirect")
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
-	t.Setenv("WEBUI_DIR", "/tmp/webui")
 	t.Setenv("OIDC_CLI_CLIENT_ID", "cli-client")
 
 	cfg, err := LoadConfig()
@@ -40,9 +39,6 @@ func TestLoadConfigAllFields(t *testing.T) {
 	if len(cfg.TokenSecret) != 32 {
 		t.Errorf("expected TokenSecret length 32, got %d", len(cfg.TokenSecret))
 	}
-	if cfg.WebUIDir != "/tmp/webui" {
-		t.Errorf("expected WebUIDir /tmp/webui, got %s", cfg.WebUIDir)
-	}
 	if cfg.OIDCCLIClientID != "cli-client" {
 		t.Errorf("expected OIDCCLIClientID cli-client, got %s", cfg.OIDCCLIClientID)
 	}
@@ -62,9 +58,6 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 	if cfg.Port != 8080 {
 		t.Errorf("expected default Port 8080, got %d", cfg.Port)
-	}
-	if cfg.WebUIDir != "" {
-		t.Errorf("expected default WebUIDir empty, got %s", cfg.WebUIDir)
 	}
 }
 

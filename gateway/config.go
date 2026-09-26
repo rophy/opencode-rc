@@ -18,7 +18,6 @@ type Config struct {
 	OIDCClientSecret          string
 	OIDCCLIClientID           string
 	OIDCRedirectURI           string
-	WebUIDir                  string
 	TokenSecret               []byte
 	RedisURL                  string
 	PodIP                     string
@@ -62,8 +61,6 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("TOKEN_SECRET must be a 64-char hex string (32 bytes)")
 	}
 
-	webUIDir := os.Getenv("WEBUI_DIR")
-
 	cliClientID := os.Getenv("OIDC_CLI_CLIENT_ID")
 
 	redisURL := os.Getenv("REDIS_URL")
@@ -84,7 +81,6 @@ func LoadConfig() (*Config, error) {
 		OIDCClientSecret:          clientSecret,
 		OIDCCLIClientID:           cliClientID,
 		OIDCRedirectURI:           redirectURI,
-		WebUIDir:                  webUIDir,
 		TokenSecret:               secret,
 		RedisURL:                  redisURL,
 		PodIP:                     os.Getenv("POD_IP"),
