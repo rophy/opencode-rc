@@ -19,10 +19,10 @@ func mockOIDCServer(t *testing.T) *httptest.Server {
 		scheme := "http"
 		issuer := scheme + "://" + r.Host
 		doc := map[string]interface{}{
-			"issuer":                 issuer,
-			"authorization_endpoint": issuer + "/authorize",
-			"token_endpoint":         issuer + "/token",
-			"jwks_uri":               issuer + "/jwks",
+			"issuer":                                issuer,
+			"authorization_endpoint":                issuer + "/authorize",
+			"token_endpoint":                        issuer + "/token",
+			"jwks_uri":                              issuer + "/jwks",
 			"id_token_signing_alg_values_supported": []string{"RS256"},
 		}
 		w.Header().Set("Content-Type", "application/json")

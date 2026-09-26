@@ -10,11 +10,11 @@ import (
 )
 
 type SessionMeta struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"userId"`
-	Directory    string    `json:"directory"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId"`
+	Directory   string    `json:"directory"`
 	GatewayAddr string    `json:"gatewayAddr"`
-	CreatedAt    time.Time `json:"createdAt"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type SessionStore interface {

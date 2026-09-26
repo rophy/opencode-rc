@@ -13,11 +13,11 @@ func TestRedisStorePutGet(t *testing.T) {
 	ctx := context.Background()
 
 	meta := SessionMeta{
-		ID:           "sess-1",
-		UserID:       "alice@example.com",
-		Directory:    "/home/alice/project",
+		ID:          "sess-1",
+		UserID:      "alice@example.com",
+		Directory:   "/home/alice/project",
 		GatewayAddr: "10.0.0.1:9090",
-		CreatedAt:    time.Now().Truncate(time.Millisecond),
+		CreatedAt:   time.Now().Truncate(time.Millisecond),
 	}
 
 	if err := store.Put(ctx, meta); err != nil {
