@@ -53,6 +53,9 @@ export function validateReturnTo(
       return null;
     }
     if (parsed.origin !== PATH_BASE) return null;
+    // Dot segments can collapse "/.//evil.com" into "//evil.com", which a browser
+    // would read as another host.
+    if (parsed.pathname.startsWith("//")) return null;
     return parsed.pathname + parsed.search;
   }
   const origin = originOf(withoutFragment);

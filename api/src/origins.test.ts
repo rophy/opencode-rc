@@ -61,6 +61,12 @@ describe("validateReturnTo", () => {
     expect(validateReturnTo("/%09/foo", isAllowed)).toBe("/%09/foo");
   });
 
+  it("rejects paths that normalize to a protocol-relative URL", () => {
+    expect(validateReturnTo("/.//evil.com", isAllowed)).toBeNull();
+    expect(validateReturnTo("/a/..//evil.com/x", isAllowed)).toBeNull();
+    expect(validateReturnTo("/./", isAllowed)).toBe("/");
+  });
+
   it("returns the normalized path", () => {
     expect(validateReturnTo("/a/../b?x=1", isAllowed)).toBe("/b?x=1");
   });
