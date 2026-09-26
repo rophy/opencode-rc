@@ -70,6 +70,8 @@ export function corsMiddleware(isAllowed: (origin: string) => boolean): Middlewa
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     // allowHeaders omitted: hono reflects Access-Control-Request-Headers,
     // which covers Authorization, Content-Type and opencode's x-opencode-* headers.
+    // Lets browser code read the server's protocol (docs/api-versioning.md).
+    exposeHeaders: ["OpenCode-RC-Protocol"],
     maxAge: 600,
   });
 }

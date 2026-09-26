@@ -143,4 +143,9 @@ describe("corsMiddleware", () => {
     const res = await app.request("/x", { headers: { origin: "https://evil.example.com" } });
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
   });
+
+  it("exposes the protocol header to browser code", async () => {
+    const res = await app.request("/x", { headers: { origin: "https://localhost" } });
+    expect(res.headers.get("access-control-expose-headers")).toContain("OpenCode-RC-Protocol");
+  });
 });

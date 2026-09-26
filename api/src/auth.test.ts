@@ -5,6 +5,7 @@ import { codeChallenge, randomToken, signAccessToken } from "./token.js";
 import { TokenStore } from "./token-store.js";
 import { MockRedis } from "./testing/mock-redis.js";
 import { makeOriginCheck } from "./origins.js";
+import { PROTOCOL_HEADER } from "./protocol.js";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
 
@@ -76,7 +77,7 @@ const challenge = codeChallenge(verifier);
 const post = (path: string, body: unknown) =>
   app.request(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", [PROTOCOL_HEADER]: "1" },
     body: JSON.stringify(body),
   });
 
@@ -261,6 +262,15 @@ describe("/auth/token", () => {
     const retry = await post("/auth/token", { code, code_verifier: verifier });
     expect(retry.status).toBe(400);
   });
+
+  it("rejects a client without the protocol header", async () => {
+    const res = await app.request("/auth/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "x", code_verifier: "y" }),
+    });
+    expect(res.status).toBe(426);
+  });
 });
 
 describe("/auth/refresh and /auth/logout", () => {
@@ -298,6 +308,16 @@ describe("/auth/refresh and /auth/logout", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects refresh without the protocol header but always allows logout", async () => {
+    const plain = (path: string) => app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refresh_token: "nope" }),
+    });
+    expect((await plain("/auth/refresh")).status).toBe(426);
+    expect((await plain("/auth/logout")).status).not.toBe(426);
+  });
+
   it("returns 503 when Redis fails", async () => {
     const broken = new TokenStore(
       {
@@ -313,7 +333,7 @@ describe("/auth/refresh and /auth/logout", () => {
     a.route("/", authRoutes({ config, provider, tokens: broken, isAllowedOrigin: () => false }));
     const res = await a.request("/auth/refresh", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", [PROTOCOL_HEADER]: "1" },
       body: JSON.stringify({ refresh_token: "x" }),
     });
     expect(res.status).toBe(503);

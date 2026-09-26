@@ -14,6 +14,7 @@ import {
 } from "./token.js";
 import type { TokenStore } from "./token-store.js";
 import { validateReturnTo, APP_CALLBACK } from "./origins.js";
+import { requireClientProtocol } from "./protocol.js";
 
 export type AuthEnv = {
   Variables: {
@@ -174,7 +175,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
   });
 
-  app.post("/auth/token", async (c) => {
+  app.post("/auth/token", requireClientProtocol(), async (c) => {
     const body = await readBody(c);
     const code = stringField(body, "code");
     if (!code) return c.json({ error: "invalid_grant" }, 400);
@@ -193,7 +194,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     }
   });
 
-  app.post("/auth/refresh", async (c) => {
+  app.post("/auth/refresh", requireClientProtocol(), async (c) => {
     const refreshToken = await readField(c, "refresh_token");
     if (!refreshToken) return c.json({ error: "invalid_grant" }, 401);
     try {

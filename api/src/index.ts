@@ -7,6 +7,7 @@ import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
 import { SessionStore } from "./store.js";
 import { TokenStore, type RedisLike } from "./token-store.js";
 import { corsMiddleware, makeOriginCheck, originOf } from "./origins.js";
+import { PROTOCOL, protocolHeader, requireClientProtocol } from "./protocol.js";
 import { proxyHttp, sessionAccess } from "./proxy.js";
 import { wsRelay } from "./ws-relay.js";
 import { notFoundJson } from "./not-found.js";
@@ -45,11 +46,15 @@ const isAllowedOrigin = makeOriginCheck(originOf(config.oidcRedirectUri), config
 const app = new Hono<AuthEnv>();
 app.use("*", requestLogger());
 app.use("*", corsMiddleware(isAllowedOrigin));
+app.use("*", protocolHeader());
+// Every UI session starts with these calls, so an outdated client is stopped here.
+app.use("/api/*", requireClientProtocol());
+app.use("/gateway/*", requireClientProtocol());
 
 // Health check (no auth)
 app.get("/healthz", async (c) => {
   const ok = await store.ping();
-  return c.json({ status: ok ? "ok" : "degraded", version });
+  return c.json({ status: ok ? "ok" : "degraded", version, protocol: PROTOCOL });
 });
 
 // Auth routes (no auth middleware)
