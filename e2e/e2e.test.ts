@@ -406,7 +406,7 @@ describe("API and UI are separate hosts", () => {
       "/auth/nope",
       "/gateway/nope",
     ]) {
-      const res = await fetch(`${API_URL}${path}`);
+      const res = await fetch(`${API_URL}${path}`, { headers: PROTOCOL });
       expect(res.status).toBe(404);
       expect(res.headers.get("content-type") ?? "").toContain("application/json");
     }
