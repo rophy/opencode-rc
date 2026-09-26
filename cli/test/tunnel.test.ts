@@ -16,6 +16,7 @@ import {
   type RequestHeaders,
 } from "../src/tunnel.js";
 import type { Config } from "../src/config.js";
+import { ProtocolError } from "../src/protocol.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -486,18 +487,32 @@ function makeConfig(port: number): Config {
   };
 }
 
+// A plain HTTP request (the CLI's pre-flight) hitting a bare `ws`
+// WebSocketServer gets that library's own hard-coded 426 response, which
+// carries no OpenCode-RC-Protocol header. Front it with our own HTTP server
+// so the pre-flight sees a protocol header, same as the real gateway.
+function protocolAwareWss(): { wss: WebSocketServer; httpServer: Server } {
+  const httpServer = createServer((_req, res) => {
+    res.writeHead(426, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+    res.end("Upgrade Required");
+  });
+  const wss = new WebSocketServer({ server: httpServer });
+  return { wss, httpServer };
+}
+
 async function withServer<T>(
   fn: (wss: WebSocketServer, port: number) => Promise<T>
 ): Promise<T> {
-  const wss = new WebSocketServer({ port: 0 });
-  await new Promise<void>((resolve) => wss.once("listening", resolve));
-  const address = wss.address();
+  const { wss, httpServer } = protocolAwareWss();
+  await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+  const address = httpServer.address();
   const port = typeof address === "object" && address ? address.port : 0;
   try {
     return await fn(wss, port);
   } finally {
     wss.close();
     for (const client of wss.clients) client.terminate();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   }
 }
 
@@ -659,7 +674,7 @@ describe("startTunnel pre-flight", () => {
   it("rejects with 401 status and error body", async () => {
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(401, { "Content-Type": "text/plain" });
+        res.writeHead(401, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
         res.end("invalid token: token is expired");
       },
       async (port) => {
@@ -677,7 +692,7 @@ describe("startTunnel pre-flight", () => {
   it("rejects with 403 status", async () => {
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(403, { "Content-Type": "text/plain" });
+        res.writeHead(403, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
         res.end("forbidden");
       },
       async (port) => {
@@ -691,7 +706,7 @@ describe("startTunnel pre-flight", () => {
   it("rejects with 502 status", async () => {
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.writeHead(502, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
         res.end("bad gateway");
       },
       async (port) => {
@@ -709,7 +724,7 @@ describe("startTunnel pre-flight", () => {
     // by checking it eventually fails on the WS upgrade (not the pre-flight).
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.writeHead(400, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
         res.end("Not a websocket request");
       },
       async (port) => {
@@ -730,7 +745,7 @@ describe("startTunnel pre-flight", () => {
   it("passes through on 426 (Upgrade Required)", async () => {
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(426, { "Content-Type": "text/plain" });
+        res.writeHead(426, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
         res.end("Upgrade Required");
       },
       async (port) => {
@@ -747,6 +762,70 @@ describe("startTunnel pre-flight", () => {
     await expect(
       startTunnel(makeConfig(1), "token", "s1", "http://localhost:9999", "/tmp")
     ).rejects.toThrow();
+  });
+});
+
+describe("protocol versioning", () => {
+  it("sends the protocol header on the pre-flight", async () => {
+    let seen: string | undefined;
+    await withHttpServer(
+      (req, res) => {
+        seen = req.headers["opencode-rc-protocol"] as string | undefined;
+        res.writeHead(401, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+        res.end("no");
+      },
+      async (port) => {
+        await expect(startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp")).rejects.toThrow();
+      }
+    );
+    expect(seen).toBe("1");
+  });
+
+  it("stops with an update message when the gateway says the CLI is outdated", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(426, { "Content-Type": "application/json", "OpenCode-RC-Protocol": "2" });
+        res.end(JSON.stringify({ error: "client_outdated", client: 1, minimum: 2, server: 2 }));
+      },
+      async (port) => {
+        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+        await expect(p).rejects.toBeInstanceOf(ProtocolError);
+        await expect(p).rejects.toThrow("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
+      }
+    );
+  });
+
+  it("stops when the gateway is older than the CLI supports", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(400, { "Content-Type": "text/plain" }); // an old gateway: no protocol header
+        res.end("websocket required");
+      },
+      async (port) => {
+        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+        await expect(p).rejects.toBeInstanceOf(ProtocolError);
+        await expect(p).rejects.toThrow(
+          `The gateway at ${makeConfig(port).gatewayUrl} is older than this CLI supports. Ask your administrator to upgrade it.`
+        );
+      }
+    );
+  });
+
+  it("does not retry protocol errors", async () => {
+    let calls = 0;
+    await withHttpServer(
+      (_req, res) => {
+        calls++;
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("old gateway");
+      },
+      async (port) => {
+        await expect(
+          startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp")
+        ).rejects.toBeInstanceOf(ProtocolError);
+      }
+    );
+    expect(calls).toBe(1);
   });
 });
 
@@ -920,6 +999,7 @@ describe("startTunnelWithReconnect", () => {
 
     // Start connecting — first attempt will fail, then retry
     let wss2: WebSocketServer | null = null;
+    let httpServer2: Server | null = null;
     const connectPromise = startTunnelWithReconnect(
       makeConfig(port),
       "test-token",
@@ -930,8 +1010,8 @@ describe("startTunnelWithReconnect", () => {
 
     // After a short delay (let first attempt fail), start the server
     await new Promise((r) => setTimeout(r, 500));
-    wss2 = new WebSocketServer({ port });
-    await new Promise<void>((resolve) => wss2!.once("listening", resolve));
+    ({ wss: wss2, httpServer: httpServer2 } = protocolAwareWss());
+    await new Promise<void>((resolve) => httpServer2!.listen(port, resolve));
 
     try {
       const handle = await connectPromise;
@@ -943,6 +1023,7 @@ describe("startTunnelWithReconnect", () => {
     } finally {
       wss2?.close();
       if (wss2) for (const client of wss2.clients) client.terminate();
+      if (httpServer2) await new Promise<void>((resolve) => httpServer2!.close(() => resolve()));
       errorSpy.mockRestore();
       logSpy.mockRestore();
     }

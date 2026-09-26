@@ -2,6 +2,7 @@ import type { Config } from "./config.js";
 import WebSocket from "ws";
 import { request as httpRequest } from "node:http";
 import type { Socket } from "node:net";
+import { PROTOCOL_HEADER, PROTOCOL, MIN_GATEWAY_PROTOCOL, readProtocol, ProtocolError } from "./protocol.js";
 
 export const FRAME_REQUEST_HEADERS = 0x01;
 export const FRAME_RESPONSE_HEADERS = 0x02;
@@ -328,8 +329,19 @@ export async function startTunnel(
   try {
     const resp = await fetch(`${baseUrl}${tunnelPath}`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${idToken}` },
+      headers: { Authorization: `Bearer ${idToken}`, [PROTOCOL_HEADER]: String(PROTOCOL) },
     });
+    if (resp.status === 426) {
+      const body = (await resp.clone().json().catch(() => ({}))) as { error?: string };
+      if (body.error === "client_outdated") {
+        throw new ProtocolError("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
+      }
+    }
+    if (readProtocol(resp.headers.get(PROTOCOL_HEADER)) < MIN_GATEWAY_PROTOCOL) {
+      throw new ProtocolError(
+        `The gateway at ${baseUrl} is older than this CLI supports. Ask your administrator to upgrade it.`,
+      );
+    }
     const preflightOk = [400, 405, 426];
     if (!preflightOk.includes(resp.status) && (resp.status === 401 || resp.status === 403 || resp.status >= 500)) {
       const body = await resp.text().catch(() => "");
@@ -338,6 +350,7 @@ export async function startTunnel(
       throw new Error(msg);
     }
   } catch (err: any) {
+    if (err instanceof ProtocolError) throw err;
     if (err.message?.startsWith("Tunnel pre-flight")) throw err;
     console.error(`Tunnel pre-flight network error: ${err.message} (url: ${baseUrl}${tunnelPath})`);
     throw err;
@@ -350,6 +363,7 @@ export async function startTunnel(
     const ws = new WebSocket(url, {
       headers: {
         Authorization: `Bearer ${idToken}`,
+        [PROTOCOL_HEADER]: String(PROTOCOL),
       },
     });
 
@@ -456,6 +470,10 @@ export async function startTunnelWithReconnect(
           console.log("Tunnel disconnected, will reconnect...");
         }
       } catch (err) {
+        if (err instanceof ProtocolError) {
+          console.error(err.message);
+          process.exit(1);
+        }
         if (closed) return;
         console.error(`Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -480,6 +498,7 @@ export async function startTunnelWithReconnect(
       );
       break;
     } catch (err) {
+      if (err instanceof ProtocolError) throw err;
       if (closed) throw new Error("tunnel closed");
       console.error(`Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
       console.log(`Reconnecting in ${backoff / 1000}s...`);
