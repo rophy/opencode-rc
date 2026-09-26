@@ -17,6 +17,7 @@ func TestTunnelHandlerMissingAuth(t *testing.T) {
 	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
+	req.Header.Set(ProtocolHeader, "1")
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
@@ -31,6 +32,7 @@ func TestTunnelHandlerInvalidToken(t *testing.T) {
 	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
+	req.Header.Set(ProtocolHeader, "1")
 	req.Header.Set("Authorization", "Bearer bad-token")
 	rec := httptest.NewRecorder()
 	handler(rec, req)
@@ -47,6 +49,7 @@ func TestTunnelHandlerUpgradeFailure(t *testing.T) {
 
 	// Send a normal HTTP request (not WebSocket) — upgrader.Upgrade will fail
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1&directory=/proj", nil)
+	req.Header.Set(ProtocolHeader, "1")
 	req.Header.Set("Authorization", "Bearer valid-token")
 	rec := httptest.NewRecorder()
 	handler(rec, req)
@@ -65,6 +68,7 @@ func TestTunnelHandlerClaimsError(t *testing.T) {
 	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
+	req.Header.Set(ProtocolHeader, "1")
 	req.Header.Set("Authorization", "Bearer valid-token")
 	rec := httptest.NewRecorder()
 	handler(rec, req)
@@ -80,6 +84,7 @@ func TestTunnelHandlerMissingSessionId(t *testing.T) {
 	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
 
 	req := httptest.NewRequest("GET", "/tunnel", nil)
+	req.Header.Set(ProtocolHeader, "1")
 	req.Header.Set("Authorization", "Bearer valid-token")
 	rec := httptest.NewRecorder()
 	handler(rec, req)
@@ -101,7 +106,7 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 	defer srv.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=cli-sess&directory=/proj"
-	header := http.Header{"Authorization": []string{"Bearer cli-token"}}
+	header := http.Header{"Authorization": []string{"Bearer cli-token"}, ProtocolHeader: []string{"1"}}
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
@@ -133,7 +138,7 @@ func TestTunnelHandlerSubFallback(t *testing.T) {
 	defer srv.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=sub-sess&directory=/proj"
-	header := http.Header{"Authorization": []string{"Bearer valid-token"}}
+	header := http.Header{"Authorization": []string{"Bearer valid-token"}, ProtocolHeader: []string{"1"}}
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)
@@ -165,7 +170,7 @@ func TestTunnelHandlerSuccess(t *testing.T) {
 	defer srv.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=test-sess&directory=/proj"
-	header := http.Header{"Authorization": []string{"Bearer valid-token"}}
+	header := http.Header{"Authorization": []string{"Bearer valid-token"}, ProtocolHeader: []string{"1"}}
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
 		t.Fatalf("dial failed: %v", err)

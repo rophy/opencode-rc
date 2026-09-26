@@ -163,7 +163,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 
 	mux := http.NewServeMux()
 	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.TokenSecret)
-	return requestLogger(mux), nil
+	return requestLogger(withProtocolHeader(mux)), nil
 }
 
 func runGateway() error {

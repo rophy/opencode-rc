@@ -19,6 +19,10 @@ var upgrader = websocket.Upgrader{
 // The gateway registers the session with the tunnel mux connection.
 func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !checkCLIProtocol(w, r) {
+			return
+		}
+
 		// Validate Bearer token
 		token := r.Header.Get("Authorization")
 		if len(token) < 8 || token[:7] != "Bearer " {

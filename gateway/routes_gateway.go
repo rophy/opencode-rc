@@ -13,6 +13,6 @@ func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier,
 		if err := registry.store.Ping(r.Context()); err != nil {
 			status = "degraded"
 		}
-		marshalJSON(w, http.StatusOK, map[string]string{"status": status, "version": version})
+		marshalJSON(w, http.StatusOK, map[string]any{"status": status, "version": version, "protocol": TunnelProtocol})
 	})
 }
