@@ -1,5 +1,6 @@
 import { type Component, createSignal } from "solid-js"
 import { getBaseUrl, setBaseUrl } from "./api"
+import { MIN_SERVER_PROTOCOL, readProtocol } from "./protocol"
 
 export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void }> = (props) => {
   const [url, setUrl] = createSignal(getBaseUrl())
@@ -23,11 +24,19 @@ export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void
     setTesting(true)
     setError("")
 
+    let res: Response
     try {
-      const res = await fetch(`${value}/healthz`, { signal: AbortSignal.timeout(5000) })
+      res = await fetch(`${value}/healthz`, { signal: AbortSignal.timeout(5000) })
       if (!res.ok) throw new Error(`${res.status}`)
     } catch (e: any) {
       setError(`Cannot reach server: ${e.message || "connection failed"}`)
+      setTesting(false)
+      return
+    }
+
+    const health = (await res.json().catch(() => ({}))) as { protocol?: unknown }
+    if (readProtocol(String(health.protocol ?? "")) < MIN_SERVER_PROTOCOL) {
+      setError("This server is older than this app supports. Ask your administrator to upgrade it.")
       setTesting(false)
       return
     }

@@ -9,6 +9,7 @@ vi.mock("@capacitor/core", async (importOriginal) => ({
 
 import { APP_CALLBACK, REFRESH_KEY, login, resetAuthState } from "./auth"
 import { resetConfig } from "./server"
+import { resetProtocolState } from "./protocol"
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
@@ -19,6 +20,7 @@ beforeEach(() => {
   sessionStorage.clear()
   resetConfig()
   resetAuthState()
+  resetProtocolState()
   start.mockReset()
   localStorage.setItem("opencode-rc-endpoint", "https://rc.example.com")
 })

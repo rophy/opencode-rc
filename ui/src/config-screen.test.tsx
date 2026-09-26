@@ -53,7 +53,9 @@ describe("ConfigScreen", () => {
   })
 
   it("saves URL and calls onSave when server is reachable", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok", { status: 200 }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok", protocol: 1 }), { status: 200 }),
+    )
     const onSave = vi.fn()
     render(() => <ConfigScreen onSave={onSave} />)
     const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
@@ -63,6 +65,21 @@ describe("ConfigScreen", () => {
       expect(onSave).toHaveBeenCalledOnce()
     })
     expect(getBaseUrl()).toBe("https://rc.example.com")
+  })
+
+  it("shows error when server's protocol is too old", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+    )
+    const onSave = vi.fn()
+    render(() => <ConfigScreen onSave={onSave} />)
+    const input = screen.getByPlaceholderText("http://localhost:3000") as HTMLInputElement
+    await fireEvent.input(input, { target: { value: "https://rc.example.com" } })
+    await fireEvent.click(screen.getByText("Save"))
+    await vi.waitFor(() => {
+      expect(screen.getByText("This server is older than this app supports. Ask your administrator to upgrade it.")).toBeTruthy()
+    })
+    expect(onSave).not.toHaveBeenCalled()
   })
 
   it("shows cancel button when onCancel provided", async () => {

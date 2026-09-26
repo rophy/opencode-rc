@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core"
 import { apiUrl, getBaseUrl } from "./server"
 import { sha256 } from "./sha256"
 import { SystemAuth } from "./system-auth"
+import { checkProtocol, withProtocol } from "./protocol"
 
 export const REFRESH_KEY = "opencode-rc-refresh"
 export const VERIFIER_KEY = "opencode-rc-login-verifier"
@@ -72,12 +73,17 @@ function fresh(): string | null {
   return access && access.expiresAt - Date.now() > EARLY_REFRESH_MS ? access.token : null
 }
 
-function postJson(path: string, body: unknown) {
-  return fetch(apiUrl(path), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  })
+async function postJson(path: string, body: unknown): Promise<Response> {
+  const res = await fetch(
+    apiUrl(path),
+    withProtocol({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  )
+  await checkProtocol(res)
+  return res
 }
 
 async function refreshNow(): Promise<string | null> {
@@ -124,10 +130,12 @@ export function getAccessToken(): Promise<string | null> {
 }
 
 export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const send = (token: string | null) => {
+  const send = async (token: string | null) => {
     const headers = new Headers(init.headers)
     if (token) headers.set("authorization", `Bearer ${token}`)
-    return fetch(url, { ...init, headers })
+    const res = await fetch(url, withProtocol({ ...init, headers }))
+    await checkProtocol(res)
+    return res
   }
   const res = await send(await getAccessToken())
   if (res.status !== 401 || !hasSession()) return res

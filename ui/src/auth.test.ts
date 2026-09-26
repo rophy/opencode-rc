@@ -14,6 +14,7 @@ import {
   type RefreshTokenStore,
 } from "./auth"
 import { resetConfig } from "./server"
+import { resetProtocolState } from "./protocol"
 
 function tokens(n: number) {
   return { access_token: `access-${n}`, refresh_token: `refresh-${n}`, expires_in: 900 }
@@ -28,6 +29,7 @@ beforeEach(() => {
   sessionStorage.clear()
   resetConfig()
   resetAuthState()
+  resetProtocolState()
 })
 
 afterEach(() => vi.restoreAllMocks())
@@ -123,6 +125,20 @@ describe("authFetch", () => {
     expect(res.status).toBe(200)
     expect(refreshes).toBe(2)
     expect(meCalls).toBe(2)
+  })
+})
+
+describe("protocol header", () => {
+  it("authFetch and the token calls send the protocol header", async () => {
+    localStorage.setItem(REFRESH_KEY, "refresh-0")
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      json(tokens(1), 200),
+    )
+    await authFetch("/api/me")
+    for (const [, init] of spy.mock.calls as [string, RequestInit][]) {
+      expect(new Headers(init.headers).get("OpenCode-RC-Protocol")).toBe("1")
+    }
+    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(2) // refresh + /api/me
   })
 })
 

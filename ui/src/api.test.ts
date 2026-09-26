@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { getBaseUrl, setBaseUrl, apiUrl, isConfigured, isPreConfigured, loadConfig, resetConfig, fetchMe, fetchSessions } from "./api"
 import { resetAuthState } from "./auth"
+import { resetProtocolState } from "./protocol"
 
 beforeEach(() => {
   localStorage.clear()
   resetConfig()
   resetAuthState()
+  resetProtocolState()
 })
 
 describe("getBaseUrl / setBaseUrl", () => {

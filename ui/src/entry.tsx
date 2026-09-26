@@ -50,6 +50,8 @@ import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
 import { ConfigScreen } from "./config-screen"
 import { LoginScreen } from "./login-screen"
+import { protocolState } from "./protocol"
+import { ProtocolScreen } from "./protocol-screen"
 
 const platform: Platform = {
   platform: "web",
@@ -88,6 +90,9 @@ function App(props: { loginExpired: boolean }) {
 
   return (
     <Switch>
+      <Match when={protocolState() !== "ok"}>
+        <ProtocolScreen state={protocolState() as "client_outdated" | "server_outdated"} />
+      </Match>
       <Match when={showConfig()}>
         <ConfigScreen onSave={() => { setShowConfig(false); refetchUser() }} onCancel={() => setShowConfig(false)} />
       </Match>
