@@ -93,16 +93,6 @@ cd ../gateway
 docker build ...  # Dockerfile copies /gateway binary + /ios-project/
 ```
 
-## Known Issues
-
-- **App name shows as "App" in the iOS sign-in prompt** ("“App” Wants to Use … to
-  Sign In"). `CFBundleName` in `ui/ios/App/App/Info.plist` is `$(PRODUCT_NAME)`, the
-  Xcode target name. Planned: `CFBundleDisplayName` = "OpenCode Remote Control" and
-  `CFBundleName` = "OpenCode RC" (`CFBundleName` allows at most 15 characters; the
-  home screen truncates display names beyond about 12 characters). Then check on a
-  simulator which name the prompt and home screen use, and decide whether Android's
-  `app_name` ("OpenCode RC") should match.
-
 ## TODO
 
 - [ ] Initialize Capacitor in web/ (`npx cap init`)
