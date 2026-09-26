@@ -26,6 +26,12 @@ between them.
   that body).
 - The UI shows a full-screen message: update the app, reload the page, or ask the
   administrator to upgrade the server. The CLI prints the matching message and exits.
+- Clients treat a missing or too-low server header as "server outdated" only for
+  non-5xx responses; 5xx responses (often from a proxy or ingress while the server or
+  gateway restarts) are ordinary errors and get retried, not flagged as outdated.
+- CLIs released before protocol versioning existed keep retrying and print the update
+  message (a plain-text 403 from the gateway) on each attempt, since they have no
+  protocol check of their own to stop them.
 
 ## When to change the numbers
 
