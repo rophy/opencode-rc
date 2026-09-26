@@ -39,4 +39,13 @@ ASSET=$(curl -s "$B/" | grep -o '/assets/[^"]*\.js' | head -1)
 [ -n "$ASSET" ] || fail "no asset referenced from index.html"
 curl -sI "$B$ASSET" | grep -qi '^cache-control: public, max-age=31536000, immutable' || fail "asset cache-control"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$B/assets/nope.js")" = 404 ] || fail "missing asset should 404"
+CSP=$(curl -sI "$B/" | grep -i '^content-security-policy:' || true)
+echo "$CSP" | grep -q "connect-src 'self' data: https://api.example.com wss://api.example.com;" || fail "CSP connect-src: $CSP"
+echo "$CSP" | grep -q "script-src 'self' 'wasm-unsafe-eval';" || fail "CSP script-src: $CSP"
+echo "$CSP" | grep -q "frame-ancestors 'none'" || fail "CSP frame-ancestors: $CSP"
+curl -sI "$B$ASSET" | grep -qi '^content-security-policy:' || fail "asset CSP"
+curl -sI "$B/" | grep -qi '^x-content-type-options: nosniff' || fail "nosniff"
+curl -sI "$B/" | grep -qi '^referrer-policy: no-referrer' || fail "referrer-policy"
+curl -s "$B/" | grep -q '<script src="/theme.js"></script>' || fail "theme.js not referenced"
+curl -s "$B/" | grep -q '<script>' && fail "inline script in index.html"
 echo "UI image smoke test passed"

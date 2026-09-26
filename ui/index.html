@@ -5,17 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#fafafa" />
     <title>OpenCode RC</title>
-    <script>
-      ;(function () {
-        var scheme = localStorage.getItem("opencode-color-scheme") || "system"
-        var isDark = scheme === "dark" || (scheme === "system" && matchMedia("(prefers-color-scheme: dark)").matches)
-        document.documentElement.dataset.theme = "oc-2"
-        document.documentElement.dataset.colorScheme = isDark ? "dark" : "light"
-        document.documentElement.style.backgroundColor = isDark ? "#080808" : "#fafafa"
-        var meta = document.querySelector("meta[name='theme-color']")
-        if (meta) meta.setAttribute("content", isDark ? "#080808" : "#fafafa")
-      })()
-    </script>
+    <script src="/theme.js"></script>
   </head>
   <body class="antialiased overscroll-none overflow-hidden">
     <div id="root" class="flex flex-col h-dvh"></div>

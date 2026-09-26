@@ -114,9 +114,35 @@ function opencodeResolver(): Plugin {
   }
 }
 
+// Production builds carry a CSP meta tag, which is what the mobile app gets (the web UI's
+// nginx sends a stricter header with the API origin). The app's API origin is chosen at
+// runtime, so connect-src allows any https/wss origin; scripts are still limited to the bundle.
+const APP_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' data: https: wss:",
+  "media-src 'self' data:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+].join("; ")
+
+function cspMeta(): Plugin {
+  return {
+    name: "csp-meta",
+    apply: "build",
+    transformIndexHtml: () => [
+      { tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: APP_CSP }, injectTo: "head-prepend" },
+    ],
+  }
+}
+
 export default defineConfig({
   base: "/",
-  plugins: [opencodeResolver(), solid(), tailwindcss()],
+  plugins: [opencodeResolver(), solid(), tailwindcss(), cspMeta()],
   resolve: {
     alias: {
       "@": path.join(opencodePackages, "app/src"),
