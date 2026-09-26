@@ -33,6 +33,7 @@ beforeEach(() => {
   delete process.env.ACCESS_TOKEN_TTL;
   delete process.env.SESSION_TTL;
   delete process.env.ALLOWED_ORIGINS;
+  delete process.env.APP_LOGIN_PROMPT;
 });
 
 afterEach(() => {
@@ -43,6 +44,24 @@ afterEach(() => {
 });
 
 describe("loadConfig", () => {
+  it("defaults the app login prompt to select_account", () => {
+    expect(loadConfig().appLoginPrompt).toBe("select_account");
+  });
+
+  it("accepts login, consent, or empty (disabled) as the app login prompt", () => {
+    for (const v of ["login", "consent", "select_account", ""]) {
+      process.env.APP_LOGIN_PROMPT = v;
+      expect(loadConfig().appLoginPrompt).toBe(v);
+    }
+  });
+
+  it("rejects other app login prompts", () => {
+    for (const v of ["none", "select-account", "login consent x"]) {
+      process.env.APP_LOGIN_PROMPT = v;
+      expect(() => loadConfig()).toThrow(/APP_LOGIN_PROMPT/);
+    }
+  });
+
   it("loads required fields from env", () => {
     const config = loadConfig();
     expect(config.oidcIssuer).toBe("https://idp.example.com");

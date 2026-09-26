@@ -369,6 +369,34 @@ tests:
             name: SESSION_TTL
             value: "7d"
 
+  - it: asks the IdP to prompt app logins with select_account by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_LOGIN_PROMPT
+            value: "select_account"
+
+  - it: passes a configured or disabled app login prompt through
+    set:
+      auth.appLoginPrompt: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_LOGIN_PROMPT
+            value: ""
+
+  - it: keeps the app login prompt default when auth is null (reuse-values upgrades)
+    set:
+      auth: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_LOGIN_PROMPT
+            value: "select_account"
+
   - it: sets ALLOWED_ORIGINS when configured
     set:
       auth.allowedOrigins:

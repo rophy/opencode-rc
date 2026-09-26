@@ -94,8 +94,11 @@ Only one login may be pending; a second `start` rejects the first with `cancelle
 - `validateReturnTo` accepts a `return_to` equal to `APP_CALLBACK` exactly. App origins
   (`capacitor://localhost`, `https://localhost`) are no longer accepted as `return_to`;
   they stay allowed for CORS.
-- `/auth/callback` answers a `302` to `APP_CALLBACK#code=…` for that target. The
-  script-navigation page remains for absolute http(s) targets (the web UI host).
+- `/auth/callback` answers a `302` to `APP_CALLBACK#code=…` for that target, and a
+  plain `302` for absolute web targets too (the old script-navigation page existed only
+  for the in-WebView login); the API serves no HTML.
+- `/auth/start` adds `prompt=<APP_LOGIN_PROMPT>` to the IdP request for app logins
+  (see Residual risks).
 
 ### Navigation allowlist
 
@@ -119,11 +122,20 @@ A malicious app installed on the device can start its own login (with its own co
 verifier) and register to receive the callback: iOS lets any app supply a matching
 `callbackURLScheme` to `ASWebAuthenticationSession`, and on Android another app can
 register the same custom scheme. If the user has an active IdP session, that
-malicious app's login completes and it obtains tokens for the user. The verifier
-only protects flows the real app started (RFC 8252 section 8.6); it does not stop
-a different app from starting its own flow. The same exposure existed with the
-previous `capacitor://` `return_to`. Mitigation would be claimed https redirects
-(Universal Links / App Links), which is currently a non-goal.
+malicious app's login could complete and obtain tokens for the user. The verifier
+only protects flows the real app started (RFC 8252 section 8.6); this applies to any
+OIDC client that uses a private-use callback scheme.
+
+Mitigation in place: for app logins (`return_to` = `APP_CALLBACK`) the API adds the
+OIDC `prompt` parameter (`APP_LOGIN_PROMPT`, chart `auth.appLoginPrompt`, default
+`select_account`) to the authorization request, so the IdP makes the user interact
+instead of completing the login silently. The API itself serves no HTML. This relies
+on the IdP honoring the value; an IdP that ignores it logs in silently. A user who
+deliberately completes a login started by a malicious app is not protected.
+
+Possible future hardening: claimed https redirects (Associated Domains / App Links),
+which verify the receiving app. They need a paid Apple team and, for intranet-only
+hosts, MDM "managed mode" on iOS; not planned.
 
 ## Testing
 

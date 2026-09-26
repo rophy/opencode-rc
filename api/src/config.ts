@@ -13,6 +13,8 @@ export interface Config {
   accessTokenTtl: number;
   sessionTtl: number;
   allowedOrigins: string[];
+  /** OIDC prompt for mobile app logins ("" = none); see appLoginPrompt() */
+  appLoginPrompt: string;
   secureCookies: boolean;
   redisUrl: string;
   gatewayUrl: string;
@@ -33,6 +35,18 @@ export function parseDuration(value: string): number {
   const seconds = parseInt(match[1], 10) * UNITS[match[2]];
   if (seconds <= 0) throw new Error(`duration must be positive: ${value}`);
   return seconds;
+}
+
+const APP_LOGIN_PROMPTS = ["select_account", "login", "consent", ""];
+
+// The mobile app's callback scheme cannot identify the app (RFC 8252 section 8.6), so app
+// logins ask the IdP to make the user interact. An IdP that ignores the value logs in silently.
+function appLoginPrompt(value: string | undefined): string {
+  const prompt = value ?? "select_account";
+  if (!APP_LOGIN_PROMPTS.includes(prompt)) {
+    throw new Error(`APP_LOGIN_PROMPT must be one of select_account, login, consent or empty, got "${prompt}"`);
+  }
+  return prompt;
 }
 
 export function loadConfig(): Config {
@@ -63,6 +77,7 @@ export function loadConfig(): Config {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
+    appLoginPrompt: appLoginPrompt(process.env.APP_LOGIN_PROMPT),
     secureCookies: process.env.COOKIE_SECURE !== "false",
     redisUrl: requireEnv("REDIS_URL"),
     gatewayUrl: process.env.GATEWAY_URL ?? "",

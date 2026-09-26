@@ -70,6 +70,8 @@ spec:
               value: {{ dig "accessTokenTTL" "15m" $auth | quote }}
             - name: SESSION_TTL
               value: {{ dig "sessionTTL" "7d" $auth | quote }}
+            - name: APP_LOGIN_PROMPT
+              value: {{ dig "appLoginPrompt" "select_account" $auth | quote }}
             {{- $origins := dig "allowedOrigins" list $auth }}
             {{- if .Values.ui.enabled }}
             {{- $origins = prepend $origins (include "opencode-rc.uiPublicUrl" .) }}

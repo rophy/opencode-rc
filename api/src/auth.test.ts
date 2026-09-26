@@ -31,6 +31,7 @@ const config: Config = {
   accessTokenTtl: 900,
   sessionTtl: 7 * 24 * 3600,
   allowedOrigins: [],
+  appLoginPrompt: "select_account",
   secureCookies: false,
   redisUrl: "redis://localhost:6379/0",
   gatewayUrl: "",
@@ -152,6 +153,34 @@ describe("/auth/start", () => {
     expect(res.status).toBe(400);
   });
 
+  // RFC 8252 section 8.6: the app callback scheme cannot identify the app, so the IdP
+  // must make the user interact; an impersonating app cannot complete a login silently.
+  it("asks the IdP to prompt the user for app logins", async () => {
+    const res = await app.request(
+      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
+    );
+    expect(new URL(res.headers.get("location")!).searchParams.get("prompt")).toBe("select_account");
+  });
+
+  it("leaves web logins without a prompt", async () => {
+    const res = await app.request(`/auth/start?return_to=%2Fs%2Fx%2F&code_challenge=${challenge}`);
+    expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
+  });
+
+  it("sends no prompt when the app login prompt is disabled", async () => {
+    const a = new Hono();
+    a.route("/", authRoutes({
+      config: { ...config, appLoginPrompt: "" },
+      provider,
+      tokens,
+      isAllowedOrigin: makeOriginCheck("https://rc.example.com", []),
+    }));
+    const res = await a.request(
+      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
+    );
+    expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
+  });
+
   it("rejects the old WebView return_to", async () => {
     const res = await app.request(
       `/auth/start?return_to=https%3A%2F%2Flocalhost%2F&code_challenge=${challenge}`,
@@ -177,26 +206,14 @@ describe("/auth/callback", () => {
     expect(ok.status).toBe(200);
   });
 
-  it("returns to an absolute web origin with a script navigation", async () => {
+  it("redirects to an absolute web origin", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
     const res = await callback(
       `orc_state=st; orc_return=https%3A%2F%2Frc.example.com%2Fs%2Fx%2F; orc_challenge=${challenge}`,
     );
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/html");
-    expect(res.headers.get("cache-control")).toBe("no-store");
-    const html = await res.text();
-    expect(html).toMatch(/location\.replace\("https:\/\/rc\.example\.com\/s\/x\/#code=[^"]+"\)/);
-  });
-
-  it("escapes < in the script navigation target", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    const returnTo = encodeURIComponent("https://rc.example.com/?x=</script><script>alert(1)");
-    const res = await callback(`orc_state=st; orc_return=${returnTo}; orc_challenge=${challenge}`);
-    expect(res.status).toBe(200);
-    const html = await res.text();
-    expect(html).not.toContain("</script><script>alert");
-    expect(html).toContain("\\u003c/script>");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toMatch(/^https:\/\/rc\.example\.com\/s\/x\/#code=/);
+    expect(res.headers.get("content-type") ?? "").not.toContain("text/html");
   });
 
   it("rejects a callback without a code challenge cookie", async () => {

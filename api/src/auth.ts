@@ -77,17 +77,6 @@ async function readField(c: Context, field: string): Promise<string | null> {
   return stringField(await readBody(c), field);
 }
 
-function scriptRedirect(c: Context, target: string) {
-  // "<" is escaped so the value cannot close the script element.
-  const literal = JSON.stringify(target).replace(/</g, "\\u003c");
-  c.header("Cache-Control", "no-store");
-  c.header("Referrer-Policy", "no-referrer");
-  c.header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'");
-  return c.html(
-    `<!doctype html><meta charset="utf-8"><title>Signing in</title><script>location.replace(${literal})</script>`,
-  );
-}
-
 export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDeps) {
   const app = new Hono();
   const authCookie = { path: "/auth", maxAge: 300, httpOnly: true, sameSite: "Lax" as const, secure: config.secureCookies };
@@ -110,6 +99,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       scope: "openid email profile",
       state,
     });
+    if (returnTo === APP_CALLBACK && config.appLoginPrompt) params.set("prompt", config.appLoginPrompt);
     return c.redirect(`${provider.discovery.authorization_endpoint}?${params}`);
   });
 
@@ -181,12 +171,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     deleteCookie(c, "orc_return", { path: "/auth" });
     deleteCookie(c, "orc_challenge", { path: "/auth" });
     console.log(`login: user=${claims.uid} name=${claims.name}`);
-    const target = `${returnTo}#code=${encodeURIComponent(loginCode)}`;
-    // Absolute web origins (the separately hosted web UI) get the script-navigation
-    // page, as before; paths and the app callback use a normal redirect.
-    return returnTo.startsWith("/") || returnTo === APP_CALLBACK
-      ? c.redirect(target)
-      : scriptRedirect(c, target);
+    return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
   });
 
   app.post("/auth/token", async (c) => {

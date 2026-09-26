@@ -26,12 +26,13 @@ useless.
 
 Residual risk: a malicious app on the device can start its own login with its own
 verifier and register to receive the callback (iOS lets any app supply a matching
-`callbackURLScheme`; on Android another app can register the same custom scheme).
-With an active IdP session, that flow would complete and hand the malicious app
-tokens for the user — the verifier only protects flows the real app started (RFC
-8252 section 8.6). The same exposure existed with the previous `capacitor://`
-`return_to`. Mitigation would be claimed https redirects (Universal Links / App
-Links), currently a non-goal.
+`callbackURLScheme`; on Android another app can register the same custom scheme),
+the general weakness of private-use callback schemes (RFC 8252 section 8.6). To keep
+such a login from completing silently, the API asks the IdP to prompt the user on app
+logins (OIDC `prompt`, chart `auth.appLoginPrompt`, default `select_account`); check
+that your IdP honors it. Claimed https redirects (Associated Domains / App Links)
+would verify the app, but need a paid Apple team and, for intranet-only hosts, MDM
+managed mode; they are not planned.
 
 The WebView loads only the bundled app (`allowNavigation: []`); every other link
 opens in Safari (Android: the default browser). API calls (`fetch`, WebSockets)

@@ -115,6 +115,7 @@ The `existingSecret` must contain:
 | `auth.accessTokenTTL` | `15m` | Access token lifetime |
 | `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |
 | `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
+| `auth.appLoginPrompt` | `select_account` | OIDC `prompt` sent to the IdP for mobile app logins (`select_account`, `login`, `consent`, or `""`); check that your IdP honors it |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `expose.type` | `none` | `none`, `ingress` (one Ingress) or `virtualService` (Istio VirtualServices) |

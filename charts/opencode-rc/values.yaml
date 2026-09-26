@@ -158,6 +158,11 @@ auth:
   # itself. The mobile app's WebView origins (capacitor://localhost,
   # https://localhost) are always allowed for CORS only.
   allowedOrigins: []
+  # OIDC prompt sent to the IdP for mobile app logins: select_account, login, consent,
+  # or "" for none. The app's callback scheme cannot prove which app receives the login,
+  # so the IdP should make the user interact; check that your IdP honors the value
+  # (an IdP that ignores it logs in silently). Web logins never send a prompt.
+  appLoginPrompt: select_account
 
 secrets:
   # HMAC key for access tokens (64-char hex). Falls back to cookieSecret.
