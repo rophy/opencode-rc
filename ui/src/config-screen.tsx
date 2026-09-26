@@ -36,7 +36,7 @@ export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void
 
     const health = (await res.json().catch(() => ({}))) as { protocol?: unknown }
     if (readProtocol(String(health.protocol ?? "")) < MIN_SERVER_PROTOCOL) {
-      setError("This server is older than this app supports. Ask your administrator to upgrade it.")
+      setError("This is not an OpenCode RC server, or it is older than this app supports.")
       setTesting(false)
       return
     }

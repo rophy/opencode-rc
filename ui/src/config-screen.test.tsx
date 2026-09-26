@@ -77,7 +77,7 @@ describe("ConfigScreen", () => {
     await fireEvent.input(input, { target: { value: "https://rc.example.com" } })
     await fireEvent.click(screen.getByText("Save"))
     await vi.waitFor(() => {
-      expect(screen.getByText("This server is older than this app supports. Ask your administrator to upgrade it.")).toBeTruthy()
+      expect(screen.getByText("This is not an OpenCode RC server, or it is older than this app supports.")).toBeTruthy()
     })
     expect(onSave).not.toHaveBeenCalled()
   })
