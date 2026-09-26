@@ -1,0 +1,1 @@
+import{y as s,u as o,ai as e,aj as u}from"./index-DimTsdE4.js";function r(){const a=s(),n=o();return e(()=>({mutationFn:a().mcp.toggle,onError:t=>u({variant:"error",title:n.t("common.requestFailed"),description:t instanceof Error?t.message:String(t)})}))}export{r as u};
