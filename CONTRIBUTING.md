@@ -68,17 +68,13 @@ E2e tests run on an existing kind cluster using Skaffold to build images and dep
 # Target cluster and namespace (defaults: current kubectl context, opencode-rc)
 export KUBE_CONTEXT=kind-opencode-rc-e2e NAMESPACE=opencode-rc
 
-# Run all tests (vitest + playwright)
+# Deploy, run all tests (vitest + playwright, with gateway coverage), then delete the namespace
 ./e2e/run.sh
 
-# Run only vitest
-./e2e/run.sh --vitest
-
-# Run only playwright
-./e2e/run.sh --playwright
-
-# Keep cluster after tests (for debugging)
-./e2e/run.sh --no-teardown
+# Step by step, e.g. to keep the environment for debugging
+make up         # create the namespace and deploy
+make e2e-test   # run the tests (repeatable)
+make down       # delete the namespace (only if make up created it)
 ```
 
 `make up` creates the namespace (labeled `app.kubernetes.io/managed-by=opencode-rc-e2e`) and deploys; `make down` deletes the namespace only when it carries that label, and otherwise removes just what Skaffold deployed. Use a different `NAMESPACE` for concurrent runs on one cluster.

@@ -6,18 +6,18 @@ External clients (mobile app, CLI) can drift behind server versions. We need a w
 
 ## Client-Server Boundaries
 
-Web + Gateway are co-deployed via the Helm chart, so their internal compatibility is guaranteed. External clients can drift:
+API + Gateway are co-deployed via the Helm chart, so their internal compatibility is guaranteed. External clients can drift:
 
 | Server | Client | Risk |
 |--------|--------|------|
-| Web API | UI (web/mobile) | Mobile app versions lag behind server (app store review delays) |
+| API | UI (web/mobile) | Mobile app versions lag behind server (app store review delays) |
 | Gateway | CLI | Users may not update CLI promptly |
 
-UI always connects to Web API. CLI always connects to Gateway. UI never talks to Gateway directly.
+UI always connects to the API. CLI always connects to Gateway. UI never talks to Gateway directly.
 
 ## Proposed Design
 
-Each server advertises an integer `apiVersion`, bumped only on breaking API changes (independent of the release version). The two `apiVersion` values (Web API and Gateway) are independent.
+Each server advertises an integer `apiVersion`, bumped only on breaking API changes (independent of the release version). The two `apiVersion` values (API and Gateway) are independent.
 
 - Client sends its understood `apiVersion` (e.g. via header or handshake)
 - Server rejects clients below its minimum with a descriptive error ("please update to >= X")

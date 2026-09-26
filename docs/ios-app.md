@@ -2,13 +2,12 @@
 
 ## Overview
 
-Package the rc-web UI as a native iOS app using Capacitor for corporate distribution.
+Package the UI (`ui/`) as a native iOS app using Capacitor for corporate distribution.
 
 ## Architecture
 
-Capacitor wraps the rc-web SPA in a WKWebView. The app is configured with the
-API host (e.g. `https://api.internal/`), which serves no HTML — it does not
-bundle API endpoints.
+Capacitor wraps the UI in a WKWebView and serves it from the app bundle. The app
+talks to the API host (e.g. `https://api.internal/`), which serves only JSON.
 
 Login runs in the system browser (see "Sign-In and Navigation"); the app then
 holds an access token (15 min) and a refresh token (stored in `localStorage`,
@@ -49,56 +48,42 @@ before `npx cap sync`:
 
 Users then never see the server settings screen.
 
-## Docker Image as Transport
+## Distribution
 
-The gateway Docker image serves double duty — runtime and iOS project transport:
+On every push to `main`, `.github/workflows/ios.yml` builds the UI, runs
+`npx cap sync ios`, and force-pushes the resulting Xcode project (with the web
+assets already bundled) to the `releases/ios` branch. It tags each new
+`MARKETING_VERSION`-`CURRENT_PROJECT_VERSION` as `ios/<version>`.
 
+On the corporate Mac:
+
+1. Clone the `releases/ios` branch, or `git fetch && git reset --hard origin/releases/ios`
+   an existing clone (the branch is force-pushed).
+2. Optionally preset the server: put `{"serverUrl": "https://rc.corp.example.com"}`
+   into `App/App/public/config.json`.
+3. Open `App/App.xcodeproj` in Xcode, set the corporate signing team, build.
+4. Distribute via MDM (Intune, Jamf) or TestFlight.
+
+No Node, bun, or opencode source is needed on that Mac, only Xcode.
+
+## Building Locally
+
+```bash
+cd ui
+bun run build
+cp /path/to/config.json dist/config.json   # optional: preset the server
+npx cap sync ios
+open ios/App/App.xcodeproj
 ```
-Docker image contents:
-├── /gateway              # Go binary (deployed to k8s)
-└── /ios-project/         # Capacitor project with pre-built web dist
-    ├── ios/              # Xcode project
-    └── dist/             # pre-built web assets (already cap-synced)
-```
-
-## Corporate Build & Distribution Workflow
-
-1. Pull gateway Docker image into corporate environment
-2. Deploy gateway to Kubernetes as usual
-3. Extract iOS project: `docker cp <container>:/ios-project ./`
-4. Open in Xcode, set corporate signing team
-5. Build and distribute via MDM (Intune, Jamf) or TestFlight
-
-No Node, bun, or opencode source repo needed on the corporate Mac — just Xcode.
 
 ## Requirements
 
 - Mac with Xcode (Intel or Apple Silicon)
-- Apple Developer account: free Apple ID for local testing, $99/yr program for distribution
+- Apple Developer account: free Apple ID for local testing, paid program for distribution
 - Corporate signing key for enterprise distribution
-- Device network access to the gateway URL (VPN if internal)
+- Device network access to the API host (VPN if internal)
 
-## Build Pipeline (CI side)
+## Open Items
 
-```bash
-# Build web, then add the build-time config
-cd opencode-rc/ui
-bun run build
-cp /path/to/config.json dist/config.json
-
-# Sync into Capacitor iOS project
-npx cap sync
-
-# Package into Docker image alongside gateway binary
-cd ../gateway
-docker build ...  # Dockerfile copies /gateway binary + /ios-project/
-```
-
-## TODO
-
-- [ ] Initialize Capacitor in web/ (`npx cap init`)
-- [ ] Add iOS platform (`npx cap add ios`)
-- [ ] Configure Capacitor to load gateway URL instead of local files
-- [ ] Update Dockerfile to include ios-project in image
 - [ ] Test on a physical iOS device
 - [ ] Document corporate signing and MDM distribution steps
