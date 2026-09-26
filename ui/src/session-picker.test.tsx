@@ -13,6 +13,11 @@ afterEach(() => {
 
 const user = { sub: "alice", email: "alice@example.com", name: "Alice" }
 
+// The shape /gateway/sessions returns (the gateway's session record plus "user").
+function session(id: string, directory: string, createdAt = new Date().toISOString()) {
+  return { id, userId: "alice", user: "alice", directory, gatewayAddr: "10.0.0.5:9090", createdAt }
+}
+
 describe("SessionPicker", () => {
   it("shows loading state", () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}))
@@ -32,7 +37,7 @@ describe("SessionPicker", () => {
 
   it("renders session cards", async () => {
     const sessions = [
-      { id: "alice-dev", userID: "alice", endpoint: "gw:9090", directory: "/home/alice/project", lastHeartbeat: new Date().toISOString() },
+      session("alice-dev", "/home/alice/project"),
     ]
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
@@ -45,9 +50,24 @@ describe("SessionPicker", () => {
     expect(screen.getByText("alice-de")).toBeTruthy()
   })
 
+  it("shows how long the session has been connected", async () => {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000 - 1000).toISOString()
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify([session("s1", "/proj", fiveMinutesAgo)]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    )
+    render(() => <SessionPicker user={user} />)
+    await vi.waitFor(() => {
+      expect(screen.getByText("Connected 5m ago")).toBeTruthy()
+    })
+    expect(document.body.textContent).not.toContain("NaN")
+  })
+
   it("session card links to correct URL", async () => {
     const sessions = [
-      { id: "my-session", userID: "alice", endpoint: "gw:9090", directory: "/proj", lastHeartbeat: new Date().toISOString() },
+      session("my-session", "/proj"),
     ]
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
@@ -63,7 +83,7 @@ describe("SessionPicker", () => {
   it("session card links stay relative when a remote server is configured", async () => {
     localStorage.setItem("opencode-rc-endpoint", "https://rc.example.com")
     const sessions = [
-      { id: "s1", userID: "alice", endpoint: "gw:9090", directory: "/proj", lastHeartbeat: new Date().toISOString() },
+      session("s1", "/proj"),
     ]
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })

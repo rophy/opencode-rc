@@ -9,12 +9,15 @@ export interface UserInfo {
   name: string
 }
 
+// A connected dev machine, as /gateway/sessions returns it. The gateway removes the
+// record when the tunnel closes, so every listed session is connected now.
 export interface DevSession {
   id: string
-  userID: string
-  endpoint: string
+  userId: string
   directory: string
-  lastHeartbeat: string
+  gatewayAddr: string
+  /** When the current tunnel connected (ISO 8601). */
+  createdAt: string
 }
 
 export async function fetchMe(): Promise<UserInfo | null> {

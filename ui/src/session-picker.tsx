@@ -44,7 +44,7 @@ function SessionCard(props: { session: DevSession }) {
             <span class="inline-block size-1.5 rounded-full bg-green-500" />
             Active
           </span>
-          <span>Last seen {timeAgo(props.session.lastHeartbeat)}</span>
+          <span>Connected {timeAgo(props.session.createdAt)}</span>
         </div>
       </div>
       <svg

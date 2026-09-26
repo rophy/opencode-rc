@@ -133,7 +133,7 @@ describe("fetchMe", () => {
 describe("fetchSessions", () => {
   it("returns sessions on success", async () => {
     localStorage.setItem("opencode-rc-refresh", "r")
-    const sessions = [{ id: "s1", userID: "u1", endpoint: "e", directory: "/p", lastHeartbeat: "2026-01-01T00:00:00Z" }]
+    const sessions = [{ id: "s1", userId: "u1", user: "u1", directory: "/p", gatewayAddr: "10.0.0.5:9090", createdAt: "2026-01-01T00:00:00Z" }]
     mockFetchWithRefresh(
       "/gateway/sessions",
       () => new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
