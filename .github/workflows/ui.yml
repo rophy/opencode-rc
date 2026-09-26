@@ -18,13 +18,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # Unit tests do not import opencode, so the submodule is not needed here
+      # (the image build installs it inside ui/web/Dockerfile).
       - uses: actions/checkout@v5
-        with:
-          submodules: true
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: cd vendor/opencode && bun install --frozen-lockfile --ignore-scripts
       - run: cd ui && bun install --frozen-lockfile && bun run test
 
   build:
