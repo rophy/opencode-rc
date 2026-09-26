@@ -38,5 +38,5 @@ export async function checkProtocol(res: Response): Promise<void> {
       }
     } catch {}
   }
-  if (readProtocol(res.headers.get(PROTOCOL_HEADER)) < MIN_SERVER_PROTOCOL) setState("server_outdated")
+  if (res.status < 500 && readProtocol(res.headers.get(PROTOCOL_HEADER)) < MIN_SERVER_PROTOCOL) setState("server_outdated")
 }

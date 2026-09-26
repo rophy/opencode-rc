@@ -44,6 +44,11 @@ describe("protocol", () => {
     expect(protocolState()).toBe("server_outdated")
   })
 
+  it("leaves state ok for a header-less 5xx (proxy/ingress error during a restart, not an outdated server)", async () => {
+    await checkProtocol(res(502))
+    expect(protocolState()).toBe("ok")
+  })
+
   it("does not consume the caller's body", async () => {
     const r = res(426, { [PROTOCOL_HEADER]: "2" }, JSON.stringify({ error: "client_outdated" }))
     await checkProtocol(r)
