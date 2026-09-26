@@ -114,6 +114,21 @@ function opencodeResolver(): Plugin {
   }
 }
 
+// opencode's app CSS loads its fonts from "/assets/…", which opencode's own build serves from
+// packages/app/public. We build with our own public dir, so point those URLs at the files
+// relatively; Vite then bundles them with content hashes like every other asset.
+function opencodeAppFonts(): Plugin {
+  const appCss = path.join(opencodePackages, "app/src/index.css")
+  return {
+    name: "opencode-app-fonts",
+    enforce: "pre",
+    transform(code, id) {
+      if (id.split("?")[0] !== appCss) return null
+      return code.replace(/url\((["']?)\/assets\//g, "url($1../public/assets/")
+    },
+  }
+}
+
 // Production builds carry a CSP meta tag, which is what the mobile app gets (the web UI's
 // nginx sends a stricter header with the API origin). The app's API origin is chosen at
 // runtime, so connect-src allows any http(s)/ws(s) origin; scripts are still limited to the bundle.
@@ -142,7 +157,7 @@ function cspMeta(): Plugin {
 
 export default defineConfig({
   base: "/",
-  plugins: [opencodeResolver(), solid(), tailwindcss(), cspMeta()],
+  plugins: [opencodeResolver(), opencodeAppFonts(), solid(), tailwindcss(), cspMeta()],
   resolve: {
     alias: {
       "@": path.join(opencodePackages, "app/src"),

@@ -48,4 +48,10 @@ curl -sI "$B/" | grep -qi '^x-content-type-options: nosniff' || fail "nosniff"
 curl -sI "$B/" | grep -qi '^referrer-policy: no-referrer' || fail "referrer-policy"
 curl -s "$B/" | grep -q '<script src="/theme.js"></script>' || fail "theme.js not referenced"
 curl -s "$B/" | grep -q '<script>' && fail "inline script in index.html"
+# Every asset a stylesheet references must exist (fonts from opencode's public folder once went missing).
+for css in $(curl -s "$B/" | grep -o '/assets/[^"]*\.css'); do
+  for u in $(curl -s "$B$css" | grep -o 'url([^)]*)' | sed -E "s/url\([\"']?([^\"')]*)[\"']?\)/\1/" | grep '^/assets/' | sort -u); do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' "$B$u")" = 200 ] || fail "$css references missing $u"
+  done
+done
 echo "UI image smoke test passed"
