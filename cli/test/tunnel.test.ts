@@ -706,7 +706,7 @@ describe("startTunnel pre-flight", () => {
   it("rejects with 502 status", async () => {
     await withHttpServer(
       (_req, res) => {
-        res.writeHead(502, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+        res.writeHead(502, { "Content-Type": "text/plain" });
         res.end("bad gateway");
       },
       async (port) => {
@@ -827,6 +827,57 @@ describe("protocol versioning", () => {
     );
     expect(calls).toBe(1);
   });
+
+  it("does not treat a header-less 502 as a protocol error (falls through to the ordinary retryable error path)", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(502, { "Content-Type": "text/plain" });
+        res.end("bad gateway");
+      },
+      async (port) => {
+        const err = await startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp").catch((e) => e);
+        expect(err).not.toBeInstanceOf(ProtocolError);
+        expect(err.message).toContain("Tunnel pre-flight failed: 502");
+      }
+    );
+  });
+
+  it("retries a header-less 502 on the pre-flight via startTunnelWithReconnect's initial loop", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let calls = 0;
+    const httpServer = createServer((_req, res) => {
+      calls++;
+      if (calls === 1) {
+        res.writeHead(502, { "Content-Type": "text/plain" }); // header-less, proxy-style
+        res.end("bad gateway");
+        return;
+      }
+      // Subsequent pre-flight GETs: a normal, header-carrying response that
+      // passes both checks and falls through to the WS upgrade below (which
+      // this same httpServer's attached WebSocketServer handles).
+      res.writeHead(400, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+      res.end("websocket required");
+    });
+    const wss = new WebSocketServer({ server: httpServer });
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const address = httpServer.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+
+    try {
+      const handle = await startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+      // Not a ProtocolError (would have rejected), and the server saw more
+      // than one attempt — the header-less 502 was retried rather than fatal.
+      expect(calls).toBeGreaterThan(1);
+      handle.close();
+    } finally {
+      wss.close();
+      for (const client of wss.clients) client.terminate();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+  }, 10000);
 });
 
 describe("handleBodyFrame and proxyToLocal with body", () => {
@@ -1059,5 +1110,92 @@ describe("startTunnelWithReconnect", () => {
     });
 
     logSpy.mockRestore();
+  }, 10000);
+
+  it("background reconnect loop retries a header-less 5xx pre-flight instead of treating it as fatal", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await withServer(async (wss, port) => {
+      let reconnectAttempts = 0;
+      let failOnce = false;
+
+      const handle = await startTunnelWithReconnect(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/tmp"
+      );
+
+      // Swap the server's HTTP handling: after the tunnel drops, the next
+      // pre-flight the reconnect loop makes gets a header-less 502 first,
+      // then succeeds through to the normal (header-carrying) 426 path.
+      const httpServer = (wss as any)._server;
+      httpServer.removeAllListeners("request");
+      httpServer.on("request", (_req: any, res: any) => {
+        reconnectAttempts++;
+        if (!failOnce) {
+          failOnce = true;
+          res.writeHead(502, { "Content-Type": "text/plain" });
+          res.end("bad gateway");
+          return;
+        }
+        res.writeHead(426, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+        res.end("Upgrade Required");
+      });
+
+      for (const client of wss.clients) client.terminate();
+
+      await new Promise((r) => setTimeout(r, 2000));
+
+      expect(reconnectAttempts).toBeGreaterThan(1);
+
+      handle.close();
+    });
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  }, 10000);
+
+  it("calls onFatal with a ProtocolError when the reconnect loop's pre-flight hits a header-less non-5xx response, instead of exiting the process", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
+
+    await withServer(async (wss, port) => {
+      const onFatal = vi.fn();
+      const handle = await startTunnelWithReconnect(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/tmp",
+        onFatal
+      );
+
+      const httpServer = (wss as any)._server;
+      httpServer.removeAllListeners("request");
+      httpServer.on("request", (_req: any, res: any) => {
+        // Header-less, non-5xx: an old gateway that doesn't speak protocol
+        // versioning at all — this is the fatal, non-retryable case.
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("old gateway");
+      });
+
+      for (const client of wss.clients) client.terminate();
+
+      await vi.waitFor(() => {
+        expect(onFatal).toHaveBeenCalledWith(expect.any(ProtocolError));
+      });
+
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      handle.close();
+    });
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
   }, 10000);
 });

@@ -5,6 +5,7 @@ import { loadConfig } from "./config.js";
 import { authorizationCodeAuth } from "./oidc.js";
 import { startServer } from "./server.js";
 import { startTunnelWithReconnect } from "./tunnel.js";
+import { ProtocolError } from "./protocol.js";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 
@@ -34,7 +35,12 @@ async function main() {
     idToken,
     sessionID,
     server.url,
-    process.cwd()
+    process.cwd(),
+    (err) => {
+      console.error(err.message);
+      server.close();
+      process.exit(1);
+    }
   );
 
   console.log(`\nSession "${sessionID}" connected.`);
@@ -52,6 +58,10 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  if (err instanceof ProtocolError) {
+    console.error(err.message);
+  } else {
+    console.error(err);
+  }
   process.exit(1);
 });

@@ -337,7 +337,7 @@ export async function startTunnel(
         throw new ProtocolError("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
       }
     }
-    if (readProtocol(resp.headers.get(PROTOCOL_HEADER)) < MIN_GATEWAY_PROTOCOL) {
+    if (resp.status < 500 && readProtocol(resp.headers.get(PROTOCOL_HEADER)) < MIN_GATEWAY_PROTOCOL) {
       throw new ProtocolError(
         `The gateway at ${baseUrl} is older than this CLI supports. Ask your administrator to upgrade it.`,
       );
@@ -448,7 +448,8 @@ export async function startTunnelWithReconnect(
   idToken: string,
   sessionID: string,
   localUrl: string,
-  directory: string
+  directory: string,
+  onFatal?: (err: ProtocolError) => void
 ): Promise<TunnelHandle> {
   let closed = false;
   let currentHandle: TunnelHandle | null = null;
@@ -471,8 +472,13 @@ export async function startTunnelWithReconnect(
         }
       } catch (err) {
         if (err instanceof ProtocolError) {
-          console.error(err.message);
-          process.exit(1);
+          if (onFatal) {
+            onFatal(err);
+          } else {
+            console.error(err.message);
+            process.exit(1);
+          }
+          return;
         }
         if (closed) return;
         console.error(`Tunnel error: ${err instanceof Error ? err.message : String(err)}`);
