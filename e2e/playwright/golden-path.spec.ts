@@ -11,6 +11,25 @@ import { test, expect } from "@playwright/test";
 test("golden path: login, see session, chat with AI", async ({ page }) => {
   test.setTimeout(90_000);
 
+  // opencode rejects a submit ("Select an agent and model") until it has loaded its agent
+  // list, and no element signals that when there are no custom agents. A freshly started
+  // opencode can answer /agent after the prompt is already visible, so track the requests.
+  const isAgentList = (url: string) => /\/proxy\/[^/]+\/agent(\?|$)/.test(url);
+  let agentListsDone = 0;
+  let agentListsPending = 0;
+  page.on("request", (r) => {
+    if (isAgentList(r.url())) agentListsPending++;
+  });
+  page.on("requestfinished", (r) => {
+    if (isAgentList(r.url())) {
+      agentListsPending--;
+      agentListsDone++;
+    }
+  });
+  page.on("requestfailed", (r) => {
+    if (isAgentList(r.url())) agentListsPending--;
+  });
+
   // --- Step 1: Verify CLI tunnel is connected ---
   // The dev-machine pod runs `opencode-rc` CLI which authenticates via OIDC
   // and establishes a WebSocket tunnel to the gateway. We verify this by
@@ -66,6 +85,10 @@ test("golden path: login, see session, chat with AI", async ({ page }) => {
   // Wait for the prompt input to appear (opencode UI fully loaded)
   const promptInput = page.locator('[data-component="prompt-input"]');
   await expect(promptInput).toBeVisible({ timeout: 30_000 });
+
+  await expect
+    .poll(() => agentListsDone > 0 && agentListsPending === 0, { timeout: 30_000 })
+    .toBe(true);
 
   // Type a message and send it
   await promptInput.click();
