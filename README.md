@@ -60,10 +60,8 @@ flowchart LR
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc \
-  --set profile=production \
+  --set oidcMock.enabled=false \
   --set oidc.issuer=https://sso.corp.example.com \
-  --set oidc.clientId=opencode-rc \
-  --set oidc.cliClientId=opencode-rc-cli \
   --set existingSecret=opencode-rc-secrets \
   --set expose.type=ingress \
   --set expose.host=example.com \
@@ -77,7 +75,7 @@ helm install opencode-rc ./charts/opencode-rc \
 |------|--------|
 | `{release}.{host}` (e.g. `opencode-rc.example.com`) | `/tunnel` → gateway (CLI tunnel), everything else → API |
 | `{release}-ui.{host}` (e.g. `opencode-rc-ui.example.com`) | web UI (when `ui.enabled`) |
-| `{release}-oidc.{host}` (e.g. `opencode-rc-oidc.example.com`) | bundled oidc-mock (`profile=local` only) |
+| `{release}-oidc.{host}` (e.g. `opencode-rc-oidc.example.com`) | bundled oidc-mock (when `oidcMock.enabled`) |
 
 The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly. Public URLs are `{expose.scheme}://<host>` (`https` by default — TLS usually terminates at the ingress controller, load balancer or Istio gateway); set `api.publicUrl` / `ui.publicUrl` to override them. The OIDC redirect URI defaults to `<api public URL>/auth/callback`, e.g. `https://opencode-rc.example.com/auth/callback`. The CLI gateway URL is the API host, e.g. `https://opencode-rc.example.com`. Only `/tunnel` of the gateway is exposed; its `/healthz` is not reachable from outside the cluster.
 
@@ -87,7 +85,7 @@ With Istio, point `expose.virtualService.gateways` at existing Istio Gateways th
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc \
-  --set profile=production \
+  --set oidcMock.enabled=false \
   --set oidc.issuer=https://sso.corp.example.com \
   --set existingSecret=opencode-rc-secrets \
   --set expose.type=virtualService \
@@ -107,10 +105,12 @@ The `existingSecret` must contain:
 
 | Value | Default | Description |
 |-------|---------|-------------|
-| `profile` | `local` | `local` deploys oidc-mock + Redis; `production` requires `existingSecret` and `oidc.issuer` |
-| `oidc.issuer` | `""` | OIDC provider URL (required for production) |
-| `oidc.clientId` | `opencode-rc` | Web client ID (confidential) |
-| `oidc.cliClientId` | `opencode-rc-cli` | CLI client ID (public, PKCE) |
+| `oidcMock.enabled` | `true` | Deploy the bundled OIDC mock; empty `oidc.*` values default to it |
+| `oidcMock.clients` | web `opencode-rc`, cli `opencode-rc-cli` | Mock clients (`id`, `secret`, `redirectUris`); web redirect defaults to `<api public URL>/auth/callback` |
+| `oidcMock.users` | alice, bob | Mock users |
+| `oidc.issuer` | `""` | OIDC provider URL; required unless `oidcMock.enabled` |
+| `oidc.clientId` | `""` | Web client ID (confidential); empty: the mock's web client, else `opencode-rc` |
+| `oidc.cliClientId` | `""` | CLI client ID (public, PKCE); empty: the mock's CLI client, else `opencode-rc-cli` |
 | `oidc.redirectUri` | auto-derived | OAuth callback URL; defaults to `<api public URL>/auth/callback` |
 | `auth.accessTokenTTL` | `15m` | Access token lifetime |
 | `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |
@@ -119,7 +119,7 @@ The `existingSecret` must contain:
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `expose.type` | `none` | `none`, `ingress` (one Ingress) or `virtualService` (Istio VirtualServices) |
-| `expose.host` | `""` | Base domain; hosts are `{release}.{host}`, `{release}-ui.{host}` and, for `profile=local`, `{release}-oidc.{host}`. Required unless `expose.type=none` |
+| `expose.host` | `""` | Base domain; hosts are `{release}.{host}`, `{release}-ui.{host}` and, with `oidcMock.enabled`, `{release}-oidc.{host}`. Required unless `expose.type=none` |
 | `expose.scheme` | `https` | Scheme browsers and the CLI use to reach the hosts |
 | `expose.ingress.className` | `""` | `ingressClassName` of the Ingress |
 | `expose.ingress.annotations` | `{}` | Ingress annotations, merged over the default ingress-nginx `proxy-read-timeout`/`proxy-send-timeout` of `"3600"` |
@@ -127,6 +127,7 @@ The `existingSecret` must contain:
 | `expose.virtualService.gateways` | `[]` | Existing Istio Gateways (`namespace/name`); required for `virtualService` |
 | `expose.virtualService.apiVersion` | `networking.istio.io/v1` | VirtualService API version; `networking.istio.io/v1beta1` for Istio older than 1.22 |
 | `expose.virtualService.annotations` | `{}` | VirtualService annotations |
+| `api.cookieSecure` | `null` | Secure flag of the login cookies; null: true iff the API public URL is https |
 | `api.publicUrl` | `""` | Browser-facing API URL; overrides the URL derived from `expose.*`. Required when `ui.publicUrl` is set with `expose.type=none` |
 | `ui.enabled` | `true` | Deploy the UI image (nginx serving the built SPA) |
 | `ui.publicUrl` | `""` | Browser-facing UI URL; overrides the URL derived from `expose.*`. Added to the API's allowed origins |
@@ -134,22 +135,17 @@ The `existingSecret` must contain:
 
 See [`charts/opencode-rc/values.yaml`](charts/opencode-rc/values.yaml) for all options.
 
-### Local Profile
+### Bundled OIDC Mock
 
-The `local` profile deploys an OIDC mock server with test users (alice/bob) and a built-in Redis — no external dependencies needed:
+By default the chart deploys an OIDC mock with test users (alice/bob) and a built-in Redis, so it runs without external dependencies:
 
 ```bash
 helm install opencode-rc ./charts/opencode-rc
 ```
 
-With `expose.type` set (and no `oidc.issuer`), the OIDC mock is exposed on `{release}-oidc.{host}` and uses `{expose.scheme}://{release}-oidc.{host}` as its issuer. The API and the gateway still fetch discovery, tokens and keys from the in-cluster service, and only send browsers to the external host.
+The mock is configured by `oidcMock.*` only. Empty `oidc.*` values default to it: the issuer, the client ids and the web client secret. With `expose.type` set, it is exposed on `{release}-oidc.{host}` with that host as its issuer; set `oidcMock.issuer` when browsers reach it at another URL. The API and the gateway always talk to it in-cluster.
 
-If the OIDC mock is reachable from outside the cluster some other way, set `oidcMock.issuer` to its external URL:
-
-```bash
-helm install opencode-rc ./charts/opencode-rc \
-  --set oidcMock.issuer=https://oidc-mock.corp.example.com
-```
+For a real IdP, set `oidcMock.enabled=false`, `oidc.issuer` and `existingSecret`. Without `existingSecret` the chart renders a Secret from `secrets.*`, whose defaults are for development only.
 
 ### Air-Gapped Environments
 
