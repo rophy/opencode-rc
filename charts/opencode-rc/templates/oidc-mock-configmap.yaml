@@ -1,4 +1,4 @@
-{{- if eq .Values.profile "local" }}
+{{- if .Values.oidcMock.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,18 +11,21 @@ data:
     port: 8080
     issuer: {{ include "opencode-rc.oidcMockIssuer" . }}
     clients:
-      - id: {{ .Values.oidc.clientId }}
-        secret: {{ .Values.secrets.oidcClientSecret }}
+    {{- with .Values.oidcMock.clients.web }}
+      - id: {{ .id }}
+        secret: {{ .secret }}
         redirect_uris:
-          - {{ include "opencode-rc.redirectUri" . }}
-      - id: {{ .Values.oidc.cliClientId }}
+        {{- range .redirectUris | default (list (printf "%s/auth/callback" (include "opencode-rc.apiPublicUrl" $))) }}
+          - {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- with .Values.oidcMock.clients.cli }}
+      - id: {{ .id }}
         redirect_uris:
-          - http://127.0.0.1:0/callback
+        {{- range .redirectUris }}
+          - {{ . }}
+        {{- end }}
+    {{- end }}
     users:
-      - sub: user1
-        email: alice@example.com
-        name: Alice
-      - sub: user2
-        email: bob@example.com
-        name: Bob
+      {{- toYaml .Values.oidcMock.users | nindent 6 }}
 {{- end }}

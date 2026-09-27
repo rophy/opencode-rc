@@ -4,10 +4,9 @@ templates:
   - templates/oidc-mock-service.yaml
   - templates/oidc-mock-configmap.yaml
 tests:
-  - it: creates deployment in local profile
+  - it: creates deployment by default
     template: templates/oidc-mock-deployment.yaml
     set:
-      profile: local
     asserts:
       - isKind:
           of: Deployment
@@ -21,20 +20,17 @@ tests:
           path: spec.template.spec.containers[0].args
           value: ["serve"]
 
-  - it: is absent in production profile
+  - it: is absent when oidcMock is disabled
     template: templates/oidc-mock-deployment.yaml
     set:
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - hasDocuments:
           count: 0
 
-  - it: creates service in local profile
+  - it: creates service by default
     template: templates/oidc-mock-service.yaml
     set:
-      profile: local
     asserts:
       - isKind:
           of: Service
@@ -46,12 +42,10 @@ tests:
             protocol: TCP
             name: http
 
-  - it: service absent in production
+  - it: service absent when oidcMock is disabled
     template: templates/oidc-mock-service.yaml
     set:
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - hasDocuments:
           count: 0
@@ -59,7 +53,6 @@ tests:
   - it: creates configmap with OIDC config
     template: templates/oidc-mock-configmap.yaml
     set:
-      profile: local
     asserts:
       - isKind:
           of: ConfigMap
@@ -73,12 +66,10 @@ tests:
           path: data["oidc-config.yaml"]
           pattern: "alice@example.com"
 
-  - it: configmap absent in production
+  - it: configmap absent when oidcMock is disabled
     template: templates/oidc-mock-configmap.yaml
     set:
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - hasDocuments:
           count: 0
@@ -86,7 +77,6 @@ tests:
   - it: uses global imageRegistry
     template: templates/oidc-mock-deployment.yaml
     set:
-      profile: local
       global.imageRegistry: harbor.corp.example.com
     asserts:
       - equal:
@@ -96,7 +86,6 @@ tests:
   - it: applies tolerations
     template: templates/oidc-mock-deployment.yaml
     set:
-      profile: local
       oidcMock.tolerations:
         - key: "test"
           operator: "Exists"
@@ -136,7 +125,7 @@ tests:
           path: data["oidc-config.yaml"]
           pattern: "issuer: https://oidc-mock.corp.example.com\n"
 
-  - it: keeps the in-cluster issuer when a real IdP is configured
+  - it: advertises its exposed host even when oidc.issuer is set
     template: templates/oidc-mock-configmap.yaml
     set:
       expose.type: ingress
@@ -145,4 +134,43 @@ tests:
     asserts:
       - matchRegex:
           path: data["oidc-config.yaml"]
-          pattern: "issuer: http://RELEASE-NAME-opencode-rc-oidc-mock:8080\n"
+          pattern: "issuer: https://RELEASE-NAME-oidc.example.com\n"
+
+  - it: builds clients and users from oidcMock values only
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      oidcMock.clients.web.id: mock-web
+      oidcMock.clients.web.secret: mock-secret
+      oidcMock.clients.web.redirectUris: [https://a.example.com/cb, https://b.example.com/cb]
+      oidcMock.clients.cli.id: mock-cli
+      oidcMock.users: [{sub: u9, email: carol@example.com, name: Carol, password: pw}]
+      oidc.clientId: ignored-web
+      oidc.cliClientId: ignored-cli
+      oidc.redirectUri: https://ignored.example.com/cb
+      secrets.oidcClientSecret: ignored-secret
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "- id: mock-web\n    secret: mock-secret\n    redirect_uris:\n      - https://a.example.com/cb\n      - https://b.example.com/cb\n"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "- id: mock-cli\n    redirect_uris:\n      - http://127.0.0.1:0/callback\n"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "carol@example.com"
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "password: pw"
+      - notMatchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "ignored|alice@example.com"
+
+  - it: defaults the web client redirect URI to the API callback, ignoring oidc.redirectUri
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      api.publicUrl: https://api.example.com
+      oidc.redirectUri: https://ignored.example.com/cb
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "- https://api.example.com/auth/callback\n"

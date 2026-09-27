@@ -14,7 +14,7 @@ expose:
   # Base domain. Hosts are derived from the Helm release name:
   #   {release}.{host}       api + gateway (/tunnel -> gateway, everything else -> api)
   #   {release}-ui.{host}    web UI
-  #   {release}-oidc.{host}  bundled oidc-mock (profile local only)
+  #   {release}-oidc.{host}  bundled oidc-mock (oidcMock.enabled)
   host: ""
   # Scheme browsers and the CLI use to reach the hosts (TLS usually terminates at the edge).
   scheme: https
@@ -109,9 +109,27 @@ redis:
   containerSecurityContext: {}
 
 oidcMock:
+  # Deploy the bundled OIDC mock (dev/test IdP). Empty oidc.* values default to it.
+  enabled: true
   # External URL for oidc-mock (e.g. https://oidc-mock.corp.example.com). Defaults to
   # {expose.scheme}://{release}-oidc.{expose.host} when exposed, else the internal service URL.
   issuer: ""
+  clients:
+    web:
+      id: opencode-rc
+      secret: opencode-rc-secret
+      # Empty: <api public URL>/auth/callback
+      redirectUris: []
+    cli:
+      id: opencode-rc-cli
+      redirectUris: ["http://127.0.0.1:0/callback"]
+  users:
+    - sub: user1
+      email: alice@example.com
+      name: Alice
+    - sub: user2
+      email: bob@example.com
+      name: Bob
   image:
     registry: ""
     repository: ghcr.io/rophy/oidc-mock

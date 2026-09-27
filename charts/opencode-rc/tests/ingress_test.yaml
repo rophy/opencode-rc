@@ -64,7 +64,7 @@ tests:
                   port:
                     number: 8080
 
-  - it: routes the oidc-mock host to the oidc-mock service in the local profile
+  - it: routes the oidc-mock host to the oidc-mock service
     asserts:
       - lengthEqual:
           path: spec.rules
@@ -83,11 +83,9 @@ tests:
                   port:
                     number: 8080
 
-  - it: has no oidc-mock rule in the production profile
+  - it: has no oidc-mock rule when oidcMock is disabled
     set:
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - lengthEqual:
           path: spec.rules
@@ -98,13 +96,18 @@ tests:
             host: RELEASE-NAME-oidc.example.com
           any: true
 
-  - it: has no oidc-mock rule when a real IdP is configured in the local profile
+  - it: keeps the oidc-mock rule when oidc.issuer is set
     set:
       oidc.issuer: https://idp.corp.example.com
     asserts:
       - lengthEqual:
           path: spec.rules
-          count: 2
+          count: 3
+      - contains:
+          path: spec.rules
+          content:
+            host: RELEASE-NAME-oidc.example.com
+          any: true
 
   - it: omits the ui rule when ui is disabled
     set:

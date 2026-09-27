@@ -106,11 +106,10 @@ Exposed hosts, derived from the release name and expose.host.
 {{- end -}}
 
 {{/*
-"true" when the bundled oidc-mock (profile local) gets its own exposed host;
-not when a real IdP is configured with oidc.issuer.
+"true" when the bundled oidc-mock gets its own exposed host.
 */}}
 {{- define "opencode-rc.oidcMockExposed" -}}
-{{- if and (eq .Values.profile "local") (ne (include "opencode-rc.exposeType" .) "none") (not .Values.oidc.issuer) -}}
+{{- if and .Values.oidcMock.enabled (ne (include "opencode-rc.exposeType" .) "none") -}}
 true
 {{- end -}}
 {{- end -}}
@@ -151,7 +150,7 @@ oidc.issuer / oidcMock.issuer). Servers then discover the mock in-cluster and ov
 the external parts: the mock advertises every endpoint under its external issuer.
 */}}
 {{- define "opencode-rc.oidcMockSplit" -}}
-{{- if and (include "opencode-rc.oidcMockExposed" .) (not .Values.oidcMock.issuer) -}}
+{{- if and (include "opencode-rc.oidcMockExposed" .) (not .Values.oidcMock.issuer) (not .Values.oidc.issuer) -}}
 true
 {{- end -}}
 {{- end -}}

@@ -20,7 +20,7 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: renders api, ui and oidc-mock VirtualServices in the local profile
+  - it: renders api, ui and oidc-mock VirtualServices
     asserts:
       - hasDocuments:
           count: 3
@@ -109,12 +109,10 @@ tests:
                     port:
                       number: 8080
 
-  - it: renders only the api VirtualService with ui disabled in production
+  - it: renders only the api VirtualService with ui and oidcMock disabled
     set:
       ui.enabled: false
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - hasDocuments:
           count: 1
@@ -122,11 +120,9 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-api
 
-  - it: omits the oidc-mock VirtualService in production
+  - it: omits the oidc-mock VirtualService when oidcMock is disabled
     set:
-      profile: production
-      existingSecret: corp-secrets
-      oidc.issuer: https://idp.corp.example.com
+      oidcMock.enabled: false
     asserts:
       - hasDocuments:
           count: 2
@@ -134,15 +130,16 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-oidc-mock
 
-  - it: omits the oidc-mock VirtualService when a real IdP is configured in the local profile
+  - it: keeps the oidc-mock VirtualService when oidc.issuer is set
     set:
       oidc.issuer: https://idp.corp.example.com
     asserts:
       - hasDocuments:
-          count: 2
-      - notEqual:
+          count: 3
+      - equal:
           path: metadata.name
           value: RELEASE-NAME-opencode-rc-oidc-mock
+        documentIndex: 2
 
   - it: applies annotations
     set:

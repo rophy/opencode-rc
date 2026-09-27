@@ -1,4 +1,4 @@
-{{- if eq .Values.profile "local" }}
+{{- if .Values.oidcMock.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
