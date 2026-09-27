@@ -1,6 +1,4 @@
 OpenCode RC has been deployed!
-
-Profile: {{ .Values.profile }}
 {{ $exposed := ne (include "opencode-rc.exposeType" .) "none" }}
 {{- $gatewayUrl := "http://localhost:9090" }}
 {{- if $exposed }}

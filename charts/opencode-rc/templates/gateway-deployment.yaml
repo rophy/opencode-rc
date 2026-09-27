@@ -1,4 +1,3 @@
-{{- include "opencode-rc.validateProduction" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

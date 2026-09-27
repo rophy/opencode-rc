@@ -1,5 +1,3 @@
-profile: local  # or "production"
-
 global:
   imageRegistry: ""
 
@@ -48,6 +46,8 @@ api:
   # Browser-facing URL of the API (e.g. https://api.rc.example.com). Overrides the URL
   # derived from expose.*.
   publicUrl: ""
+  # Secure flag of the short-lived login cookies. null: true iff the API public URL is https.
+  cookieSecure: null
   service:
     type: ClusterIP
     nodePort: null

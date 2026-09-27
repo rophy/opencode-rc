@@ -1,0 +1,23 @@
+suite: oidc validation
+templates:
+  - templates/api-deployment.yaml
+tests:
+  - it: fails without oidc.issuer when the mock is disabled
+    set:
+      oidcMock.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "oidc.issuer is required unless oidcMock.enabled"
+
+  - it: renders with the mock disabled and oidc.issuer set, without existingSecret
+    set:
+      oidcMock.enabled: false
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: renders with default values
+    asserts:
+      - isKind:
+          of: Deployment

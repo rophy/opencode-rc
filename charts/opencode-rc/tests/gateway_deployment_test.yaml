@@ -38,9 +38,9 @@ tests:
           path: spec.template.spec.containers[0].image
           value: "harbor.corp.example.com/ghcr.io/rophy/opencode-rc/gateway:0.6.0"
 
-  - it: reads secrets from existingSecret in production
+  - it: reads secrets from existingSecret
     set:
-      profile: production
+      oidcMock.enabled: false
       existingSecret: corp-secrets
       oidc.issuer: https://idp.corp.example.com
     asserts:
@@ -245,9 +245,9 @@ tests:
             name: OIDC_JWKS_URI
             value: http://RELEASE-NAME-opencode-rc-oidc-mock:8080/jwks
 
-  - it: production with expose uses the configured issuer without overrides
+  - it: a configured issuer with expose uses no overrides
     set:
-      profile: production
+      oidcMock.enabled: false
       existingSecret: corp-secrets
       oidc.issuer: https://idp.corp.example.com
       expose.type: ingress

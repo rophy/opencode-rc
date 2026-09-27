@@ -58,25 +58,46 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: sets COOKIE_SECURE to false in local profile
+  - it: sets COOKIE_SECURE to false for the in-cluster http API URL
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
-          content:
-            name: COOKIE_SECURE
-            value: "false"
+          content: {name: COOKIE_SECURE, value: "false"}
 
-  - it: sets COOKIE_SECURE to true in production profile
+  - it: sets COOKIE_SECURE to true for an https API URL
     set:
-      profile: production
-      existingSecret: my-secret
-      oidc.issuer: https://idp.corp.example.com
+      expose.type: ingress
+      expose.host: example.com
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
-          content:
-            name: COOKIE_SECURE
-            value: "true"
+          content: {name: COOKIE_SECURE, value: "true"}
+
+  - it: sets COOKIE_SECURE to false for an http api.publicUrl
+    set:
+      api.publicUrl: http://api.example.com:30080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: COOKIE_SECURE, value: "false"}
+
+  - it: api.cookieSecure overrides the derived value
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      api.cookieSecure: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: COOKIE_SECURE, value: "false"}
+
+  - it: api.cookieSecure true forces Secure over http
+    set:
+      api.cookieSecure: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: COOKIE_SECURE, value: "true"}
 
   - it: reads OIDC_CLIENT_SECRET from secret
     asserts:
@@ -100,9 +121,9 @@ tests:
                 name: RELEASE-NAME-opencode-rc
                 key: cookie-secret
 
-  - it: uses existingSecret in production
+  - it: uses existingSecret
     set:
-      profile: production
+      oidcMock.enabled: false
       existingSecret: corp-secrets
       oidc.issuer: https://idp.corp.example.com
     asserts:
@@ -133,7 +154,7 @@ tests:
 
   - it: reads REDIS_URL from secret when redis disabled
     set:
-      profile: production
+      oidcMock.enabled: false
       existingSecret: corp-secrets
       oidc.issuer: https://idp.corp.example.com
       redis.enabled: false
@@ -634,9 +655,9 @@ tests:
             name: OIDC_AUTHORIZATION_ENDPOINT
           any: true
 
-  - it: production with expose uses the configured issuer without overrides
+  - it: a configured issuer with expose uses no overrides
     set:
-      profile: production
+      oidcMock.enabled: false
       existingSecret: corp-secrets
       oidc.issuer: https://idp.corp.example.com
       expose.type: ingress

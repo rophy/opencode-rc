@@ -4,14 +4,12 @@ templates:
 tests:
   - it: uses default repository and tag
     set:
-      profile: local
     asserts:
       - isKind:
           of: Secret
 
   - it: renders with global imageRegistry override
     set:
-      profile: local
       global.imageRegistry: harbor.corp.example.com
     asserts:
       - isKind:

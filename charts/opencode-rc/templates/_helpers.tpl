@@ -311,12 +311,13 @@ expose.* checks; per-component ingress values were replaced by expose.* in 0.6.
 {{- end -}}
 
 {{/*
-Validation — production profile checks.
+COOKIE_SECURE: api.cookieSecure when set, else whether the API public URL is https.
 */}}
-{{- define "opencode-rc.validateProduction" -}}
-{{- if eq .Values.profile "production" -}}
-  {{- if not .Values.existingSecret -}}
-    {{- fail "existingSecret is required when profile is production" -}}
-  {{- end -}}
+{{- define "opencode-rc.cookieSecure" -}}
+{{- $v := .Values.api.cookieSecure -}}
+{{- if kindIs "bool" $v -}}
+{{- $v -}}
+{{- else -}}
+{{- hasPrefix "https://" (include "opencode-rc.apiPublicUrl" .) -}}
 {{- end -}}
-{{- end }}
+{{- end -}}
