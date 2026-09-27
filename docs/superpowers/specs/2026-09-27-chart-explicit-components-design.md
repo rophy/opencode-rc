@@ -94,15 +94,16 @@ Each value resolves to the explicit `oidc.*` value if set, else the mock-derived
 
 | Env | Explicit | From the mock | Otherwise |
 |---|---|---|---|
-| `OIDC_ISSUER` (discovery) | `oidc.issuer` | mock issuer; in-cluster service URL when the mock is exposed | fail |
+| `OIDC_ISSUER` (discovery) | `oidc.issuer` | the mock's in-cluster service URL | fail |
 | `OIDC_CLIENT_ID` | `oidc.clientId` | `oidcMock.clients.web.id` | `opencode-rc` |
 | `OIDC_CLI_CLIENT_ID` | `oidc.cliClientId` | `oidcMock.clients.cli.id` | `opencode-rc-cli` |
 | `oidc-client-secret` (Secret) | `secrets.oidcClientSecret` | `oidcMock.clients.web.secret` | `""` |
 
-**Split discovery.** When `oidc.issuer` is empty and the mock is exposed, the API and gateway
-fetch discovery, tokens and keys from the in-cluster service and send browsers to the mock's
-issuer. This now applies whether the issuer is derived or set with `oidcMock.issuer` (for
-example an issuer URL with a port that pods cannot reach). Explicit `oidc.issuerOverride`,
+**Split discovery.** When `oidc.issuer` is empty and the mock's issuer is not its in-cluster
+service URL (it is exposed, or `oidcMock.issuer` is set), the API and gateway fetch discovery,
+tokens and keys from the in-cluster service and send browsers to the mock's issuer. Pods may
+not reach the external issuer (for example a URL with a NodePort), so this also applies to
+`oidcMock.issuer`. Explicit `oidc.issuerOverride`,
 `oidc.authorizationEndpoint`, `oidc.tokenEndpoint` and `oidc.jwksUri` still win.
 
 When `oidc.issuer` is set, the mock may still run and be exposed; it is simply not used.
