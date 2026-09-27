@@ -10,14 +10,6 @@ tests:
       - failedTemplate:
           errorMessage: "existingSecret is required when profile is production"
 
-  - it: production fails without oidc.issuer
-    set:
-      profile: production
-      existingSecret: corp-secrets
-    asserts:
-      - failedTemplate:
-          errorMessage: "oidc.issuer is required when profile is production"
-
   - it: production renders with all required values
     set:
       profile: production

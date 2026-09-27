@@ -132,26 +132,58 @@ Issuer the oidc-mock advertises: oidcMock.issuer, else its exposed host, else it
 {{- end -}}
 
 {{/*
-OIDC Issuer — explicit value, or the oidc-mock issuer in local profile.
+OIDC issuer: oidc.issuer, else the oidc-mock issuer when the mock is enabled.
 */}}
 {{- define "opencode-rc.oidcIssuer" -}}
 {{- if .Values.oidc.issuer -}}
   {{- .Values.oidc.issuer -}}
-{{- else if eq .Values.profile "local" -}}
+{{- else if .Values.oidcMock.enabled -}}
   {{- include "opencode-rc.oidcMockIssuer" . -}}
 {{- else -}}
-  {{- fail "oidc.issuer is required when profile is production" -}}
+  {{- fail "oidc.issuer is required unless oidcMock.enabled" -}}
 {{- end -}}
 {{- end }}
 
 {{/*
-"true" when the issuer is the derived external oidc-mock host (exposed, no explicit
-oidc.issuer / oidcMock.issuer). Servers then discover the mock in-cluster and override
+"true" when the api and gateway use the mock through an issuer other than its in-cluster
+URL (exposed host or oidcMock.issuer). They then discover the mock in-cluster and override
 the external parts: the mock advertises every endpoint under its external issuer.
 */}}
 {{- define "opencode-rc.oidcMockSplit" -}}
-{{- if and (include "opencode-rc.oidcMockExposed" .) (not .Values.oidcMock.issuer) (not .Values.oidc.issuer) -}}
+{{- if and .Values.oidcMock.enabled (not .Values.oidc.issuer) (ne (include "opencode-rc.oidcMockIssuer" .) (include "opencode-rc.oidcMockServiceUrl" .)) -}}
 true
+{{- end -}}
+{{- end -}}
+
+{{/*
+OIDC client ids and web client secret: explicit value, else the oidc-mock's client when
+the mock is enabled, else the built-in id (secret: empty).
+*/}}
+{{- define "opencode-rc.oidcClientId" -}}
+{{- if .Values.oidc.clientId -}}
+{{- .Values.oidc.clientId -}}
+{{- else if .Values.oidcMock.enabled -}}
+{{- .Values.oidcMock.clients.web.id -}}
+{{- else -}}
+opencode-rc
+{{- end -}}
+{{- end -}}
+
+{{- define "opencode-rc.oidcCliClientId" -}}
+{{- if .Values.oidc.cliClientId -}}
+{{- .Values.oidc.cliClientId -}}
+{{- else if .Values.oidcMock.enabled -}}
+{{- .Values.oidcMock.clients.cli.id -}}
+{{- else -}}
+opencode-rc-cli
+{{- end -}}
+{{- end -}}
+
+{{- define "opencode-rc.oidcClientSecret" -}}
+{{- if .Values.secrets.oidcClientSecret -}}
+{{- .Values.secrets.oidcClientSecret -}}
+{{- else if .Values.oidcMock.enabled -}}
+{{- .Values.oidcMock.clients.web.secret -}}
 {{- end -}}
 {{- end -}}
 

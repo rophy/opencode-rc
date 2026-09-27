@@ -617,23 +617,6 @@ tests:
             name: OIDC_JWKS_URI
             value: https://jwks.example.com/jwks
 
-  - it: an explicit oidcMock.issuer disables the derived oidc-mock overrides
-    set:
-      expose.type: ingress
-      expose.host: example.com
-      oidcMock.issuer: https://oidc-mock.corp.example.com
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_ISSUER
-            value: https://oidc-mock.corp.example.com
-      - notContains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_ISSUER_OVERRIDE
-          any: true
-
   - it: an explicit oidc.issuer disables the derived oidc-mock overrides
     set:
       expose.type: ingress
@@ -669,3 +652,57 @@ tests:
           content:
             name: OIDC_ISSUER_OVERRIDE
           any: true
+
+  - it: takes client ids from the mock when oidc.* is empty
+    set:
+      oidcMock.clients.web.id: mock-web
+      oidcMock.clients.cli.id: mock-cli
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLIENT_ID, value: mock-web}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLI_CLIENT_ID, value: mock-cli}
+
+  - it: explicit oidc client ids win over the mock
+    set:
+      oidcMock.clients.web.id: mock-web
+      oidc.clientId: corp-web
+      oidc.cliClientId: corp-cli
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLIENT_ID, value: corp-web}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLI_CLIENT_ID, value: corp-cli}
+
+  - it: uses built-in client ids with the mock disabled
+    set:
+      oidcMock.enabled: false
+      oidc.issuer: https://idp.corp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLIENT_ID, value: opencode-rc}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLI_CLIENT_ID, value: opencode-rc-cli}
+
+  - it: discovers the mock in-cluster when oidcMock.issuer is set
+    set:
+      oidcMock.issuer: http://mock.example.com:30080
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_ISSUER, value: "http://RELEASE-NAME-opencode-rc-oidc-mock:8080"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_ISSUER_OVERRIDE, value: "http://mock.example.com:30080"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_AUTHORIZATION_ENDPOINT, value: "http://mock.example.com:30080/authorize"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_TOKEN_ENDPOINT, value: "http://RELEASE-NAME-opencode-rc-oidc-mock:8080/token"}

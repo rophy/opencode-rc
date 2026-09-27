@@ -263,3 +263,15 @@ tests:
           content:
             name: OIDC_ISSUER_OVERRIDE
           any: true
+
+  - it: takes client ids from the mock when oidc.* is empty
+    set:
+      oidcMock.clients.web.id: mock-web
+      oidcMock.clients.cli.id: mock-cli
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLIENT_ID, value: mock-web}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_CLI_CLIENT_ID, value: mock-cli}

@@ -155,9 +155,12 @@ tlsInsecureSkipVerify: false
 extraCACerts: ""
 
 oidc:
+  # Required unless oidcMock.enabled; empty uses the mock's issuer.
   issuer: ""
-  clientId: "opencode-rc"
-  cliClientId: "opencode-rc-cli"
+  # Empty: oidcMock.clients.web.id when the mock is enabled, else opencode-rc.
+  clientId: ""
+  # Empty: oidcMock.clients.cli.id when the mock is enabled, else opencode-rc-cli.
+  cliClientId: ""
   redirectUri: ""
   # Override individual OIDC discovery endpoints (optional).
   # Useful when internal/external URLs differ (e.g. browser reaches external
@@ -186,6 +189,7 @@ secrets:
   # HMAC key for access tokens (64-char hex). Falls back to cookieSecret.
   tokenSecret: ""
   cookieSecret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  oidcClientSecret: "opencode-rc-secret"
+  # Empty: oidcMock.clients.web.secret when the mock is enabled.
+  oidcClientSecret: ""
 
 existingSecret: ""

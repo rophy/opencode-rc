@@ -50,7 +50,7 @@ spec:
             - name: OIDC_ISSUER
               value: {{ include "opencode-rc.oidcDiscoveryIssuer" . | quote }}
             - name: OIDC_CLIENT_ID
-              value: {{ .Values.oidc.clientId | quote }}
+              value: {{ include "opencode-rc.oidcClientId" . | quote }}
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -59,7 +59,7 @@ spec:
             - name: OIDC_REDIRECT_URI
               value: {{ include "opencode-rc.redirectUri" . | quote }}
             - name: OIDC_CLI_CLIENT_ID
-              value: {{ .Values.oidc.cliClientId | quote }}
+              value: {{ include "opencode-rc.oidcCliClientId" . | quote }}
             {{- with include "opencode-rc.oidcOverrideEnv" . }}
             {{- . | trim | nindent 12 }}
             {{- end }}
