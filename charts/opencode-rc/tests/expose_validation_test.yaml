@@ -29,21 +29,21 @@ tests:
       api.ingress.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.*"
 
   - it: rejects legacy ui.ingress
     set:
       ui.ingress.host: rc.example.com
     asserts:
       - failedTemplate:
-          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.*"
 
   - it: rejects legacy gateway.ingress
     set:
       gateway.ingress.enabled: false
     asserts:
       - failedTemplate:
-          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)"
+          errorMessage: "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.*"
 
   - it: accepts legacy ingress keys removed with null
     set:

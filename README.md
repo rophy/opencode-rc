@@ -166,44 +166,6 @@ Images to mirror:
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
 
-### Upgrading to 0.6
-
-0.6 splits the web UI out of the API server into its own image and host:
-
-- Chart values `web.*` were renamed to `api.*`. The chart fails (`chart values web.* were renamed to api.*`) if any `web.*` value is still set, instead of silently ignoring it.
-- Per-component ingress values (`api.ingress`, `ui.ingress`, `gateway.ingress`, and `web.ingress` before the rename) were replaced by `expose.*`, which exposes all of them together. The chart fails (`per-component ingress settings ... were replaced by expose.*`) if any of them is still set; remove them from your values or with `--set gateway.ingress=null` (and likewise for the others).
-- **Hostnames change.** Hosts are now derived from the release name: the API and the CLI gateway share `{release}.{host}` (`/tunnel` goes to the gateway), and the UI gets `{release}-ui.{host}`. For release `opencode-rc` and `expose.host=example.com` that is `https://opencode-rc.example.com` (API, OIDC redirect URI `https://opencode-rc.example.com/auth/callback`, CLI `gatewayUrl`) and `https://opencode-rc-ui.example.com` (UI). Update DNS/certificates, the redirect URI registered at your OIDC provider, and the CLI `gatewayUrl`.
-- The gateway's `/healthz` is no longer exposed outside the cluster; only `/tunnel` is (the CLI only uses `/tunnel`).
-- The `nginx.ingress.kubernetes.io/proxy-{read,send}-timeout: "3600"` defaults of the old gateway Ingress now apply to the single Ingress (all hosts); override them in `expose.ingress.annotations`.
-- The API host no longer serves the UI. Old bookmarks pointing at the API host (e.g. `/`, `/s/<session>/`) now return `404`; point users at the UI host instead.
-- Air-gapped mirrors: mirror the new `ghcr.io/rophy/opencode-rc/api` and `ghcr.io/rophy/opencode-rc/ui` images instead of `ghcr.io/rophy/opencode-rc/web` (see the table above).
-- Everyone is logged out once: bearer tokens issued before the upgrade are invalidated.
-
-The simplest upgrade is a full values file: export the current values, rename the top-level `web:` key to `api:`, replace the `ingress:` blocks with `expose:`, and upgrade without reusing values:
-
-```bash
-helm get values opencode-rc -o yaml > values.yaml
-# edit values.yaml: rename `web:` to `api:`, delete every `ingress:` block
-# (web/api, ui, gateway), then add
-#   expose:
-#     type: ingress
-#     host: example.com
-#     ingress:
-#       className: nginx
-#       tlsSecretName: wildcard-example-com-tls
-helm upgrade opencode-rc ./charts/opencode-rc -f values.yaml
-```
-
-Alternatively, with Helm 3.14+ use `--reset-then-reuse-values` and move each `web.*` value you had set to `api.*` explicitly, removing the old keys with `--set web=null` and `--set gateway.ingress=null` (plain `--reuse-values` does not pick up the new chart defaults and must not be used):
-
-```bash
-helm upgrade opencode-rc ./charts/opencode-rc --reset-then-reuse-values \
-  --set web=null \
-  --set gateway.ingress=null \
-  --set expose.type=ingress \
-  --set expose.host=example.com
-```
-
 ## CLI Usage
 
 Install:

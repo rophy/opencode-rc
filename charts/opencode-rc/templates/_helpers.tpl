@@ -287,7 +287,7 @@ Values web.* were renamed to api.* in 0.6; fail instead of silently ignoring the
 */}}
 {{- define "opencode-rc.validateNoLegacyWeb" -}}
 {{- if .Values.web -}}
-{{- fail "chart values web.* were renamed to api.* (see Upgrading to 0.6 in README)" -}}
+{{- fail "chart values web.* were renamed to api.*" -}}
 {{- end -}}
 {{- end -}}
 
@@ -306,7 +306,7 @@ expose.* checks; per-component ingress values were replaced by expose.* in 0.6.
 {{- fail "expose.virtualService.gateways is required when expose.type is virtualService" -}}
 {{- end -}}
 {{- if or .Values.api.ingress .Values.ui.ingress .Values.gateway.ingress -}}
-{{- fail "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.* (see Upgrading to 0.6 in README)" -}}
+{{- fail "per-component ingress settings (api.ingress, ui.ingress, gateway.ingress) were replaced by expose.*" -}}
 {{- end -}}
 {{- end -}}
 

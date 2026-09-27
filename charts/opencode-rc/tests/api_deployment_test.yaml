@@ -475,7 +475,7 @@ tests:
       web.ingress.host: rc.example.com
     asserts:
       - failedTemplate:
-          errorMessage: "chart values web.* were renamed to api.* (see Upgrading to 0.6 in README)"
+          errorMessage: "chart values web.* were renamed to api.*"
 
   - it: uses api.publicUrl for the OIDC redirect URI
     set:
