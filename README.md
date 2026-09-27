@@ -69,13 +69,13 @@ helm install opencode-rc ./charts/opencode-rc \
   --set expose.ingress.tlsSecretName=wildcard-example-com-tls
 ```
 
-`expose.*` exposes the API, the gateway and the UI on hosts derived from the Helm release name and `expose.host`:
+`expose.*` exposes the API, the gateway and the UI on hosts derived from a prefix and `expose.host`. The prefix is `expose.hostPrefix`, else `fullnameOverride`, else the Helm release name:
 
 | Host | Routes |
 |------|--------|
-| `{release}.{host}` (e.g. `opencode-rc.example.com`) | `/tunnel` → gateway (CLI tunnel), everything else → API |
-| `{release}-ui.{host}` (e.g. `opencode-rc-ui.example.com`) | web UI (when `ui.enabled`) |
-| `{release}-oidc.{host}` (e.g. `opencode-rc-oidc.example.com`) | bundled oidc-mock (when `oidcMock.enabled`) |
+| `{prefix}.{host}` (e.g. `opencode-rc.example.com`) | `/tunnel` → gateway (CLI tunnel), everything else → API |
+| `{prefix}-ui.{host}` (e.g. `opencode-rc-ui.example.com`) | web UI (when `ui.enabled`) |
+| `{prefix}-oidc.{host}` (e.g. `opencode-rc-oidc.example.com`) | bundled oidc-mock (when `oidcMock.enabled`) |
 
 The UI and the API are served from two different hosts. The browser loads the UI from the UI host and calls the API host directly. Public URLs are `{expose.scheme}://<host>` (`https` by default — TLS usually terminates at the ingress controller, load balancer or Istio gateway); set `api.publicUrl` / `ui.publicUrl` to override them. The OIDC redirect URI defaults to `<api public URL>/auth/callback`, e.g. `https://opencode-rc.example.com/auth/callback`. The CLI gateway URL is the API host, e.g. `https://opencode-rc.example.com`. Only `/tunnel` of the gateway is exposed; its `/healthz` is not reachable from outside the cluster.
 
@@ -119,7 +119,8 @@ The `existingSecret` must contain:
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `expose.type` | `none` | `none`, `ingress` (one Ingress) or `virtualService` (Istio VirtualServices) |
-| `expose.host` | `""` | Base domain; hosts are `{release}.{host}`, `{release}-ui.{host}` and, with `oidcMock.enabled`, `{release}-oidc.{host}`. Required unless `expose.type=none` |
+| `expose.host` | `""` | Base domain; hosts are `{prefix}.{host}`, `{prefix}-ui.{host}` and, with `oidcMock.enabled`, `{prefix}-oidc.{host}`. Required unless `expose.type=none` |
+| `expose.hostPrefix` | `""` | Host prefix; empty: `fullnameOverride`, else the release name |
 | `expose.scheme` | `https` | Scheme browsers and the CLI use to reach the hosts |
 | `expose.ingress.className` | `""` | `ingressClassName` of the Ingress |
 | `expose.ingress.annotations` | `{}` | Ingress annotations, merged over the default ingress-nginx `proxy-read-timeout`/`proxy-send-timeout` of `"3600"` |
@@ -143,7 +144,7 @@ By default the chart deploys an OIDC mock with test users (alice/bob) and a buil
 helm install opencode-rc ./charts/opencode-rc
 ```
 
-The mock is configured by `oidcMock.*` only. Empty `oidc.*` values default to it: the issuer, the client ids and the web client secret. With `expose.type` set, it is exposed on `{release}-oidc.{host}` with that host as its issuer; set `oidcMock.issuer` when browsers reach it at another URL. The API and the gateway always talk to it in-cluster.
+The mock is configured by `oidcMock.*` only. Empty `oidc.*` values default to it: the issuer, the client ids and the web client secret. With `expose.type` set, it is exposed on `{prefix}-oidc.{host}` with that host as its issuer; set `oidcMock.issuer` when browsers reach it at another URL. The API and the gateway always talk to it in-cluster.
 
 For a real IdP, set `oidcMock.enabled=false`, `oidc.issuer` and `existingSecret`. Without `existingSecret` the chart renders a Secret from `secrets.*`, whose defaults are for development only.
 

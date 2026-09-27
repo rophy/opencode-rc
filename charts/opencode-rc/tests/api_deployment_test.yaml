@@ -727,3 +727,19 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: OIDC_TOKEN_ENDPOINT, value: "http://RELEASE-NAME-opencode-rc-oidc-mock:8080/token"}
+
+  - it: derives the redirect URI and mock issuer from expose.hostPrefix
+    set:
+      expose.type: ingress
+      expose.host: example.com
+      expose.hostPrefix: code
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_REDIRECT_URI, value: "https://code.example.com/auth/callback"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_ISSUER_OVERRIDE, value: "https://code-oidc.example.com"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: ALLOWED_ORIGINS, value: "https://code-ui.example.com"}

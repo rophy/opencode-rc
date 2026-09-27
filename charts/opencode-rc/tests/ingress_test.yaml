@@ -177,3 +177,32 @@ tests:
       - equal:
           path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
           value: "3600"
+
+  - it: derives hosts from fullnameOverride
+    set:
+      fullnameOverride: rc
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: rc.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: rc-ui.example.com
+      - equal:
+          path: spec.rules[2].host
+          value: rc-oidc.example.com
+
+  - it: expose.hostPrefix wins over fullnameOverride
+    set:
+      fullnameOverride: rc
+      expose.hostPrefix: code
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: code.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: code-ui.example.com
+      - equal:
+          path: spec.rules[2].host
+          value: code-oidc.example.com

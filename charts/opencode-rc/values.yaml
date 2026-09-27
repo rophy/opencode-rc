@@ -9,11 +9,13 @@ fullnameOverride: ""
 expose:
   # none | ingress | virtualService
   type: none
-  # Base domain. Hosts are derived from the Helm release name:
-  #   {release}.{host}       api + gateway (/tunnel -> gateway, everything else -> api)
-  #   {release}-ui.{host}    web UI
-  #   {release}-oidc.{host}  bundled oidc-mock (oidcMock.enabled)
+  # Base domain. Hosts are derived from a prefix (hostPrefix, else fullnameOverride, else the
+  # Helm release name):
+  #   {prefix}.{host}       api + gateway (/tunnel -> gateway, everything else -> api)
+  #   {prefix}-ui.{host}    web UI
+  #   {prefix}-oidc.{host}  bundled oidc-mock (oidcMock.enabled)
   host: ""
+  hostPrefix: ""
   # Scheme browsers and the CLI use to reach the hosts (TLS usually terminates at the edge).
   scheme: https
   ingress:

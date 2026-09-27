@@ -91,18 +91,31 @@ e.g. an upgrade with --reuse-values from a chart without expose.*).
 {{- end -}}
 
 {{/*
-Exposed hosts, derived from the release name and expose.host.
+Prefix of the exposed hosts: expose.hostPrefix, else fullnameOverride, else the release name.
+*/}}
+{{- define "opencode-rc.hostPrefix" -}}
+{{- if .Values.expose.hostPrefix -}}
+{{- .Values.expose.hostPrefix -}}
+{{- else if .Values.fullnameOverride -}}
+{{- include "opencode-rc.fullname" . -}}
+{{- else -}}
+{{- .Release.Name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Exposed hosts, derived from the host prefix and expose.host.
 */}}
 {{- define "opencode-rc.apiHost" -}}
-{{- printf "%s.%s" .Release.Name .Values.expose.host -}}
+{{- printf "%s.%s" (include "opencode-rc.hostPrefix" .) .Values.expose.host -}}
 {{- end -}}
 
 {{- define "opencode-rc.uiHost" -}}
-{{- printf "%s-ui.%s" .Release.Name .Values.expose.host -}}
+{{- printf "%s-ui.%s" (include "opencode-rc.hostPrefix" .) .Values.expose.host -}}
 {{- end -}}
 
 {{- define "opencode-rc.oidcMockHost" -}}
-{{- printf "%s-oidc.%s" .Release.Name .Values.expose.host -}}
+{{- printf "%s-oidc.%s" (include "opencode-rc.hostPrefix" .) .Values.expose.host -}}
 {{- end -}}
 
 {{/*

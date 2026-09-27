@@ -149,3 +149,20 @@ tests:
       - equal:
           path: metadata.annotations.team
           value: platform
+
+  - it: derives hosts from expose.hostPrefix
+    set:
+      expose.hostPrefix: code
+    asserts:
+      - equal:
+          path: spec.hosts
+          value: [code.example.com]
+        documentIndex: 0
+      - equal:
+          path: spec.hosts
+          value: [code-ui.example.com]
+        documentIndex: 1
+      - equal:
+          path: spec.hosts
+          value: [code-oidc.example.com]
+        documentIndex: 2
