@@ -54,7 +54,7 @@ flowchart LR
 - An OIDC provider (Keycloak, Dex, Azure AD, etc.)
 - Two OIDC clients configured:
   - **API client** (confidential): for browser login via the API server. Redirect URI: `https://<api-host>/auth/callback`
-  - **CLI client** (public): for developer CLI login via PKCE. Redirect URI: `http://127.0.0.1:0/callback`
+  - **CLI client** (public): for developer CLI login via PKCE. Redirect URI: `http://127.0.0.1/callback` without a port; per RFC 8252 the IdP must accept any loopback port (the CLI listens on 43212–43215). For an IdP that matches ports exactly, register `http://127.0.0.1:43212/callback` through `:43215`
 
 ### Install
 

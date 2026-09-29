@@ -124,7 +124,7 @@ oidcMock:
       redirectUris: []
     cli:
       id: opencode-rc-cli
-      redirectUris: ["http://127.0.0.1:0/callback"]
+      redirectUris: ["http://127.0.0.1/callback"]  # no port: matches any loopback port (RFC 8252)
   users:
     - sub: user1
       email: alice@example.com

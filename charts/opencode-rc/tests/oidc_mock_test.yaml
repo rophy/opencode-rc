@@ -154,7 +154,7 @@ tests:
           pattern: "- id: mock-web\n    secret: mock-secret\n    redirect_uris:\n      - https://a.example.com/cb\n      - https://b.example.com/cb\n"
       - matchRegex:
           path: data["oidc-config.yaml"]
-          pattern: "- id: mock-cli\n    redirect_uris:\n      - http://127.0.0.1:0/callback\n"
+          pattern: "- id: mock-cli\n    redirect_uris:\n      - http://127.0.0.1/callback\n"
       - matchRegex:
           path: data["oidc-config.yaml"]
           pattern: "carol@example.com"
