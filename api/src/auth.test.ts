@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Hono } from "hono";
 import { authMiddleware, authRoutes, type AuthEnv } from "./auth.js";
+import { verifyToken } from "./oidc.js";
 import { codeChallenge, randomToken, signAccessToken } from "./token.js";
 import { TokenStore } from "./token-store.js";
 import { MockRedis } from "./testing/mock-redis.js";
@@ -23,6 +24,7 @@ const config: Config = {
   oidcClientId: "test",
   oidcClientSecret: "",
   oidcCliClientId: "",
+  oidcUserClaim: "sub",
   oidcRedirectUri: "https://rc.example.com/auth/callback",
   oidcIssuerOverride: "",
   oidcAuthorizationEndpoint: "",
@@ -236,6 +238,39 @@ describe("/auth/callback", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/^https:\/\/rc\.example\.com\/s\/x\/#code=/);
     expect(res.headers.get("content-type") ?? "").not.toContain("text/html");
+  });
+
+  const loggedInUser = async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    const res = await callback(`orc_state=st; orc_return=%2F; orc_challenge=${challenge}`);
+    if (res.status !== 302) return { status: res.status };
+    const code = decodeURIComponent(res.headers.get("location")!.split("#code=")[1]);
+    const record = await tokens.consumeCode(code);
+    return { status: res.status, claims: record?.claims };
+  };
+
+  it("keys the user by the sub claim and keeps the email", async () => {
+    const { claims: got } = await loggedInUser();
+    expect(got).toEqual({ uid: "alice", email: "alice@example.com", name: "Alice" });
+  });
+
+  it("keys the user by the configured claim", async () => {
+    vi.mocked(verifyToken).mockResolvedValueOnce({ sub: "pairwise", oid: "stable-oid", email: "alice@example.com" });
+    app = new Hono<AuthEnv>();
+    app.route("/", authRoutes({
+      config: { ...config, oidcUserClaim: "oid" },
+      provider,
+      tokens,
+      isAllowedOrigin: () => false,
+    }));
+    const { claims: got } = await loggedInUser();
+    expect(got?.uid).toBe("stable-oid");
+  });
+
+  it("rejects an ID token without the user claim", async () => {
+    vi.mocked(verifyToken).mockResolvedValueOnce({ email: "alice@example.com" });
+    const { status } = await loggedInUser();
+    expect(status).toBe(401);
   });
 
   it("rejects a callback without a code challenge cookie", async () => {

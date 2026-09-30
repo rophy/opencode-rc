@@ -17,6 +17,7 @@ type Config struct {
 	OIDCClientID              string
 	OIDCClientSecret          string
 	OIDCCLIClientID           string
+	OIDCUserClaim             string
 	OIDCRedirectURI           string
 	TokenSecret               []byte
 	RedisURL                  string
@@ -62,6 +63,10 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cliClientID := os.Getenv("OIDC_CLI_CLIENT_ID")
+	userClaim := os.Getenv("OIDC_USER_CLAIM")
+	if userClaim == "" {
+		userClaim = "sub"
+	}
 
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
@@ -80,6 +85,7 @@ func LoadConfig() (*Config, error) {
 		OIDCClientID:              clientID,
 		OIDCClientSecret:          clientSecret,
 		OIDCCLIClientID:           cliClientID,
+		OIDCUserClaim:             userClaim,
 		OIDCRedirectURI:           redirectURI,
 		TokenSecret:               secret,
 		RedisURL:                  redisURL,

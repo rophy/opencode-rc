@@ -154,7 +154,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       return c.text("no id_token in response", 401);
     }
 
-    let idClaims: { email?: string; sub?: string; name?: string };
+    let idClaims: Record<string, unknown>;
     try {
       idClaims = (await verifyToken(provider, tokenData.id_token, config.oidcClientId)) as typeof idClaims;
     } catch (err) {
@@ -162,10 +162,16 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       return c.text("invalid id_token", 401);
     }
 
+    // Sessions are owned by an IdP-assigned ID; the email is only for display and logs.
+    const uid = idClaims[config.oidcUserClaim];
+    if (typeof uid !== "string" || !uid) {
+      console.error(`ID token has no ${config.oidcUserClaim} claim`);
+      return c.text("invalid id_token", 401);
+    }
     const claims: AccessClaims = {
-      uid: idClaims.email || idClaims.sub || "",
-      email: idClaims.email ?? "",
-      name: idClaims.name ?? "",
+      uid,
+      email: typeof idClaims.email === "string" ? idClaims.email : "",
+      name: typeof idClaims.name === "string" ? idClaims.name : "",
     };
 
     let loginCode: string;
@@ -179,7 +185,7 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     deleteCookie(c, "orc_state", { path: "/auth" });
     deleteCookie(c, "orc_return", { path: "/auth" });
     deleteCookie(c, "orc_challenge", { path: "/auth" });
-    console.log(`login: user=${claims.uid} name=${claims.name}`);
+    console.log(`login: user=${claims.uid} email=${claims.email} name=${claims.name}`);
     return c.redirect(`${returnTo}#code=${encodeURIComponent(loginCode)}`);
   });
 

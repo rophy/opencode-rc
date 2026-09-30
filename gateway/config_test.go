@@ -15,6 +15,7 @@ func TestLoadConfigAllFields(t *testing.T) {
 	t.Setenv("COOKIE_SECRET", strings.Repeat("0123456789abcdef", 4))
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("OIDC_CLI_CLIENT_ID", "cli-client")
+	t.Setenv("OIDC_USER_CLAIM", "oid")
 
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -39,6 +40,9 @@ func TestLoadConfigAllFields(t *testing.T) {
 	if len(cfg.TokenSecret) != 32 {
 		t.Errorf("expected TokenSecret length 32, got %d", len(cfg.TokenSecret))
 	}
+	if cfg.OIDCUserClaim != "oid" {
+		t.Errorf("expected OIDCUserClaim oid, got %s", cfg.OIDCUserClaim)
+	}
 	if cfg.OIDCCLIClientID != "cli-client" {
 		t.Errorf("expected OIDCCLIClientID cli-client, got %s", cfg.OIDCCLIClientID)
 	}
@@ -58,6 +62,9 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 	if cfg.Port != 8080 {
 		t.Errorf("expected default Port 8080, got %d", cfg.Port)
+	}
+	if cfg.OIDCUserClaim != "sub" {
+		t.Errorf("expected default OIDCUserClaim sub, got %s", cfg.OIDCUserClaim)
 	}
 }
 

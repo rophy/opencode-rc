@@ -14,7 +14,7 @@ import (
 func TestTunnelHandlerMissingAuth(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090", "sub")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -29,7 +29,7 @@ func TestTunnelHandlerMissingAuth(t *testing.T) {
 func TestTunnelHandlerInvalidToken(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090", "sub")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -45,7 +45,7 @@ func TestTunnelHandlerInvalidToken(t *testing.T) {
 func TestTunnelHandlerUpgradeFailure(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
 
 	// Send a normal HTTP request (not WebSocket) — upgrader.Upgrade will fail
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1&directory=/proj", nil)
@@ -65,7 +65,7 @@ func TestTunnelHandlerUpgradeFailure(t *testing.T) {
 func TestTunnelHandlerClaimsError(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090", "sub")
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -81,7 +81,7 @@ func TestTunnelHandlerClaimsError(t *testing.T) {
 func TestTunnelHandlerMissingSessionId(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
 
 	req := httptest.NewRequest("GET", "/tunnel", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -100,7 +100,7 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 
 	primary := &mockVerifier{err: errors.New("wrong audience")}
 	cli := &mockVerifier{claims: `{"email":"cliuser@example.com","sub":"sub2"}`}
-	handler := TunnelHandler(primary, cli, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(primary, cli, reg, "10.0.0.1:9090", "sub")
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -119,8 +119,8 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		if m, ok := reg.GetMeta(t.Context(), "cli-sess"); ok {
-			if m.UserID != "cliuser@example.com" {
-				t.Errorf("expected cliuser@example.com, got %s", m.UserID)
+			if m.UserID != "sub2" {
+				t.Errorf("expected sub2, got %s", m.UserID)
 			}
 			return
 		}
@@ -129,15 +129,31 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 	t.Fatal("expected session to be registered via CLI verifier")
 }
 
-func TestTunnelHandlerSubFallback(t *testing.T) {
+func TestTunnelHandlerMissingUserClaim(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"","sub":"sub-only-user"}`}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com"}`}, nil, reg, "10.0.0.1:9090", "sub")
+
+	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
+	req.Header.Set(ProtocolHeader, "1")
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestTunnelHandlerConfiguredUserClaim(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"pairwise","oid":"stable-oid"}`}, nil, reg, "10.0.0.1:9090", "oid")
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=sub-sess&directory=/proj"
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=oid-sess&directory=/proj"
 	header := http.Header{"Authorization": []string{"Bearer valid-token"}, ProtocolHeader: []string{"1"}}
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
@@ -150,21 +166,21 @@ func TestTunnelHandlerSubFallback(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if m, ok := reg.GetMeta(t.Context(), "sub-sess"); ok {
-			if m.UserID != "sub-only-user" {
-				t.Errorf("expected sub-only-user, got %s", m.UserID)
+		if m, ok := reg.GetMeta(t.Context(), "oid-sess"); ok {
+			if m.UserID != "stable-oid" {
+				t.Errorf("expected stable-oid, got %s", m.UserID)
 			}
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("expected session to be registered with sub fallback")
+	t.Fatal("expected session to be registered under the oid claim")
 }
 
 func TestTunnelHandlerSuccess(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -194,8 +210,8 @@ func TestTunnelHandlerSuccess(t *testing.T) {
 	if !found {
 		t.Fatal("expected session to be registered")
 	}
-	if meta.UserID != "user@example.com" {
-		t.Errorf("expected user@example.com, got %s", meta.UserID)
+	if meta.UserID != "user1" {
+		t.Errorf("expected user1, got %s", meta.UserID)
 	}
 	if meta.Directory != "/proj" {
 		t.Errorf("expected /proj, got %s", meta.Directory)

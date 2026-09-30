@@ -25,6 +25,7 @@ beforeEach(() => {
   delete process.env.TLS_INSECURE_SKIP_VERIFY;
   delete process.env.OIDC_CLIENT_SECRET;
   delete process.env.OIDC_CLI_CLIENT_ID;
+  delete process.env.OIDC_USER_CLAIM;
   delete process.env.OIDC_ISSUER_OVERRIDE;
   delete process.env.OIDC_AUTHORIZATION_ENDPOINT;
   delete process.env.OIDC_TOKEN_ENDPOINT;
@@ -82,11 +83,17 @@ describe("loadConfig", () => {
     expect(config.port).toBe(3000);
   });
 
+  it("reads OIDC_USER_CLAIM", () => {
+    process.env.OIDC_USER_CLAIM = "oid";
+    expect(loadConfig().oidcUserClaim).toBe("oid");
+  });
+
   it("defaults optional fields", () => {
     const config = loadConfig();
     expect(config.gatewayUrl).toBe("");
     expect(config.oidcClientSecret).toBe("");
     expect(config.oidcCliClientId).toBe("");
+    expect(config.oidcUserClaim).toBe("sub");
     expect(config.oidcIssuerOverride).toBe("");
     expect(config.oidcAuthorizationEndpoint).toBe("");
     expect(config.oidcTokenEndpoint).toBe("");

@@ -392,10 +392,13 @@ describe("session metadata", () => {
   });
 
   it("session user matches logged-in user", async () => {
+    const me = await (await jar.fetch(`${API_URL}/api/me`)).json();
+    // Keyed by the sub claim, which the web and CLI clients share.
+    expect(me.sub).toBe("user1");
     const res = await jar.fetch(`${API_URL}/gateway/sessions`);
     const sessions: any[] = await res.json();
     const session = sessions.find((s: any) => s.id === SESSION_ID);
-    expect(session.user).toBe("alice@example.com");
+    expect(session.user).toBe(me.sub);
   });
 });
 

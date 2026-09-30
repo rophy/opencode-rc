@@ -111,6 +111,7 @@ The `existingSecret` must contain:
 | `oidc.issuer` | `""` | OIDC provider URL; required unless `oidcMock.enabled` |
 | `oidc.clientId` | `""` | Web client ID (confidential); empty: the mock's web client, else `opencode-rc` |
 | `oidc.cliClientId` | `""` | CLI client ID (public, PKCE); empty: the mock's CLI client, else `opencode-rc-cli` |
+| `oidc.userClaim` | `sub` | ID token claim that identifies a user; web and CLI logins must get the same value (use `oid` for Entra ID) |
 | `oidc.redirectUri` | auto-derived | OAuth callback URL; defaults to `<api public URL>/auth/callback` |
 | `auth.accessTokenTTL` | `15m` | Access token lifetime |
 | `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |

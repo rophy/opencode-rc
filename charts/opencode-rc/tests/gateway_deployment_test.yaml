@@ -275,3 +275,17 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: OIDC_CLI_CLIENT_ID, value: mock-cli}
+
+  - it: keys users by sub by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_USER_CLAIM, value: sub}
+
+  - it: passes oidc.userClaim
+    set:
+      oidc.userClaim: oid
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_USER_CLAIM, value: oid}

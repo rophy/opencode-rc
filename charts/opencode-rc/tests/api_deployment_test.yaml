@@ -743,3 +743,17 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: ALLOWED_ORIGINS, value: "https://code-ui.example.com"}
+
+  - it: keys users by sub by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_USER_CLAIM, value: sub}
+
+  - it: passes oidc.userClaim
+    set:
+      oidc.userClaim: oid
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_USER_CLAIM, value: oid}

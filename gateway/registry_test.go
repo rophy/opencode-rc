@@ -12,7 +12,7 @@ func TestTunnelRegistryRegisterAndGetTunnel(t *testing.T) {
 	ctx := context.Background()
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "10.0.0.1:9090", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/project", "10.0.0.1:9090", tunnel)
 
 	got, ok := reg.GetTunnel("sess-1")
 	if !ok {
@@ -37,7 +37,7 @@ func TestTunnelRegistryDeregister(t *testing.T) {
 	ctx := context.Background()
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/project", "", tunnel)
 	reg.Deregister(ctx, "sess-1", tunnel)
 
 	_, ok := reg.GetTunnel("sess-1")
@@ -58,8 +58,8 @@ func TestTunnelRegistryReRegisterClosesPrevious(t *testing.T) {
 	oldTunnel := &muxConn{closed: make(chan struct{})}
 	newTunnel := &muxConn{closed: make(chan struct{})}
 
-	reg.Register(ctx, "alice@example.com", "sess-1", "/old", "", oldTunnel)
-	reg.Register(ctx, "alice@example.com", "sess-1", "/new", "", newTunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/old", "", oldTunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/new", "", newTunnel)
 
 	got, _ := reg.GetTunnel("sess-1")
 	if got != newTunnel {
@@ -78,7 +78,7 @@ func TestTunnelRegistryRefreshLoopStopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/project", "", tunnel)
 
 	done := make(chan struct{})
 	go func() {
@@ -102,7 +102,7 @@ func TestTunnelRegistryRefreshLoopTick(t *testing.T) {
 	defer cancel()
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/project", "", tunnel)
 
 	done := make(chan struct{})
 	go func() {
@@ -136,7 +136,7 @@ func TestTunnelRegistryRefreshLoopStopsOnMissing(t *testing.T) {
 	ctx := context.Background()
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-1", "/project", "", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-1", "/project", "", tunnel)
 
 	// Delete the session from store so refresh loop exits on next tick
 	store.Delete(ctx, "sess-1")
@@ -160,7 +160,7 @@ func TestTunnelRegistryRegisterStoreError(t *testing.T) {
 
 	tunnel := &muxConn{closed: make(chan struct{})}
 	// Should not panic even when store.Put fails
-	reg.Register(context.Background(), "alice@example.com", "sess-err", "/project", "", tunnel)
+	reg.Register(context.Background(), "alice@example.com", "", "sess-err", "/project", "", tunnel)
 
 	// Tunnel should still be in the local map despite store error
 	got, ok := reg.GetTunnel("sess-err")
@@ -204,7 +204,7 @@ func TestTunnelRegistryRefreshLoopPutError(t *testing.T) {
 	ctx := context.Background()
 
 	tunnel := &muxConn{closed: make(chan struct{})}
-	reg.Register(ctx, "alice@example.com", "sess-refresh-err", "/project", "", tunnel)
+	reg.Register(ctx, "alice@example.com", "", "sess-refresh-err", "/project", "", tunnel)
 
 	// Replace store with broken one — RefreshLoop.Get succeeds but the test
 	// validates the path where Put fails. Actually we need Get to succeed first...

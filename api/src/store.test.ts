@@ -32,14 +32,14 @@ class MockRedis {
   }
 
   putSession(meta: SessionMeta) {
-    this.data.set(`orc:session:${meta.id}`, JSON.stringify(meta));
-    const setKey = `orc:user-sessions:${meta.userId}`;
+    this.data.set(`orc:v2:session:${meta.id}`, JSON.stringify(meta));
+    const setKey = `orc:v2:user-sessions:${meta.userId}`;
     if (!this.sets.has(setKey)) this.sets.set(setKey, new Set());
     this.sets.get(setKey)!.add(meta.id);
   }
 
   addStaleRef(userId: string, sessionId: string) {
-    const setKey = `orc:user-sessions:${userId}`;
+    const setKey = `orc:v2:user-sessions:${userId}`;
     if (!this.sets.has(setKey)) this.sets.set(setKey, new Set());
     this.sets.get(setKey)!.add(sessionId);
   }
@@ -116,7 +116,7 @@ describe("SessionStore", () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("sess-1");
 
-      const members = await redis.smembers("orc:user-sessions:alice@example.com");
+      const members = await redis.smembers("orc:v2:user-sessions:alice@example.com");
       expect(members).not.toContain("sess-gone");
     });
 

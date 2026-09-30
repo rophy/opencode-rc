@@ -34,12 +34,14 @@ func NewRedisStore(client *redis.Client, ttl time.Duration) SessionStore {
 	return &redisStore{client: client, ttl: ttl}
 }
 
+// v2: user IDs come from OIDC_USER_CLAIM, not the email. Sessions registered under the
+// old keys are ignored, so reconnecting CLIs are not rejected as another user's.
 func sessionKey(id string) string {
-	return "orc:session:" + id
+	return "orc:v2:session:" + id
 }
 
 func userSessionsKey(userID string) string {
-	return "orc:user-sessions:" + userID
+	return "orc:v2:user-sessions:" + userID
 }
 
 func (r *redisStore) Put(ctx context.Context, meta SessionMeta) error {

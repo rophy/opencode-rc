@@ -12,16 +12,16 @@ export class SessionStore {
   constructor(private redis: Redis) {}
 
   async get(sessionId: string): Promise<SessionMeta | null> {
-    const data = await this.redis.get(`orc:session:${sessionId}`);
+    const data = await this.redis.get(`orc:v2:session:${sessionId}`);
     if (!data) return null;
     return JSON.parse(data);
   }
 
   async list(userId: string): Promise<SessionMeta[]> {
-    const ids = await this.redis.smembers(`orc:user-sessions:${userId}`);
+    const ids = await this.redis.smembers(`orc:v2:user-sessions:${userId}`);
     if (ids.length === 0) return [];
 
-    const keys = ids.map((id) => `orc:session:${id}`);
+    const keys = ids.map((id) => `orc:v2:session:${id}`);
     const values = await this.redis.mget(...keys);
 
     const result: SessionMeta[] = [];
@@ -40,7 +40,7 @@ export class SessionStore {
     }
 
     if (staleIds.length > 0) {
-      this.redis.srem(`orc:user-sessions:${userId}`, ...staleIds);
+      this.redis.srem(`orc:v2:user-sessions:${userId}`, ...staleIds);
     }
 
     return result;

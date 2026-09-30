@@ -17,7 +17,7 @@ var upgrader = websocket.Upgrader{
 // TunnelHandler upgrades a CLI connection to a WebSocket tunnel.
 // The CLI authenticates with a Bearer token and provides a sessionID.
 // The gateway registers the session with the tunnel mux connection.
-func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr string) http.HandlerFunc {
+func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr, userClaim string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !checkCLIProtocol(w, r) {
 			return
@@ -41,17 +41,18 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 			return
 		}
 
-		var claims struct {
-			Email string `json:"email"`
-			Sub   string `json:"sub"`
-		}
+		var claims map[string]any
 		if err := idToken.Claims(&claims); err != nil {
 			http.Error(w, "failed to parse claims", http.StatusInternalServerError)
 			return
 		}
-		userID := claims.Email
+		// Sessions are owned by an IdP-assigned ID; the email is only for logs.
+		userID, _ := claims[userClaim].(string)
+		email, _ := claims["email"].(string)
 		if userID == "" {
-			userID = claims.Sub
+			slog.Warn("tunnel auth failed", "error", "missing user claim", "claim", userClaim, "email", email)
+			http.Error(w, fmt.Sprintf("token has no %s claim", userClaim), http.StatusUnauthorized)
+			return
 		}
 
 		sessionID := r.URL.Query().Get("sessionId")
@@ -71,14 +72,14 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 
 		mux := newMuxConn(ws)
 
-		if err := registry.Register(r.Context(), userID, sessionID, directory, podAddr, mux); err != nil {
-			slog.Warn("tunnel registration rejected", "session", sessionID, "user", userID, "error", err)
+		if err := registry.Register(r.Context(), userID, email, sessionID, directory, podAddr, mux); err != nil {
+			slog.Warn("tunnel registration rejected", "session", sessionID, "user", userID, "email", email, "error", err)
 			ws.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session owned by another user"))
 			ws.Close()
 			return
 		}
-		slog.Info("tunnel established", "session", sessionID, "user", userID)
+		slog.Info("tunnel established", "session", sessionID, "user", userID, "email", email)
 
 		refreshCtx, cancelRefresh := context.WithCancel(context.Background())
 		go registry.RefreshLoop(refreshCtx, sessionID, 5*time.Minute)
@@ -88,6 +89,6 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 
 		cancelRefresh()
 		registry.Deregister(context.Background(), sessionID, mux)
-		slog.Info("tunnel closed", "session", sessionID, "user", userID)
+		slog.Info("tunnel closed", "session", sessionID, "user", userID, "email", email)
 	}
 }

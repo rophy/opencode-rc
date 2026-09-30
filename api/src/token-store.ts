@@ -23,12 +23,14 @@ interface RefreshRecord extends AccessClaims {
   chain: string;
 }
 
+// v2: user IDs come from OIDC_USER_CLAIM, not the email. Records keyed by email are
+// left behind under the old keys, so refresh fails and users sign in once.
 const key = {
-  code: (code: string) => `orc:code:${code}`,
-  chain: (id: string) => `orc:chain:${id}`,
-  rt: (hash: string) => `orc:rt:${hash}`,
-  used: (hash: string) => `orc:rtused:${hash}`,
-  grace: (hash: string) => `orc:rtgrace:${hash}`,
+  code: (code: string) => `orc:v2:code:${code}`,
+  chain: (id: string) => `orc:v2:chain:${id}`,
+  rt: (hash: string) => `orc:v2:rt:${hash}`,
+  used: (hash: string) => `orc:v2:rtused:${hash}`,
+  grace: (hash: string) => `orc:v2:rtgrace:${hash}`,
 };
 
 export class TokenStore {

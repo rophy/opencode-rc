@@ -162,7 +162,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 	registry := NewTunnelRegistry(store)
 
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.TokenSecret)
+	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.OIDCUserClaim, cfg.TokenSecret)
 	// go-oidc checks the discovered issuer against OIDCIssuer, so the effective one is known here.
 	issuer := cfg.OIDCIssuer
 	if cfg.OIDCIssuerOverride != "" {

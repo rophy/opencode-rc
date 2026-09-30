@@ -163,6 +163,9 @@ oidc:
   clientId: ""
   # Empty: oidcMock.clients.cli.id when the mock is enabled, else opencode-rc-cli.
   cliClientId: ""
+  # ID token claim that identifies a user and owns their sessions. Web and CLI logins
+  # must get the same value; use oid for Entra ID, where sub differs per client.
+  userClaim: sub
   redirectUri: ""
   # Override individual OIDC discovery endpoints (optional).
   # Useful when internal/external URLs differ (e.g. browser reaches external

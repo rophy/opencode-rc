@@ -219,7 +219,7 @@ func TestGatewayProxyHTTP(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session", nil)
@@ -248,7 +248,7 @@ func TestGatewayProxySSE(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/event", nil)
@@ -277,7 +277,7 @@ func TestGatewayProxyQueryStringForwarding(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/session?foo=bar&baz=1", nil)
@@ -304,7 +304,7 @@ func TestGatewayProxyWithRequestBody(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("POST", "/proxy/sess1/api/session/prompt", strings.NewReader(`{"prompt":"hello"}`))
@@ -323,7 +323,7 @@ func TestGatewayProxyWithRequestBody(t *testing.T) {
 func TestGatewayProxyNoTunnel(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", nil)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", nil)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
@@ -384,7 +384,7 @@ func TestGatewayProxyAddsDirectoryHeader(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/home/user1/project", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/home/user1/project", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("GET", "/proxy/sess1/api/health", nil)
@@ -402,7 +402,7 @@ func newAuthTestHandler(t *testing.T, backend http.Handler) (http.Handler, func(
 	mux, cleanup := testTunnel(t, backend)
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess1", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess1", "/proj", "", mux)
 	return GatewayProxyHandler(reg, testTokenSecret), cleanup
 }
 

@@ -144,7 +144,7 @@ func TestRedisStoreGetCorruptData(t *testing.T) {
 	ctx := context.Background()
 
 	// Put corrupt data directly into Redis
-	client.Set(ctx, "orc:session:corrupt-sess", "not-valid-json{{{", 10*time.Minute)
+	client.Set(ctx, "orc:v2:session:corrupt-sess", "not-valid-json{{{", 10*time.Minute)
 
 	_, _, err := store.Get(ctx, "corrupt-sess")
 	if err == nil {
@@ -161,8 +161,8 @@ func TestRedisStoreListWithCorruptEntry(t *testing.T) {
 	store.Put(ctx, SessionMeta{ID: "good-sess", UserID: "alice@example.com"})
 
 	// Corrupt one entry directly
-	client.Set(ctx, "orc:session:bad-sess", "not-json{{{", 10*time.Minute)
-	client.SAdd(ctx, "orc:user-sessions:alice@example.com", "bad-sess")
+	client.Set(ctx, "orc:v2:session:bad-sess", "not-json{{{", 10*time.Minute)
+	client.SAdd(ctx, "orc:v2:user-sessions:alice@example.com", "bad-sess")
 
 	sessions, err := store.List(ctx, "alice@example.com")
 	if err != nil {
@@ -201,7 +201,7 @@ func TestRedisStoreListCleansStaleIDs(t *testing.T) {
 	store.Put(ctx, SessionMeta{ID: "sess-1", UserID: "alice@example.com"})
 	store.Put(ctx, SessionMeta{ID: "sess-2", UserID: "alice@example.com"})
 
-	client.Del(ctx, "orc:session:sess-2")
+	client.Del(ctx, "orc:v2:session:sess-2")
 
 	sessions, err := store.List(ctx, "alice@example.com")
 	if err != nil {
@@ -211,7 +211,7 @@ func TestRedisStoreListCleansStaleIDs(t *testing.T) {
 		t.Errorf("got %d sessions, want 1 (stale cleaned)", len(sessions))
 	}
 
-	members, _ := client.SMembers(ctx, "orc:user-sessions:alice@example.com").Result()
+	members, _ := client.SMembers(ctx, "orc:v2:user-sessions:alice@example.com").Result()
 	if len(members) != 1 {
 		t.Errorf("stale ID not cleaned from set: got %d members", len(members))
 	}

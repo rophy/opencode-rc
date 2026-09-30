@@ -4,6 +4,8 @@ export interface Config {
   oidcClientId: string;
   oidcClientSecret: string;
   oidcCliClientId: string;
+  /** ID token claim that identifies a user and owns their sessions */
+  oidcUserClaim: string;
   oidcRedirectUri: string;
   oidcIssuerOverride: string;
   oidcAuthorizationEndpoint: string;
@@ -65,6 +67,7 @@ export function loadConfig(): Config {
     oidcClientId: requireEnv("OIDC_CLIENT_ID"),
     oidcClientSecret: process.env.OIDC_CLIENT_SECRET ?? "",
     oidcCliClientId: process.env.OIDC_CLI_CLIENT_ID ?? "",
+    oidcUserClaim: process.env.OIDC_USER_CLAIM || "sub",
     oidcRedirectUri: requireEnv("OIDC_REDIRECT_URI"),
     oidcIssuerOverride: process.env.OIDC_ISSUER_OVERRIDE ?? "",
     oidcAuthorizationEndpoint: process.env.OIDC_AUTHORIZATION_ENDPOINT ?? "",

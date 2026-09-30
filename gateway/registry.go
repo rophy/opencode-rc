@@ -17,7 +17,7 @@ func NewTunnelRegistry(store SessionStore) *TunnelRegistry {
 	return &TunnelRegistry{store: store}
 }
 
-func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, directory, podAddr string, tunnel *muxConn) error {
+func (r *TunnelRegistry) Register(ctx context.Context, userID, email, sessionID, directory, podAddr string, tunnel *muxConn) error {
 	// Check ownership: reject if session belongs to a different user
 	if existing, ok, _ := r.store.Get(ctx, sessionID); ok && existing.UserID != userID {
 		return fmt.Errorf("session %s belongs to another user", sessionID)
@@ -39,7 +39,7 @@ func (r *TunnelRegistry) Register(ctx context.Context, userID, sessionID, direct
 	}
 
 	r.tunnels.Store(sessionID, tunnel)
-	slog.Info("session registered", "session", sessionID, "user", userID, "addr", podAddr)
+	slog.Info("session registered", "session", sessionID, "user", userID, "email", email, "addr", podAddr)
 	return nil
 }
 

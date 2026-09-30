@@ -228,7 +228,7 @@ func TestProxyWebSocketUpgradeNon101(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "ws-sess", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "ws-sess", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 
@@ -332,7 +332,7 @@ func TestProxyHTTPRequestWithBody(t *testing.T) {
 
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	reg.Register(t.Context(), "user1", "sess-body", "/proj", "", mux)
+	reg.Register(t.Context(), "user1", "", "sess-body", "/proj", "", mux)
 
 	handler := GatewayProxyHandler(reg, testTokenSecret)
 	req := httptest.NewRequest("POST", "/proxy/sess-body/api/prompt", strings.NewReader(`{"msg":"hello"}`))

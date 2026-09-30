@@ -70,7 +70,7 @@ func TestWithProtocolHeader(t *testing.T) {
 }
 
 func TestTunnelChecksProtocolBeforeAuth(t *testing.T) {
-	h := TunnelHandler(nil, nil, nil, "pod:9090")
+	h := TunnelHandler(nil, nil, nil, "pod:9090", "sub")
 	w := httptest.NewRecorder()
 	h(w, httptest.NewRequest("GET", "/tunnel?sessionId=s", nil))
 	if w.Code != http.StatusForbidden {
