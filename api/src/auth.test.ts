@@ -81,6 +81,27 @@ const post = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+describe("GET /auth/cli-config", () => {
+  it("returns the issuer and CLI client ID", async () => {
+    app = new Hono<AuthEnv>();
+    app.route("/", authRoutes({
+      config: { ...config, oidcCliClientId: "opencode-rc-cli" },
+      provider,
+      tokens,
+      isAllowedOrigin: () => false,
+    }));
+    const res = await app.request("/auth/cli-config");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ issuer: "https://idp.example.com", clientId: "opencode-rc-cli" });
+  });
+
+  it("omits clientId when no CLI client is configured", async () => {
+    const res = await app.request("/auth/cli-config");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ issuer: "https://idp.example.com" });
+  });
+});
+
 describe("authMiddleware", () => {
   it("returns 401 without a token", async () => {
     const res = await app.request("/protected");

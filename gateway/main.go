@@ -163,6 +163,12 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 
 	mux := http.NewServeMux()
 	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.TokenSecret)
+	// go-oidc checks the discovered issuer against OIDCIssuer, so the effective one is known here.
+	issuer := cfg.OIDCIssuer
+	if cfg.OIDCIssuerOverride != "" {
+		issuer = cfg.OIDCIssuerOverride
+	}
+	mux.HandleFunc("/auth/cli-config", CLIConfigHandler(issuer, cfg.OIDCCLIClientID))
 	return requestLogger(withProtocolHeader(mux)), nil
 }
 

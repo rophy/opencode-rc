@@ -179,13 +179,11 @@ Configure `~/.config/opencode/rc.json`:
 
 ```json
 {
-  "gatewayUrl": "https://opencode-rc.example.com",
-  "oidc": {
-    "issuer": "https://sso.corp.example.com",
-    "clientId": "opencode-rc-cli"
-  }
+  "gatewayUrl": "https://opencode-rc.example.com"
 }
 ```
+
+The CLI fetches the OIDC issuer and CLI client ID (`oidc.cliClientId`) from the server; `oidc.issuer` and `oidc.clientId` in this file override them.
 
 Run:
 
@@ -202,6 +200,6 @@ Environment variables override the config file — see the [CLI README](cli/READ
 | Variable | Description |
 |----------|-------------|
 | `OPENCODE_RC_GATEWAY_URL` | Gateway URL |
-| `OIDC_ISSUER` | OIDC provider URL |
-| `OIDC_CLIENT_ID` | CLI client ID |
+| `OIDC_ISSUER` | OIDC provider URL (default: from the server) |
+| `OIDC_CLIENT_ID` | CLI client ID (default: from the server) |
 | `TLS_INSECURE_SKIP_VERIFY` | Set to `true` to skip TLS certificate verification |

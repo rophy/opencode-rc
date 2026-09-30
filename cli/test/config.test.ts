@@ -30,6 +30,20 @@ afterEach(async () => {
   await rm(testDir, { recursive: true, force: true });
 });
 
+// Serves /auth/cli-config as given; other URLs return OIDC discovery.
+function stubServer(cliConfig: { status?: number; body?: unknown; error?: Error }) {
+  const fetchMock = vi.fn(async (url: string) => {
+    if (url.endsWith("/auth/cli-config")) {
+      if (cliConfig.error) throw cliConfig.error;
+      const status = cliConfig.status ?? 200;
+      return { ok: status < 300, status, json: () => Promise.resolve(cliConfig.body) };
+    }
+    return { ok: true, json: () => Promise.resolve(OIDC_DISCOVERY) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 function setEnv(overrides: Record<string, string | undefined> = {}) {
   const defaults: Record<string, string | undefined> = {
     XDG_CONFIG_HOME: testDir,
@@ -130,6 +144,7 @@ describe("loadConfig", () => {
       OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
       OIDC_CLIENT_ID: "my-client",
     });
+    stubServer({ status: 404 });
 
     await expect(loadConfig()).rejects.toThrow("OIDC_ISSUER is required");
   });
@@ -139,8 +154,51 @@ describe("loadConfig", () => {
       OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
       OIDC_ISSUER: "http://mock-issuer",
     });
+    stubServer({ status: 404 });
 
     await expect(loadConfig()).rejects.toThrow("OIDC_CLIENT_ID is required");
+  });
+
+  it("fetches issuer and client ID from the server when unset", async () => {
+    setEnv({ OPENCODE_RC_GATEWAY_URL: "https://gw.example.com/" });
+    const fetchMock = stubServer({ body: { issuer: "http://mock-issuer", clientId: "server-cli" } });
+
+    const config = await loadConfig();
+    expect(fetchMock).toHaveBeenCalledWith("https://gw.example.com/auth/cli-config");
+    expect(config.oidcIssuer).toBe("http://mock-issuer");
+    expect(config.oidcClientID).toBe("server-cli");
+    expect(config.oidcTokenEndpoint).toBe("http://mock-issuer/token");
+  });
+
+  it("local values win over the server", async () => {
+    setEnv({
+      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OIDC_CLIENT_ID: "local-cli",
+    });
+    stubServer({ body: { issuer: "http://mock-issuer", clientId: "server-cli" } });
+
+    const config = await loadConfig();
+    expect(config.oidcIssuer).toBe("http://mock-issuer");
+    expect(config.oidcClientID).toBe("local-cli");
+  });
+
+  it("does not call the server when issuer and client ID are set", async () => {
+    setEnv({
+      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OIDC_ISSUER: "http://mock-issuer",
+      OIDC_CLIENT_ID: "my-client",
+    });
+    const fetchMock = stubServer({ body: {} });
+
+    await loadConfig();
+    expect(fetchMock).not.toHaveBeenCalledWith("https://gw.example.com/auth/cli-config");
+  });
+
+  it("throws when the server is unreachable and issuer is unset", async () => {
+    setEnv({ OPENCODE_RC_GATEWAY_URL: "https://gw.example.com" });
+    stubServer({ error: new Error("ECONNREFUSED") });
+
+    await expect(loadConfig()).rejects.toThrow(/OIDC_ISSUER is required.*not provided by the server/);
   });
 
   it("parses OIDC_CALLBACK_PORTS from env", async () => {

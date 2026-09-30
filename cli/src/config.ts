@@ -21,6 +21,11 @@ interface FileConfig {
   };
 }
 
+interface ServerConfig {
+  issuer?: string;
+  clientId?: string;
+}
+
 interface OIDCDiscovery {
   token_endpoint: string;
   authorization_endpoint: string;
@@ -57,6 +62,24 @@ async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
   return res.json();
 }
 
+const NOT_FROM_SERVER = "not provided by the server";
+
+// The server publishes its issuer and CLI client ID at /auth/cli-config.
+// Returns {} if the server is unreachable or predates the endpoint.
+async function fetchServerConfig(gatewayUrl: string): Promise<ServerConfig> {
+  try {
+    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/auth/cli-config`);
+    if (!res.ok) return {};
+    const body = await res.json();
+    return {
+      issuer: typeof body?.issuer === "string" ? body.issuer : undefined,
+      clientId: typeof body?.clientId === "string" ? body.clientId : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export async function loadConfig(): Promise<Config> {
   applyTLSInsecure();
   const file = await loadFileConfig();
@@ -64,11 +87,15 @@ export async function loadConfig(): Promise<Config> {
   const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
   if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required (env or ~/.config/opencode/rc.json)");
 
-  const oidcIssuer = process.env.OIDC_ISSUER || file.oidc?.issuer;
-  if (!oidcIssuer) throw new Error("OIDC_ISSUER is required (env or ~/.config/opencode/rc.json)");
-
-  const oidcClientID = process.env.OIDC_CLIENT_ID || file.oidc?.clientId;
-  if (!oidcClientID) throw new Error("OIDC_CLIENT_ID is required (env or ~/.config/opencode/rc.json)");
+  let oidcIssuer = process.env.OIDC_ISSUER || file.oidc?.issuer;
+  let oidcClientID = process.env.OIDC_CLIENT_ID || file.oidc?.clientId;
+  if (!oidcIssuer || !oidcClientID) {
+    const server = await fetchServerConfig(gatewayUrl);
+    oidcIssuer ||= server.issuer;
+    oidcClientID ||= server.clientId;
+  }
+  if (!oidcIssuer) throw new Error(`OIDC_ISSUER is required (env or ~/.config/opencode/rc.json); ${NOT_FROM_SERVER}`);
+  if (!oidcClientID) throw new Error(`OIDC_CLIENT_ID is required (env or ~/.config/opencode/rc.json); ${NOT_FROM_SERVER}`);
 
   const discovery = await discoverOIDC(oidcIssuer);
 

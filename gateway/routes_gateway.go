@@ -16,3 +16,14 @@ func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier,
 		marshalJSON(w, http.StatusOK, map[string]any{"status": status, "version": version, "protocol": TunnelProtocol})
 	})
 }
+
+// CLIConfigHandler lets the CLI log in with only the gateway URL configured.
+func CLIConfigHandler(issuer, cliClientID string) http.HandlerFunc {
+	body := map[string]string{"issuer": issuer}
+	if cliClientID != "" {
+		body["clientId"] = cliClientID
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		marshalJSON(w, http.StatusOK, body)
+	}
+}

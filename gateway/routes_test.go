@@ -204,3 +204,24 @@ func TestSetupGatewayRoutesHealthz(t *testing.T) {
 		t.Errorf("expected status ok, got: %s", rec.Body.String())
 	}
 }
+
+func TestCLIConfigHandler(t *testing.T) {
+	cases := []struct {
+		name, clientID, want string
+	}{
+		{"with CLI client", "opencode-rc-cli", `{"clientId":"opencode-rc-cli","issuer":"https://idp.example.com"}`},
+		{"without CLI client", "", `{"issuer":"https://idp.example.com"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			CLIConfigHandler("https://idp.example.com", tc.clientID)(rec, httptest.NewRequest("GET", "/auth/cli-config", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d", rec.Code)
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}

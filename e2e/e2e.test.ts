@@ -122,6 +122,15 @@ describe("opencode-rc e2e", () => {
     expect(body.status).toBe("ok");
   });
 
+  it("api and gateway publish the same CLI login config", async () => {
+    const expected = { issuer: OIDC_URL, clientId: "opencode-rc-cli" };
+    for (const base of [API_URL, GATEWAY_URL]) {
+      const res = await fetch(`${base}/auth/cli-config`);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(expected);
+    }
+  });
+
   it("api / serves no HTML", async () => {
     const res = await fetch(`${API_URL}/`);
     expect(res.status).toBe(404);
