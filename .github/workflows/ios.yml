@@ -61,7 +61,8 @@ jobs:
       - name: Tag release
         run: |
           TAG="ios/${{ steps.version.outputs.version }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
+          # The checkout has no tags, so ask the remote.
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             echo "Tag $TAG already exists, skipping"
           else
             git config user.name "github-actions"
