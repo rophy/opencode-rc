@@ -757,3 +757,69 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: OIDC_USER_CLAIM, value: oid}
+
+  - it: sets no authz or admin env by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_WEBHOOK_URL}
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_WEBHOOK_TOKEN}
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: ADMIN_TOKEN}
+          any: true
+
+  - it: passes the authz webhook with default timeout and cache TTLs
+    set:
+      authz.webhook.url: http://authz.example.com/check
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_WEBHOOK_URL, value: http://authz.example.com/check}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_TIMEOUT, value: 5s}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_CACHE_TTL_ALLOWED, value: 60s}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_CACHE_TTL_DENIED, value: 10s}
+
+  - it: passes custom authz timeout and cache TTLs
+    set:
+      authz.webhook.url: http://authz.example.com/check
+      authz.timeout: 2s
+      authz.cacheTTL.allowed: 5m
+      authz.cacheTTL.denied: 30s
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_TIMEOUT, value: 2s}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_CACHE_TTL_ALLOWED, value: 5m}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: AUTHZ_CACHE_TTL_DENIED, value: 30s}
+
+  - it: reads the webhook and admin tokens from Secrets
+    set:
+      authz.webhook.tokenSecret.name: authz-hook
+      admin.tokenSecret.name: rc-admin
+      admin.tokenSecret.key: admin-token
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTHZ_WEBHOOK_TOKEN
+            valueFrom: {secretKeyRef: {name: authz-hook, key: token}}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ADMIN_TOKEN
+            valueFrom: {secretKeyRef: {name: rc-admin, key: admin-token}}

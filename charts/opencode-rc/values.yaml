@@ -190,6 +190,29 @@ auth:
   # (an IdP that ignores it logs in silently). Web logins never send a prompt.
   appLoginPrompt: select_account
 
+# Who may list and open remote sessions. Everyone can sign in and the CLI can always
+# connect; with a webhook URL set, the API asks the webhook before serving sessions.
+authz:
+  webhook:
+    # POST {"user":{"uid","email","name"}}, expects {"allowed": bool}. Errors deny.
+    url: ""
+    # Optional Secret key whose value is sent as "Authorization: Bearer <token>".
+    tokenSecret:
+      name: ""
+      key: token
+  timeout: 5s
+  # How long a decision is reused before the webhook is asked again.
+  cacheTTL:
+    allowed: 60s
+    denied: 10s
+
+# Admin API (DELETE /admin/authz/cache[/<uid>]) to apply access changes before the
+# cache TTL. Disabled unless a Secret key holds its bearer token.
+admin:
+  tokenSecret:
+    name: ""
+    key: token
+
 secrets:
   # HMAC key for access tokens (64-char hex). Falls back to cookieSecret.
   tokenSecret: ""

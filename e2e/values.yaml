@@ -1,0 +1,21 @@
+# Chart values for the e2e environment (on top of skaffold's setValues).
+oidcMock:
+  users:
+    - sub: user1
+      email: alice@example.com
+      name: Alice
+    - sub: user2
+      email: bob@example.com
+      name: Bob
+    # Signs in, but the stub access webhook (k8s/authz-hook.yaml) denies her.
+    - sub: user3
+      email: carol@example.com
+      name: Carol
+authz:
+  webhook:
+    url: http://authz-hook:8080/check
+    tokenSecret:
+      name: authz-hook-token
+admin:
+  tokenSecret:
+    name: opencode-rc-admin

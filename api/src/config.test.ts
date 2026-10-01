@@ -9,6 +9,15 @@ const validEnv: Record<string, string> = {
   REDIS_URL: "redis://localhost:6379/0",
 };
 
+const AUTHZ_ENV = [
+  "AUTHZ_WEBHOOK_URL",
+  "AUTHZ_WEBHOOK_TOKEN",
+  "AUTHZ_TIMEOUT",
+  "AUTHZ_CACHE_TTL_ALLOWED",
+  "AUTHZ_CACHE_TTL_DENIED",
+  "ADMIN_TOKEN",
+];
+
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -35,6 +44,7 @@ beforeEach(() => {
   delete process.env.SESSION_TTL;
   delete process.env.ALLOWED_ORIGINS;
   delete process.env.APP_LOGIN_PROMPT;
+  for (const k of AUTHZ_ENV) delete process.env[k];
 });
 
 afterEach(() => {
@@ -103,6 +113,28 @@ describe("loadConfig", () => {
     expect(config.accessTokenTtl).toBe(900);
     expect(config.sessionTtl).toBe(7 * 24 * 3600);
     expect(config.allowedOrigins).toEqual([]);
+    expect(config.authzWebhookUrl).toBe("");
+    expect(config.authzWebhookToken).toBe("");
+    expect(config.authzTimeout).toBe(5);
+    expect(config.authzAllowedTtl).toBe(60);
+    expect(config.authzDeniedTtl).toBe(10);
+    expect(config.adminToken).toBe("");
+  });
+
+  it("reads authz webhook and admin settings", () => {
+    process.env.AUTHZ_WEBHOOK_URL = "http://authz.example.com/check";
+    process.env.AUTHZ_WEBHOOK_TOKEN = "hook-secret";
+    process.env.AUTHZ_TIMEOUT = "2s";
+    process.env.AUTHZ_CACHE_TTL_ALLOWED = "5m";
+    process.env.AUTHZ_CACHE_TTL_DENIED = "30s";
+    process.env.ADMIN_TOKEN = "admin-secret";
+    const config = loadConfig();
+    expect(config.authzWebhookUrl).toBe("http://authz.example.com/check");
+    expect(config.authzWebhookToken).toBe("hook-secret");
+    expect(config.authzTimeout).toBe(2);
+    expect(config.authzAllowedTtl).toBe(300);
+    expect(config.authzDeniedTtl).toBe(30);
+    expect(config.adminToken).toBe("admin-secret");
   });
 
   it("reads OIDC endpoint overrides from env", () => {

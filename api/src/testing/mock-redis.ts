@@ -53,6 +53,13 @@ export class MockRedis implements RedisLike {
     return n;
   }
 
+  async incr(key: string): Promise<number> {
+    const e = this.live(key);
+    const next = (e ? parseInt(e.value, 10) : 0) + 1;
+    this.data.set(key, { value: String(next), expiresAt: e?.expiresAt ?? null });
+    return next;
+  }
+
   async ttl(key: string): Promise<number> {
     const e = this.live(key);
     if (!e) return -2;

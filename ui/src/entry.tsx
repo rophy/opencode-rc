@@ -52,6 +52,7 @@ import { ConfigScreen } from "./config-screen"
 import { LoginScreen } from "./login-screen"
 import { protocolState, resetProtocolState } from "./protocol"
 import { ProtocolScreen } from "./protocol-screen"
+import { NoAccessScreen } from "./no-access-screen"
 
 const platform: Platform = {
   platform: "web",
@@ -113,6 +114,10 @@ function App(props: { loginExpired: boolean }) {
       </Match>
       <Match when={user.error || !user()}>
         <LoginScreen onSettings={() => setShowConfig(true)} onLoggedIn={() => refetchUser()} expired={props.loginExpired} />
+      </Match>
+      <Match when={user()?.allowed === false}>
+        <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
+        <NoAccessScreen email={user()!.email} onRetry={() => refetchUser()} />
       </Match>
       <Match when={user() && !sessionId}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />

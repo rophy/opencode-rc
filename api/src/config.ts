@@ -21,6 +21,14 @@ export interface Config {
   redisUrl: string;
   gatewayUrl: string;
   tlsInsecureSkipVerify: boolean;
+  /** Webhook that decides who may use remote sessions ("" = everyone) */
+  authzWebhookUrl: string;
+  authzWebhookToken: string;
+  authzTimeout: number;
+  authzAllowedTtl: number;
+  authzDeniedTtl: number;
+  /** Bearer token for /admin/* ("" = no admin API) */
+  adminToken: string;
 }
 
 function requireEnv(name: string): string {
@@ -85,5 +93,11 @@ export function loadConfig(): Config {
     redisUrl: requireEnv("REDIS_URL"),
     gatewayUrl: process.env.GATEWAY_URL ?? "",
     tlsInsecureSkipVerify: process.env.TLS_INSECURE_SKIP_VERIFY === "true",
+    authzWebhookUrl: process.env.AUTHZ_WEBHOOK_URL ?? "",
+    authzWebhookToken: process.env.AUTHZ_WEBHOOK_TOKEN ?? "",
+    authzTimeout: parseDuration(process.env.AUTHZ_TIMEOUT || "5s"),
+    authzAllowedTtl: parseDuration(process.env.AUTHZ_CACHE_TTL_ALLOWED || "60s"),
+    authzDeniedTtl: parseDuration(process.env.AUTHZ_CACHE_TTL_DENIED || "10s"),
+    adminToken: process.env.ADMIN_TOKEN ?? "",
   };
 }

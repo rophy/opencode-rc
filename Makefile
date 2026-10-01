@@ -47,13 +47,14 @@ check-context:
 	esac
 	@echo "Context: $(KUBE_CONTEXT)  Namespace: $(NAMESPACE)"
 
-ns: check-context ## Create the e2e namespace (labeled as ours) and the dev-machine RoleBinding
+ns: check-context ## Create the e2e namespace (labeled as ours), the dev-machine RoleBinding and e2e Secrets
 	@if ! $(KUBECTL_CLUSTER) get namespace $(NAMESPACE) >/dev/null 2>&1; then \
 		$(KUBECTL_CLUSTER) create namespace $(NAMESPACE) && \
 		$(KUBECTL_CLUSTER) label namespace $(NAMESPACE) $(NS_LABEL); \
 	fi
 	@$(KUBECTL) create rolebinding dev-machine-admin --clusterrole=admin \
 		--serviceaccount=$(NAMESPACE):dev-machine --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@$(KUBECTL) apply -f e2e/k8s/secrets.yaml
 
 up: ns ## Deploy the e2e environment into NAMESPACE on an existing cluster
 	@echo "=== Building and deploying ==="
@@ -141,4 +142,5 @@ down: check-context ## Tear down the e2e environment (never the cluster)
 		echo "Namespace $(NAMESPACE) was not created by 'make ns'; removing only what skaffold deployed"; \
 		cd e2e && skaffold delete --kube-context $(KUBE_CONTEXT) -n $(NAMESPACE); \
 		$(KUBECTL) delete rolebinding dev-machine-admin --ignore-not-found; \
+		$(KUBECTL) delete -f $(CURDIR)/e2e/k8s/secrets.yaml --ignore-not-found; \
 	fi

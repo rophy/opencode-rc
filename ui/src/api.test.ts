@@ -105,6 +105,17 @@ describe("fetchMe", () => {
     vi.restoreAllMocks()
   })
 
+  it("passes through a denied user", async () => {
+    localStorage.setItem("opencode-rc-refresh", "r")
+    const user = { sub: "bob", email: "bob@example.com", name: "Bob", allowed: false }
+    mockFetchWithRefresh(
+      "/api/me",
+      () => new Response(JSON.stringify(user), { status: 200, headers: { "content-type": "application/json" } })
+    )
+    expect(await fetchMe()).toEqual(user)
+    vi.restoreAllMocks()
+  })
+
   it("returns null on 401", async () => {
     localStorage.setItem("opencode-rc-refresh", "r")
     mockFetchWithRefresh("/api/me", () => new Response("", { status: 401 }))

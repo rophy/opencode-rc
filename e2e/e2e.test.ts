@@ -635,3 +635,58 @@ describe("protocol versioning", () => {
     );
   });
 });
+
+describe("access webhook", () => {
+  const HOOK_URL = process.env.AUTHZ_HOOK_URL ?? "http://authz-hook:8080";
+  const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? "e2e-admin-token";
+  const admin = (path: string, token = ADMIN_TOKEN) =>
+    fetch(`${API_URL}${path}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+  const setDenied = (uid: string, denied: boolean) =>
+    fetch(`${HOOK_URL}/deny/${uid}`, { method: denied ? "PUT" : "DELETE" });
+
+  let aliceJar: TokenSession;
+  let bobJar: TokenSession;
+  let carolJar: TokenSession;
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    aliceJar = await loginAs("user1");
+    bobJar = await loginAs("user2");
+    carolJar = await loginAs("user3");
+  });
+
+  it("a denied user can sign in and is told so by /api/me", async () => {
+    const me = await (await carolJar.fetch(`${API_URL}/api/me`)).json();
+    expect(me).toMatchObject({ sub: "user3", email: "carol@example.com", allowed: false });
+    const alice = await (await aliceJar.fetch(`${API_URL}/api/me`)).json();
+    expect(alice.allowed).toBe(true);
+  });
+
+  it("a denied user cannot list or open sessions", async () => {
+    const list = await carolJar.fetch(`${API_URL}/gateway/sessions`);
+    expect(list.status).toBe(403);
+    expect(await list.json()).toEqual({ error: "forbidden" });
+    const proxy = await carolJar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`);
+    expect(proxy.status).toBe(403);
+  });
+
+  it("the admin API requires its token", async () => {
+    expect((await admin("/admin/authz/cache", "wrong")).status).toBe(401);
+    expect((await fetch(`${API_URL}/admin/authz/cache`, { method: "DELETE" })).status).toBe(401);
+  });
+
+  it("a revoked user keeps access until the cache is evicted", async () => {
+    try {
+      expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
+      await setDenied("user2", true);
+      // The allowed decision is cached for 60s.
+      expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
+      expect((await admin("/admin/authz/cache/user2")).status).toBe(204);
+      expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(403);
+    } finally {
+      await setDenied("user2", false);
+      await admin("/admin/authz/cache");
+    }
+    expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
+  });
+});

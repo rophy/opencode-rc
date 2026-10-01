@@ -39,6 +39,12 @@ const config: Config = {
   redisUrl: "redis://localhost:6379/0",
   gatewayUrl: "",
   tlsInsecureSkipVerify: false,
+  authzWebhookUrl: "",
+  authzWebhookToken: "",
+  authzTimeout: 5,
+  authzAllowedTtl: 60,
+  authzDeniedTtl: 10,
+  adminToken: "",
 };
 
 const provider = {

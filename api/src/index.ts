@@ -12,6 +12,7 @@ import { proxyHttp, sessionAccess } from "./proxy.js";
 import { wsRelay } from "./ws-relay.js";
 import { notFoundJson } from "./not-found.js";
 import { requestLogger } from "./request-log.js";
+import { Authorizer, adminRoutes, requireAccess, type AuthzRedis } from "./authz.js";
 
 import pkg from "../package.json";
 const version = pkg.version;
@@ -41,6 +42,13 @@ const provider = createProvider(discovery);
 console.log("OIDC discovery complete");
 
 const tokens = new TokenStore(redis as unknown as RedisLike, config.sessionTtl);
+const authorizer = new Authorizer(redis as unknown as AuthzRedis, {
+  webhookUrl: config.authzWebhookUrl,
+  webhookToken: config.authzWebhookToken,
+  timeoutSeconds: config.authzTimeout,
+  allowedTtl: config.authzAllowedTtl,
+  deniedTtl: config.authzDeniedTtl,
+});
 const isAllowedOrigin = makeOriginCheck(originOf(config.oidcRedirectUri), config.allowedOrigins);
 
 const app = new Hono<AuthEnv>();
@@ -59,28 +67,38 @@ app.get("/healthz", async (c) => {
 
 // Auth routes (no auth middleware)
 app.route("/", authRoutes({ config, provider, tokens, isAllowedOrigin }));
+app.route("/", adminRoutes(config.adminToken, authorizer));
 
 // Protected routes
 const auth = authMiddleware(config);
+const access = requireAccess(authorizer);
 
-app.get("/api/me", auth, (c) => {
+app.get("/api/me", auth, async (c) => {
   const claims = c.get("claims");
-  return c.json({ sub: claims.uid, email: claims.email, name: claims.name });
+  let allowed: boolean;
+  try {
+    allowed = await authorizer.allowed(claims);
+  } catch (err) {
+    console.error("authz check failed:", err);
+    return c.json({ error: "unavailable" }, 503);
+  }
+  return c.json({ sub: claims.uid, email: claims.email, name: claims.name, allowed });
 });
 
-app.get("/gateway/sessions", auth, async (c) => {
+app.get("/gateway/sessions", auth, access, async (c) => {
   const userId = c.get("userId");
   const sessions = await store.list(userId);
   return c.json(sessions.map((s) => ({ ...s, user: s.userId })));
 });
 
 // OpenCode API proxy: WebSocket upgrades (GET only), else HTTP and SSE
-app.all("/proxy/:sessionId/*", auth, sessionAccess(store), wsRelay(), proxyHttp());
+app.all("/proxy/:sessionId/*", auth, access, sessionAccess(store), wsRelay(), proxyHttp());
 
 // The API host serves no HTML (the UI has its own image and host).
 app.notFound(notFoundJson());
 
 console.log(`api starting version=${version} addr=:${config.port}`);
+if (authorizer.enabled) console.log(`authz webhook enabled url=${config.authzWebhookUrl}`);
 
 export default {
   port: config.port,

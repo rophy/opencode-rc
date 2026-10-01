@@ -1,0 +1,71 @@
+# Stub access webhook. Denies the uids in its deny list (user3 at start); tests change
+# the list with PUT/DELETE /deny/<uid>.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authz-hook
+data:
+  hook.js: |
+    const http = require("node:http");
+    const deny = new Set(["user3"]);
+    http
+      .createServer((req, res) => {
+        const send = (status, body) => {
+          res.writeHead(status, { "content-type": "application/json" });
+          res.end(body === undefined ? "" : JSON.stringify(body));
+        };
+        const deny_ = req.url.match(/^\/deny\/([^/]+)$/);
+        if (deny_ && req.method === "PUT") return deny.add(deny_[1]), send(204);
+        if (deny_ && req.method === "DELETE") return deny.delete(deny_[1]), send(204);
+        if (req.url !== "/check" || req.method !== "POST") return send(404, { error: "not found" });
+        if (req.headers.authorization !== "Bearer e2e-hook-token") return send(401, { error: "unauthorized" });
+        let raw = "";
+        req.on("data", (c) => (raw += c));
+        req.on("end", () => {
+          const { user } = JSON.parse(raw);
+          const allowed = !deny.has(user.uid);
+          console.log(`check uid=${user.uid} email=${user.email} allowed=${allowed}`);
+          send(200, allowed ? { allowed } : { allowed, reason: "on the e2e deny list" });
+        });
+      })
+      .listen(8080);
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authz-hook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authz-hook
+  template:
+    metadata:
+      labels:
+        app: authz-hook
+    spec:
+      containers:
+        - name: authz-hook
+          image: dev-machine
+          command: ["node", "/hook/hook.js"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: hook
+              mountPath: /hook
+              readOnly: true
+      volumes:
+        - name: hook
+          configMap:
+            name: authz-hook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authz-hook
+spec:
+  selector:
+    app: authz-hook
+  ports:
+    - port: 8080
+      targetPort: 8080

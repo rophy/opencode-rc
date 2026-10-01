@@ -28,6 +28,7 @@ build:
 manifests:
   rawYaml:
     - k8s/aimock.yaml
+    - k8s/authz-hook.yaml
     - k8s/dev-machine.yaml
 deploy:
   kubectl: {}
@@ -35,6 +36,8 @@ deploy:
     releases:
       - name: opencode-rc
         chartPath: ../charts/opencode-rc
+        valuesFiles:
+          - values.yaml
         setValues:
           fullnameOverride: opencode-rc
           api.image.pullPolicy: Never

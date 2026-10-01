@@ -104,6 +104,32 @@ spec:
             {{- end }}
             - name: GATEWAY_URL
               value: "http://{{ include "opencode-rc.fullname" . }}-gateway:9090"
+            {{- $authz := .Values.authz | default dict }}
+            {{- with dig "webhook" "url" "" $authz }}
+            - name: AUTHZ_WEBHOOK_URL
+              value: {{ . | quote }}
+            - name: AUTHZ_TIMEOUT
+              value: {{ dig "timeout" "5s" $authz | quote }}
+            - name: AUTHZ_CACHE_TTL_ALLOWED
+              value: {{ dig "cacheTTL" "allowed" "60s" $authz | quote }}
+            - name: AUTHZ_CACHE_TTL_DENIED
+              value: {{ dig "cacheTTL" "denied" "10s" $authz | quote }}
+            {{- end }}
+            {{- with dig "webhook" "tokenSecret" "name" "" $authz }}
+            - name: AUTHZ_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ dig "webhook" "tokenSecret" "key" "token" $authz }}
+            {{- end }}
+            {{- $admin := .Values.admin | default dict }}
+            {{- with dig "tokenSecret" "name" "" $admin }}
+            - name: ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ dig "tokenSecret" "key" "token" $admin }}
+            {{- end }}
           {{- with .Values.api.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

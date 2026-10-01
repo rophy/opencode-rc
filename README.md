@@ -117,6 +117,11 @@ The `existingSecret` must contain:
 | `auth.sessionTTL` | `7d` | Absolute login lifetime; refresh never extends it |
 | `auth.allowedOrigins` | `[]` | Extra browser origins allowed for return_to and CORS |
 | `auth.appLoginPrompt` | `select_account` | OIDC `prompt` sent to the IdP for mobile app logins (`select_account`, `login`, `consent`, or `""`); check that your IdP honors it |
+| `authz.webhook.url` | `""` | Access webhook (see [Access Control](#access-control)); empty: every signed-in user may use their sessions |
+| `authz.webhook.tokenSecret` | name `""`, key `token` | Secret key sent to the webhook as `Authorization: Bearer <token>` |
+| `authz.timeout` | `5s` | Webhook timeout; a timeout denies |
+| `authz.cacheTTL.allowed` / `.denied` | `60s` / `10s` | How long a decision is reused |
+| `admin.tokenSecret` | name `""`, key `token` | Secret key holding the admin API bearer token; no admin API when the name is empty |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
 | `expose.type` | `none` | `none`, `ingress` (one Ingress) or `virtualService` (Istio VirtualServices) |
@@ -148,6 +153,29 @@ helm install opencode-rc ./charts/opencode-rc
 The mock is configured by `oidcMock.*` only. Empty `oidc.*` values default to it: the issuer, the client ids and the web client secret. With `expose.type` set, it is exposed on `{prefix}-oidc.{host}` with that host as its issuer; set `oidcMock.issuer` when browsers reach it at another URL. The API and the gateway always talk to it in-cluster.
 
 For a real IdP, set `oidcMock.enabled=false`, `oidc.issuer` and `existingSecret`. Without `existingSecret` the chart renders a Secret from `secrets.*`, whose defaults are for development only.
+
+### Access Control
+
+Everyone who signs in can connect their machine with the CLI. Whether they may list and open sessions in the UI can be decided by a webhook you run. With `authz.webhook.url` set, the API sends:
+
+```http
+POST <authz.webhook.url>
+Content-Type: application/json
+Authorization: Bearer <token>   (only with authz.webhook.tokenSecret)
+
+{"user": {"uid": "<oidc.userClaim value>", "email": "alice@example.com", "name": "Alice"}}
+```
+
+and expects `200` with `{"allowed": true}` or `{"allowed": false, "reason": "..."}` (the reason is logged). Any other response, an error or a timeout denies, and is not cached. A denied user sees a "No access" screen; the session list and proxy return `403`.
+
+Decisions are cached in Redis per user for `authz.cacheTTL.allowed` / `.denied`. To apply a change sooner, set `admin.tokenSecret` and call the admin API on the API host:
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/authz/cache/<uid>   # one user
+curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/authz/cache         # everyone
+```
+
+The check runs when a request or stream starts: an already open event stream or terminal keeps running after access is revoked, until it closes.
 
 ### Air-Gapped Environments
 

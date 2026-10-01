@@ -7,6 +7,8 @@ export interface UserInfo {
   sub: string
   email: string
   name: string
+  /** False when the server's access hook denies this user. Older servers omit it. */
+  allowed?: boolean
 }
 
 // A connected dev machine, as /gateway/sessions returns it. The gateway removes the
