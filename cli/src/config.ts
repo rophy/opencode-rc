@@ -14,16 +14,11 @@ export interface Config {
 interface FileConfig {
   gatewayUrl?: string;
   oidc?: {
-    issuer?: string;
-    clientId?: string;
+    issuer?: string; // ignored, the server provides it
+    clientId?: string; // ignored, the server provides it
     clientSecret?: string;
     callbackPorts?: number[];
   };
-}
-
-interface ServerConfig {
-  issuer?: string;
-  clientId?: string;
 }
 
 interface OIDCDiscovery {
@@ -62,22 +57,28 @@ async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
   return res.json();
 }
 
-const NOT_FROM_SERVER = "not provided by the server";
-
-// The server publishes its issuer and CLI client ID at /auth/cli-config.
-// Returns {} if the server is unreachable or predates the endpoint.
-async function fetchServerConfig(gatewayUrl: string): Promise<ServerConfig> {
+// The server publishes its issuer and CLI client ID at /auth/cli-config (api and
+// gateway 0.7.0+). It only accepts tokens from that issuer and client, so the CLI
+// has nothing to override.
+async function fetchServerConfig(gatewayUrl: string): Promise<{ issuer: string; clientId: string }> {
+  const url = `${gatewayUrl.replace(/\/$/, "")}/auth/cli-config`;
+  let res: Response;
   try {
-    const res = await fetch(`${gatewayUrl.replace(/\/$/, "")}/auth/cli-config`);
-    if (!res.ok) return {};
-    const body = await res.json();
-    return {
-      issuer: typeof body?.issuer === "string" ? body.issuer : undefined,
-      clientId: typeof body?.clientId === "string" ? body.clientId : undefined,
-    };
-  } catch {
-    return {};
+    res = await fetch(url);
+  } catch (err) {
+    const cause = err instanceof Error ? (err.cause instanceof Error ? err.cause : err).message : err;
+    throw new Error(`Cannot reach ${url}: ${cause}`);
   }
+  if (res.status === 404) {
+    throw new Error(`The server at ${gatewayUrl} does not provide /auth/cli-config; ask its administrator to upgrade it`);
+  }
+  if (!res.ok) throw new Error(`${url} returned ${res.status}`);
+  const body = await res.json().catch(() => undefined);
+  if (typeof body?.issuer !== "string" || !body.issuer) throw new Error("The server returned no OIDC issuer");
+  if (typeof body?.clientId !== "string" || !body.clientId) {
+    throw new Error("The server returned no CLI client ID; ask its administrator to set oidc.cliClientId");
+  }
+  return { issuer: body.issuer, clientId: body.clientId };
 }
 
 export async function loadConfig(): Promise<Config> {
@@ -87,15 +88,10 @@ export async function loadConfig(): Promise<Config> {
   const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
   if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required (env or ~/.config/opencode/rc.json)");
 
-  let oidcIssuer = process.env.OIDC_ISSUER || file.oidc?.issuer;
-  let oidcClientID = process.env.OIDC_CLIENT_ID || file.oidc?.clientId;
-  if (!oidcIssuer || !oidcClientID) {
-    const server = await fetchServerConfig(gatewayUrl);
-    oidcIssuer ||= server.issuer;
-    oidcClientID ||= server.clientId;
+  if (process.env.OIDC_ISSUER || process.env.OIDC_CLIENT_ID || file.oidc?.issuer || file.oidc?.clientId) {
+    console.warn("Warning: ignoring the configured OIDC issuer and client ID; the server provides them");
   }
-  if (!oidcIssuer) throw new Error(`OIDC_ISSUER is required (env or ~/.config/opencode/rc.json); ${NOT_FROM_SERVER}`);
-  if (!oidcClientID) throw new Error(`OIDC_CLIENT_ID is required (env or ~/.config/opencode/rc.json); ${NOT_FROM_SERVER}`);
+  const { issuer: oidcIssuer, clientId: oidcClientID } = await fetchServerConfig(gatewayUrl);
 
   const discovery = await discoverOIDC(oidcIssuer);
 

@@ -34,14 +34,12 @@ Create `~/.config/opencode/rc.json`:
 }
 ```
 
-The CLI fetches the OIDC issuer and client ID from the server (`/auth/cli-config`). Set them only to override the server:
+The CLI gets the OIDC issuer and client ID from the server (`/auth/cli-config`). Optional local settings:
 
 ```json
 {
   "gatewayUrl": "https://opencode-rc.example.com",
   "oidc": {
-    "issuer": "https://sso.example.com",
-    "clientId": "opencode-rc-cli",
     "callbackPorts": [43212, 43213, 43214, 43215]
   }
 }
@@ -52,8 +50,6 @@ Environment variables override the config file:
 | Variable | Description |
 |----------|-------------|
 | `OPENCODE_RC_GATEWAY_URL` | Gateway URL |
-| `OIDC_ISSUER` | OIDC provider URL (default: from the server) |
-| `OIDC_CLIENT_ID` | OIDC client ID, public client for PKCE (default: from the server) |
 | `OIDC_CLIENT_SECRET` | Client secret (optional, for confidential clients) |
 | `OIDC_CALLBACK_PORTS` | Comma-separated local ports for OIDC callback (default: 43212-43215) |
 | `TLS_INSECURE_SKIP_VERIFY` | Set to `true` to skip TLS certificate verification |
