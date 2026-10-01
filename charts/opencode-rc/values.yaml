@@ -34,7 +34,7 @@ api:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/api
-    tag: "0.6.0"
+    tag: "0.7.0"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}
@@ -60,7 +60,7 @@ ui:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/ui
-    tag: "0.5.0"
+    tag: "0.6.0"
     pullPolicy: IfNotPresent
   # Browser-facing URL of the UI (e.g. https://rc.example.com). Overrides the URL derived
   # from expose.*.
@@ -82,7 +82,7 @@ gateway:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/gateway
-    tag: "0.6.0"
+    tag: "0.7.0"
     pullPolicy: IfNotPresent
   replicas: 1
   resources: {}

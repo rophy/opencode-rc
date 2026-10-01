@@ -9,7 +9,7 @@ tests:
           value: RELEASE-NAME-opencode-rc-ui
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/rophy/opencode-rc/ui:0.5.0
+          value: ghcr.io/rophy/opencode-rc/ui:0.6.0
       - contains:
           path: spec.template.spec.containers[0].env
           content:
