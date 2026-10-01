@@ -58,9 +58,11 @@ async function discoverOIDC(issuer: string): Promise<OIDCDiscovery> {
 }
 
 // The server publishes its issuer and CLI client ID at /auth/cli-config (api and
-// gateway 0.7.0+). It only accepts tokens from that issuer and client, so the CLI
-// has nothing to override.
-async function fetchServerConfig(gatewayUrl: string): Promise<{ issuer: string; clientId: string }> {
+// gateway 0.7.0+), plus its authorization endpoint override if it has one (0.7.1+).
+// It only accepts tokens from that issuer and client, so the CLI has nothing to override.
+async function fetchServerConfig(
+  gatewayUrl: string,
+): Promise<{ issuer: string; clientId: string; authorizationEndpoint?: string }> {
   const url = `${gatewayUrl.replace(/\/$/, "")}/auth/cli-config`;
   let res: Response;
   try {
@@ -78,7 +80,9 @@ async function fetchServerConfig(gatewayUrl: string): Promise<{ issuer: string; 
   if (typeof body?.clientId !== "string" || !body.clientId) {
     throw new Error("The server returned no CLI client ID; ask its administrator to set oidc.cliClientId");
   }
-  return { issuer: body.issuer, clientId: body.clientId };
+  const authorizationEndpoint =
+    typeof body.authorizationEndpoint === "string" && body.authorizationEndpoint ? body.authorizationEndpoint : undefined;
+  return { issuer: body.issuer, clientId: body.clientId, authorizationEndpoint };
 }
 
 export async function loadConfig(): Promise<Config> {
@@ -88,18 +92,18 @@ export async function loadConfig(): Promise<Config> {
   const gatewayUrl = process.env.OPENCODE_RC_GATEWAY_URL || file.gatewayUrl;
   if (!gatewayUrl) throw new Error("OPENCODE_RC_GATEWAY_URL is required (env or ~/.config/opencode/rc.json)");
 
-  if (process.env.OIDC_ISSUER || process.env.OIDC_CLIENT_ID || file.oidc?.issuer || file.oidc?.clientId) {
-    console.warn("Warning: ignoring the configured OIDC issuer and client ID; the server provides them");
+  const ignored = ["OIDC_ISSUER", "OIDC_CLIENT_ID", "OIDC_TOKEN_ENDPOINT", "OIDC_AUTHORIZATION_ENDPOINT"];
+  if (ignored.some((name) => process.env[name]) || file.oidc?.issuer || file.oidc?.clientId) {
+    console.warn("Warning: ignoring the configured OIDC issuer, client ID and endpoints; the server provides them");
   }
-  const { issuer: oidcIssuer, clientId: oidcClientID } = await fetchServerConfig(gatewayUrl);
+  const server = await fetchServerConfig(gatewayUrl);
+  const oidcIssuer = server.issuer;
+  const oidcClientID = server.clientId;
 
   const discovery = await discoverOIDC(oidcIssuer);
 
-  const oidcTokenEndpoint =
-    process.env.OIDC_TOKEN_ENDPOINT || discovery.token_endpoint;
-
-  const oidcAuthorizationEndpoint =
-    process.env.OIDC_AUTHORIZATION_ENDPOINT || discovery.authorization_endpoint;
+  const oidcTokenEndpoint = discovery.token_endpoint;
+  const oidcAuthorizationEndpoint = server.authorizationEndpoint || discovery.authorization_endpoint;
 
   const oidcClientSecret =
     process.env.OIDC_CLIENT_SECRET || file.oidc?.clientSecret || undefined;

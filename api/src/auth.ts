@@ -82,11 +82,14 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
   const app = new Hono();
   const authCookie = { path: "/auth", maxAge: 300, httpOnly: true, sameSite: "Lax" as const, secure: config.secureCookies };
 
-  // Lets the CLI log in with only the server URL configured.
+  // Lets the CLI log in with only the server URL configured. The authorization endpoint
+  // override is browser-facing, so the CLI can use it too; the token endpoint override
+  // may be in-cluster and is not published.
   app.get("/auth/cli-config", (c) =>
     c.json({
       issuer: provider.discovery.issuer,
       ...(config.oidcCliClientId ? { clientId: config.oidcCliClientId } : {}),
+      ...(config.oidcAuthorizationEndpoint ? { authorizationEndpoint: config.oidcAuthorizationEndpoint } : {}),
     }),
   );
 

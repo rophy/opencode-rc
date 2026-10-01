@@ -169,7 +169,8 @@ oidc:
   redirectUri: ""
   # Override individual OIDC discovery endpoints (optional).
   # Useful when internal/external URLs differ (e.g. browser reaches external
-  # authorization endpoint, server calls internal token endpoint).
+  # authorization endpoint, server calls internal token endpoint). The CLI also gets
+  # authorizationEndpoint from the server; it always uses the token endpoint from discovery.
   issuerOverride: ""
   authorizationEndpoint: ""
   tokenEndpoint: ""

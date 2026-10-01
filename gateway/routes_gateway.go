@@ -17,11 +17,16 @@ func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier,
 	})
 }
 
-// CLIConfigHandler lets the CLI log in with only the gateway URL configured.
-func CLIConfigHandler(issuer, cliClientID string) http.HandlerFunc {
+// CLIConfigHandler lets the CLI log in with only the gateway URL configured. The
+// authorization endpoint override is browser-facing, so the CLI can use it too; the
+// token endpoint override may be in-cluster and is not published.
+func CLIConfigHandler(issuer, cliClientID, authorizationEndpoint string) http.HandlerFunc {
 	body := map[string]string{"issuer": issuer}
 	if cliClientID != "" {
 		body["clientId"] = cliClientID
+	}
+	if authorizationEndpoint != "" {
+		body["authorizationEndpoint"] = authorizationEndpoint
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		marshalJSON(w, http.StatusOK, body)

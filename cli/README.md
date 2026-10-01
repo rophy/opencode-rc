@@ -34,7 +34,7 @@ Create `~/.config/opencode/rc.json`:
 }
 ```
 
-The CLI gets the OIDC issuer and client ID from the server (`/auth/cli-config`). Optional local settings:
+The CLI gets the OIDC issuer, client ID and any authorization endpoint override from the server (`/auth/cli-config`). Optional local settings:
 
 ```json
 {

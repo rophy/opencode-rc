@@ -108,6 +108,21 @@ describe("GET /auth/cli-config", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ issuer: "https://idp.example.com" });
   });
+
+  it("returns the overridden authorization endpoint", async () => {
+    app = new Hono<AuthEnv>();
+    app.route("/", authRoutes({
+      config: { ...config, oidcAuthorizationEndpoint: "https://login.example.com/authorize" },
+      provider,
+      tokens,
+      isAllowedOrigin: () => false,
+    }));
+    const res = await app.request("/auth/cli-config");
+    expect(await res.json()).toEqual({
+      issuer: "https://idp.example.com",
+      authorizationEndpoint: "https://login.example.com/authorize",
+    });
+  });
 });
 
 describe("authMiddleware", () => {

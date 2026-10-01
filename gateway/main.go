@@ -168,7 +168,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 	if cfg.OIDCIssuerOverride != "" {
 		issuer = cfg.OIDCIssuerOverride
 	}
-	mux.HandleFunc("/auth/cli-config", CLIConfigHandler(issuer, cfg.OIDCCLIClientID))
+	mux.HandleFunc("/auth/cli-config", CLIConfigHandler(issuer, cfg.OIDCCLIClientID, cfg.OIDCAuthorizationEndpoint))
 	return requestLogger(withProtocolHeader(mux)), nil
 }
 

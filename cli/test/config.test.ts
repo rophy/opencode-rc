@@ -124,6 +124,27 @@ describe("loadConfig", () => {
     expect(config.oidcAuthorizationEndpoint).toBe("http://mock-issuer/authorize");
   });
 
+  it("uses the server's authorization endpoint", async () => {
+    setEnv({ OPENCODE_RC_GATEWAY_URL: "https://gw.example.com" });
+    stubServer({ body: { ...SERVER_CONFIG, authorizationEndpoint: "https://login.example.com/authorize" } });
+
+    const config = await loadConfig();
+    expect(config.oidcAuthorizationEndpoint).toBe("https://login.example.com/authorize");
+    expect(config.oidcTokenEndpoint).toBe("http://mock-issuer/token");
+  });
+
+  it("ignores OIDC endpoints set locally", async () => {
+    setEnv({
+      OPENCODE_RC_GATEWAY_URL: "https://gw.example.com",
+      OIDC_TOKEN_ENDPOINT: "http://local/token",
+      OIDC_AUTHORIZATION_ENDPOINT: "http://local/authorize",
+    });
+
+    const config = await loadConfig();
+    expect(config.oidcTokenEndpoint).toBe("http://mock-issuer/token");
+    expect(config.oidcAuthorizationEndpoint).toBe("http://mock-issuer/authorize");
+  });
+
   it("ignores issuer and client ID set locally", async () => {
     await writeFile(
       configPath,

@@ -207,15 +207,19 @@ func TestSetupGatewayRoutesHealthz(t *testing.T) {
 
 func TestCLIConfigHandler(t *testing.T) {
 	cases := []struct {
-		name, clientID, want string
+		name, clientID, authorize, want string
 	}{
-		{"with CLI client", "opencode-rc-cli", `{"clientId":"opencode-rc-cli","issuer":"https://idp.example.com"}`},
-		{"without CLI client", "", `{"issuer":"https://idp.example.com"}`},
+		{"with CLI client", "opencode-rc-cli", "", `{"clientId":"opencode-rc-cli","issuer":"https://idp.example.com"}`},
+		{"without CLI client", "", "", `{"issuer":"https://idp.example.com"}`},
+		{
+			"with authorization endpoint override", "opencode-rc-cli", "https://login.example.com/authorize",
+			`{"authorizationEndpoint":"https://login.example.com/authorize","clientId":"opencode-rc-cli","issuer":"https://idp.example.com"}`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			CLIConfigHandler("https://idp.example.com", tc.clientID)(rec, httptest.NewRequest("GET", "/auth/cli-config", nil))
+			CLIConfigHandler("https://idp.example.com", tc.clientID, tc.authorize)(rec, httptest.NewRequest("GET", "/auth/cli-config", nil))
 			if rec.Code != http.StatusOK {
 				t.Fatalf("expected 200, got %d", rec.Code)
 			}
