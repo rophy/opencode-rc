@@ -5,7 +5,8 @@ import type { AuthEnv } from "./auth.js";
 // Under Bun, Hono's env is the Bun server.
 type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
 
-export type ProxyEnv = AuthEnv & ServerEnv & { Variables: { session: SessionMeta } };
+// body: set by uploadGuard when it read the request body to check it.
+export type ProxyEnv = AuthEnv & ServerEnv & { Variables: { session: SessionMeta; body: ArrayBuffer | undefined } };
 
 export function proxyRest(path: string, sessionId: string): string {
   const rest = path.slice(`/proxy/${sessionId}`.length).replace(/\/{2,}/g, "/");
@@ -61,7 +62,7 @@ export function proxyHttp(): Handler<ProxyEnv> {
     const upstream = await fetch(url, {
       method: c.req.method,
       headers,
-      body: c.req.method !== "GET" && c.req.method !== "HEAD" ? c.req.raw.body : undefined,
+      body: c.req.method !== "GET" && c.req.method !== "HEAD" ? (c.get("body") ?? c.req.raw.body) : undefined,
       redirect: "manual",
     });
 

@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { websocket } from "hono/bun";
 import Redis from "ioredis";
 import { loadConfig } from "./config.js";
+import { loadRcConfig } from "./rc-config.js";
+import { uploadGuard } from "./upload-guard.js";
 import { discoverOIDC, createProvider } from "./oidc.js";
 import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
 import { SessionStore } from "./store.js";
@@ -18,6 +20,8 @@ import pkg from "../package.json";
 const version = pkg.version;
 
 const config = loadConfig();
+const rcConfig = loadRcConfig();
+if (!rcConfig.features.uploads.enabled) console.log("uploads disabled");
 
 if (config.tlsInsecureSkipVerify) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -92,7 +96,15 @@ app.get("/gateway/sessions", auth, access, async (c) => {
 });
 
 // OpenCode API proxy: WebSocket upgrades (GET only), else HTTP and SSE
-app.all("/proxy/:sessionId/*", auth, access, sessionAccess(store), wsRelay(), proxyHttp());
+app.all(
+  "/proxy/:sessionId/*",
+  auth,
+  access,
+  sessionAccess(store),
+  wsRelay(),
+  uploadGuard(rcConfig.features.uploads.enabled),
+  proxyHttp(),
+);
 
 // The API host serves no HTML (the UI has its own image and host).
 app.notFound(notFoundJson());
