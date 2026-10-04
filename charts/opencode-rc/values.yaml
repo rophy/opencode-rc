@@ -191,6 +191,11 @@ auth:
   # (an IdP that ignores it logs in silently). Web logins never send a prompt.
   appLoginPrompt: select_account
 
+# The deployment's config.json, the same file the UI image and mobile apps are built from
+# (README "Deployment Config"). The API enforces its feature flags and ignores serverUrl,
+# e.g. {features: {uploads: {enabled: false}}}. Empty: every feature enabled.
+config: {}
+
 # Who may list and open remote sessions. Everyone can sign in and the CLI can always
 # connect; with a webhook URL set, the API asks the webhook before serving sessions.
 authz:

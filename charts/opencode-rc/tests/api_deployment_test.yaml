@@ -823,3 +823,65 @@ tests:
           content:
             name: ADMIN_TOKEN
             valueFrom: {secretKeyRef: {name: rc-admin, key: admin-token}}
+
+  - it: has no config file by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENCODE_RC_CONFIG
+            value: /etc/opencode-rc/config.json
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  - it: mounts config and restarts on change
+    set:
+      config:
+        features:
+          uploads:
+            enabled: false
+      api.podAnnotations:
+        team: rc
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENCODE_RC_CONFIG
+            value: /etc/opencode-rc/config.json
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/opencode-rc
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-opencode-rc-api-config
+      - equal:
+          path: spec.template.metadata.annotations.team
+          value: rc
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/config"]
+          pattern: ^[0-9a-f]{64}$
+
+  - it: mounts config next to extra CA certs
+    set:
+      config:
+        features:
+          uploads:
+            enabled: false
+      extraCACerts: |
+        -----BEGIN CERTIFICATE-----
+        x
+        -----END CERTIFICATE-----
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].volumeMounts
+          count: 2
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+
