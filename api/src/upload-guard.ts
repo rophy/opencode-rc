@@ -70,6 +70,16 @@ export function isPlainPath(path: string): boolean {
   return PLAIN_PATH.test(path) && !path.split("/").some((seg) => seg === "." || seg === "..");
 }
 
+// The undecoded path of the request url, or null when it cannot be parsed (Bun leaves the
+// url relative when the Host header is malformed).
+export function rawPath(url: string): string | null {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
+}
+
 // With uploads disabled, rejects requests that would send a file to opencode. Matched
 // requests are buffered and checked, and the proxy forwards those same bytes; other
 // requests stream through untouched.
@@ -77,9 +87,12 @@ export function uploadGuard(enabled: boolean): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
     if (enabled) return next();
     const method = c.req.method;
-    if (method !== "GET" && method !== "HEAD" && !isPlainPath(new URL(c.req.raw.url).pathname)) {
-      console.log(`upload blocked user=${c.get("userId")} ${method} unsupported path characters`);
-      return c.text("unsupported characters in path", 400);
+    if (method !== "GET" && method !== "HEAD") {
+      const path = rawPath(c.req.raw.url);
+      if (path === null || !isPlainPath(path)) {
+        console.log(`upload blocked user=${c.get("userId")} ${method} unsupported path characters`);
+        return c.text("unsupported characters in path", 400);
+      }
     }
     const rest = proxyRest(c.req.path, c.req.param("sessionId")!).replace(/\/+$/, "");
 
