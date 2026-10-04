@@ -5,6 +5,8 @@ import path from "path"
 import fs from "fs"
 import { parseConfig, parseConfigText, type RcConfig } from "../config/schema"
 import { contentSecurityPolicy } from "./csp"
+import { featureRewrites } from "./build/feature-rewrites"
+import { uploadRewrites } from "./build/upload-rewrites"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
@@ -159,7 +161,14 @@ export default defineConfig({
   define: {
     __RC_CONFIG__: JSON.stringify(rcConfig),
   },
-  plugins: [opencodeResolver(), opencodeAppFonts(), solid(), tailwindcss(), cspMeta()],
+  plugins: [
+    featureRewrites(opencodePackages, rcConfig.features.uploads.enabled ? [] : uploadRewrites),
+    opencodeResolver(),
+    opencodeAppFonts(),
+    solid(),
+    tailwindcss(),
+    cspMeta(),
+  ],
   resolve: {
     alias: {
       "@": path.join(opencodePackages, "app/src"),
