@@ -65,8 +65,8 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 ### UI Image (`ui/web/` — nginx)
 
 - Serves the built SPA (`ui/dist`) on its own host, separate from the API
-- Writes `/config.json` (`{"serverUrl": "<API_URL>"}`) at container start from the `API_URL` env var
-- The SPA reads `/config.json` and calls the API cross-origin using bearer auth
+- Built from the deployment's `config.json` (`--build-arg RC_CONFIG=…`): the API URL is compiled in; the generic image asks the user
+- The SPA calls the API cross-origin using bearer auth
 
 ## User Flow
 
@@ -82,7 +82,7 @@ The key design decision is the **reverse WebSocket tunnel**: dev machines connec
 
 The UI and the API are served from two different hosts.
 
-**UI host** (nginx, `ui` image): serves the built SPA (session picker + OpenCode web UI) and `/config.json`, which tells the SPA the API URL. It has no API routes.
+**UI host** (nginx, `ui` image): serves the built SPA (session picker + OpenCode web UI). It has no API routes.
 
 **API host** (`api` image): serves no HTML. Every path not listed below returns `404 {"error":"not found"}`.
 

@@ -177,6 +177,27 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/
 
 The check runs when a request or stream starts: an already open event stream or terminal keeps running after access is revoked, until it closes.
 
+### Deployment Config
+
+One `config.json` per deployment presets the UI's server and switches features off:
+
+```json
+{
+  "serverUrl": "https://api.rc.example.com",
+  "features": { "uploads": { "enabled": false } }
+}
+```
+
+Every key is optional and unknown keys are errors. `features.uploads.enabled: false` removes
+image and file attachments from the UI (pasted, dropped or picked files and project icons)
+and makes the API reject them with `403`. `@` references to workspace files keep working;
+pasting into the terminal is not covered.
+
+- **UI**: the published `ui` image is generic and asks users for the server. Build your own
+  with `docker build -f ui/web/Dockerfile --build-arg RC_CONFIG=path/to/config.json .` and set
+  `ui.image`; for mobile apps see `docs/ios-app.md`.
+- **API**: set the chart value `config` to the same content (the API ignores `serverUrl`).
+
 ### Air-Gapped Environments
 
 Override the image registry to pull from an internal registry:

@@ -12,7 +12,8 @@ api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, pro
 gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
 cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
 ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
-ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf, runtime config)
+ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf)
+config/         # config.json schema shared by the UI build and the API
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for ui/)
@@ -59,8 +60,9 @@ cd ui && bun install && bun run build
 Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
 The iOS/Android apps sign in through the system browser (local `SystemAuth` plugin, callback
-`com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server,
-write `dist/config.json` (`{"serverUrl": …}`) before `npx cap sync` (see `docs/ios-app.md`).
+`com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server
+or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
+(schema: `config/schema.ts`; see `docs/ios-app.md`).
 
 Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
 

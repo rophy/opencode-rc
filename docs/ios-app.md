@@ -37,16 +37,26 @@ The WebView loads only the bundled app (`allowNavigation: []`); every other link
 opens in Safari (Android: the default browser). API calls (`fetch`, WebSockets)
 are not navigations and are not affected.
 
-## Build-Time config.json
+## Build-Time Config
 
-To preset the server, write `config.json` into `ui/dist/` after `bun run build` and
-before `npx cap sync`:
+The deployment's `config.json` presets the server and switches features off. Name it when
+building the UI:
 
-```json
-{ "serverUrl": "https://rc.corp.example.com" }
+```bash
+cd ui
+OPENCODE_RC_CONFIG=/path/to/config.json bun run build
 ```
 
-Users then never see the server settings screen.
+```json
+{
+  "serverUrl": "https://rc.corp.example.com",
+  "features": { "uploads": { "enabled": false } }
+}
+```
+
+With `serverUrl` set, users never see the server settings screen and the app may only
+connect to that origin. A disabled feature is removed from the app; the API enforces the
+same file (chart value `config`).
 
 ## Distribution
 
@@ -59,8 +69,8 @@ On the corporate Mac:
 
 1. Clone the `releases/ios` branch, or `git fetch && git reset --hard origin/releases/ios`
    an existing clone (the branch is force-pushed).
-2. Optionally preset the server: put `{"serverUrl": "https://rc.corp.example.com"}`
-   into `App/App/public/config.json`.
+2. The `releases/ios` build is generic: users enter the server. To preset the server or
+   disable features, build from source instead (see "Building Locally").
 3. Open `App/App.xcodeproj` in Xcode, set the corporate signing team, build.
 4. Distribute via MDM (Intune, Jamf) or TestFlight.
 
@@ -70,8 +80,7 @@ No Node, bun, or opencode source is needed on that Mac, only Xcode.
 
 ```bash
 cd ui
-bun run build
-cp /path/to/config.json dist/config.json   # optional: preset the server
+OPENCODE_RC_CONFIG=/path/to/config.json bun run build   # optional: preset server, features
 npx cap sync ios
 open ios/App/App.xcodeproj
 ```
