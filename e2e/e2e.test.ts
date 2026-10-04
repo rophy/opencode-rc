@@ -431,10 +431,12 @@ describe("API and UI are separate hosts", () => {
     expect(await res.text()).toContain("<html");
   });
 
-  it("the UI is configured with the API URL", async () => {
-    const res = await fetch(`${UI_URL}/config.json`);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ serverUrl: API_URL });
+  it("the UI is built for the API URL", async () => {
+    const res = await fetch(`${UI_URL}/`);
+    expect(res.headers.get("content-security-policy")).toContain(
+      `connect-src 'self' data: ${API_URL} ${API_URL.replace(/^http/, "ws")};`,
+    );
+    expect((await fetch(`${UI_URL}/config.json`)).headers.get("content-type")).toContain("text/html");
   });
 
   it("the API allows the UI origin", async () => {
@@ -688,5 +690,50 @@ describe("access webhook", () => {
       await admin("/admin/authz/cache");
     }
     expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
+  });
+});
+
+describe("uploads disabled", () => {
+  let jar: TokenSession;
+  let sessionID: string;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+  const json = (method: string, body: unknown): RequestInit => ({
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const upload = { type: "file", mime: "image/png", filename: "a.png", url: "data:image/png;base64,iVBORw0KGgo=" };
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+    const res = await jar.fetch(proxy("/session"), json("POST", {}));
+    expect(res.status).toBe(200);
+    sessionID = (await res.json()).id;
+  });
+
+  it("rejects a prompt with an uploaded file", async () => {
+    const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json("POST", { parts: [upload] }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("uploads are disabled");
+  });
+
+  it("rejects a v2 prompt with an uploaded file", async () => {
+    const body = { prompt: { text: "hi", files: [{ uri: upload.url }] } };
+    const res = await jar.fetch(proxy(`/api/session/${sessionID}/prompt`), json("POST", body));
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects an uploaded project icon", async () => {
+    const res = await jar.fetch(proxy("/project/any"), json("PATCH", { icon: { override: upload.url } }));
+    expect(res.status).toBe(403);
+  });
+
+  it("still accepts a text prompt and an @mention", async () => {
+    const text = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json("POST", { parts: [{ type: "text", text: "hi" }] }));
+    expect(text.status).toBe(204);
+    const mention = { type: "file", mime: "text/plain", filename: "a.txt", url: "file:///project/a.txt" };
+    const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json("POST", { parts: [mention] }));
+    expect(res.status).toBe(204);
   });
 });

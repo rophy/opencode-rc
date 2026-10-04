@@ -19,3 +19,8 @@ authz:
 admin:
   tokenSecret:
     name: opencode-rc-admin
+# Same features as e2e/rc-config.json, which the UI image is built from.
+config:
+  features:
+    uploads:
+      enabled: false

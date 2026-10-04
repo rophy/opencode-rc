@@ -147,3 +147,25 @@ test.describe("access webhook", () => {
     await expect(page.locator("button", { hasText: "Sign in with OIDC" })).toBeVisible();
   });
 });
+
+test.describe("uploads disabled", () => {
+  test("the composer's + menu has no attachments item", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.locator("a[href*='/s/alice-dev/']").first().click();
+    // Same steps as the golden path: "New session" is a no-op until the project is listed.
+    await page.locator('[data-component="home-project-row"]').first().waitFor({ state: "visible", timeout: 30_000 });
+    const tabs = page.locator('[data-slot="titlebar-tab-item"]');
+    const before = await tabs.count();
+    await page.locator('button[aria-label="New session"]').first().click();
+    await expect(tabs).toHaveCount(before + 1, { timeout: 30_000 });
+    await tabs.last().locator('[data-slot="tab-link"]').click();
+    await expect(page.locator('[data-component="prompt-input"]')).toBeVisible({ timeout: 30_000 });
+
+    // The v2 composer (the default layout): its + menu keeps commands, context and shell.
+    await page.locator('[data-action="prompt-attach"]').click();
+    await expect(page.getByRole("menuitem", { name: "Commands" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Images and files" })).toHaveCount(0);
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  });
+});

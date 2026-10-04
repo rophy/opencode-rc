@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'api/**'
+      - 'config/**'
       - 'gateway/**'
       - 'ui/**'
       - 'vendor/opencode'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'api/**'
+      - 'config/**'
       - 'gateway/**'
       - 'ui/**'
       - 'vendor/opencode'

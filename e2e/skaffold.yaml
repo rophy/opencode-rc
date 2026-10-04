@@ -15,6 +15,8 @@ build:
       context: ..
       docker:
         dockerfile: ui/web/Dockerfile
+        buildArgs:
+          RC_CONFIG: e2e/rc-config.json
     - image: opencode-rc-gateway
       context: ..
       docker:
