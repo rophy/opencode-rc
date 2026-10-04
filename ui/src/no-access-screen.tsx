@@ -5,8 +5,7 @@ export const NoAccessScreen: Component<{ email: string; reason?: string; onRetry
     <div class="w-full max-w-lg px-6 pt-16 pb-8 text-center">
       <h1 class="text-[18px] font-semibold text-v2-text-text-base leading-tight mb-4">No access</h1>
       <p class="text-13-regular text-v2-text-text-muted mb-6">
-        You are signed in as {props.email || "this account"}, but it is not allowed to use remote sessions. Ask your
-        administrator for access.
+        You are signed in as {props.email || "this account"}, but it is not allowed to use remote sessions.
       </p>
       <Show when={props.reason}>
         <p class="text-13-regular text-v2-text-text-base mb-6">
