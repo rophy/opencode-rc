@@ -13,4 +13,14 @@ describe("NoAccessScreen", () => {
     await fireEvent.click(screen.getByText("Check again"))
     expect(onRetry).toHaveBeenCalled()
   })
+
+  it("shows the server's reason as text", () => {
+    render(() => <NoAccessScreen email="bob@example.com" reason="<b>not in the dev group</b>" onRetry={() => {}} />)
+    expect(screen.getByText("<b>not in the dev group</b>")).toBeTruthy()
+  })
+
+  it("shows no reason line without a reason", () => {
+    render(() => <NoAccessScreen email="bob@example.com" onRetry={() => {}} />)
+    expect(screen.queryByText(/Reason/)).toBeNull()
+  })
 })

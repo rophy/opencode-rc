@@ -166,7 +166,7 @@ Authorization: Bearer <token>   (only with authz.webhook.tokenSecret)
 {"user": {"uid": "<oidc.userClaim value>", "email": "alice@example.com", "name": "Alice"}}
 ```
 
-and expects `200` with `{"allowed": true}` or `{"allowed": false, "reason": "..."}` (the reason is logged). Any other response, an error or a timeout denies, and is not cached. A denied user sees a "No access" screen; the session list and proxy return `403`.
+and expects `200` with `{"allowed": true}` or `{"allowed": false, "reason": "..."}`. Any other response, an error or a timeout denies, and is not cached. A denied user sees a "No access" screen with the reason (plain text, up to 300 characters); the session list and proxy return `403` with `{"error": "forbidden", "reason": "..."}`.
 
 Decisions are cached in Redis per user for `authz.cacheTTL.allowed` / `.denied`. To apply a change sooner, set `admin.tokenSecret` and call the admin API on the API host:
 

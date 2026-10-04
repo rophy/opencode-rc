@@ -83,6 +83,22 @@ describe("Authorizer", () => {
     expect(await a.allowed(bob)).toBe(true);
   });
 
+  it("returns the webhook's reason for a denial and caches it", async () => {
+    decide = () => Response.json({ allowed: false, reason: "not in the dev group" });
+    const a = authorizer();
+    expect(await a.check(bob)).toEqual({ allowed: false, reason: "not in the dev group" });
+    expect(await a.check(bob)).toEqual({ allowed: false, reason: "not in the dev group" });
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a reason that is not a string and shortens a long one", async () => {
+    decide = () => Response.json({ allowed: false, reason: 42 });
+    expect(await authorizer().check(bob)).toEqual({ allowed: false });
+    await authorizer().evict(bob.uid);
+    decide = () => Response.json({ allowed: false, reason: "x".repeat(1000) });
+    expect((await authorizer().check(bob)).reason).toHaveLength(300);
+  });
+
   it.each([
     ["an error status", () => new Response("boom", { status: 500 })],
     ["a missing allowed field", () => Response.json({ ok: true })],
@@ -162,6 +178,13 @@ describe("requireAccess", () => {
     const res = await app(authorizer()).request(`/x/${bob.uid}`);
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ error: "forbidden" });
+  });
+
+  it("includes the webhook's reason in the 403", async () => {
+    decide = () => Response.json({ allowed: false, reason: "not in the dev group" });
+    const res = await app(authorizer()).request(`/x/${bob.uid}`);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "forbidden", reason: "not in the dev group" });
   });
 
   it("returns 503 when the cache is unavailable", async () => {

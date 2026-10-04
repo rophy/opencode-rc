@@ -9,6 +9,8 @@ export interface UserInfo {
   name: string
   /** False when the server's access hook denies this user. Older servers omit it. */
   allowed?: boolean
+  /** The access hook's reason for a denial, if it gave one. */
+  reason?: string
 }
 
 // A connected dev machine, as /gateway/sessions returns it. The gateway removes the

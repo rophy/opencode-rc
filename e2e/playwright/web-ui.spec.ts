@@ -142,6 +142,7 @@ test.describe("access webhook", () => {
     await loginAs(page, "Carol");
     await expect(page.locator("h1", { hasText: "No access" })).toBeVisible();
     await expect(page.getByText(/signed in as carol@example\.com/)).toBeVisible();
+    await expect(page.getByText("on the e2e deny list")).toBeVisible();
     await page.locator("button[title='Sign out']").click();
     await expect(page.locator("button", { hasText: "Sign in with OIDC" })).toBeVisible();
   });

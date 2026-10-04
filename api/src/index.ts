@@ -12,7 +12,7 @@ import { proxyHttp, sessionAccess } from "./proxy.js";
 import { wsRelay } from "./ws-relay.js";
 import { notFoundJson } from "./not-found.js";
 import { requestLogger } from "./request-log.js";
-import { Authorizer, adminRoutes, requireAccess, type AuthzRedis } from "./authz.js";
+import { Authorizer, adminRoutes, requireAccess, type AuthzRedis, type Decision } from "./authz.js";
 
 import pkg from "../package.json";
 const version = pkg.version;
@@ -75,14 +75,14 @@ const access = requireAccess(authorizer);
 
 app.get("/api/me", auth, async (c) => {
   const claims = c.get("claims");
-  let allowed: boolean;
+  let decision: Decision;
   try {
-    allowed = await authorizer.allowed(claims);
+    decision = await authorizer.check(claims);
   } catch (err) {
     console.error("authz check failed:", err);
     return c.json({ error: "unavailable" }, 503);
   }
-  return c.json({ sub: claims.uid, email: claims.email, name: claims.name, allowed });
+  return c.json({ sub: claims.uid, email: claims.email, name: claims.name, ...decision });
 });
 
 app.get("/gateway/sessions", auth, access, async (c) => {

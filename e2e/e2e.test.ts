@@ -657,7 +657,7 @@ describe("access webhook", () => {
 
   it("a denied user can sign in and is told so by /api/me", async () => {
     const me = await (await carolJar.fetch(`${API_URL}/api/me`)).json();
-    expect(me).toMatchObject({ sub: "user3", email: "carol@example.com", allowed: false });
+    expect(me).toMatchObject({ sub: "user3", email: "carol@example.com", allowed: false, reason: "on the e2e deny list" });
     const alice = await (await aliceJar.fetch(`${API_URL}/api/me`)).json();
     expect(alice.allowed).toBe(true);
   });
@@ -665,7 +665,7 @@ describe("access webhook", () => {
   it("a denied user cannot list or open sessions", async () => {
     const list = await carolJar.fetch(`${API_URL}/gateway/sessions`);
     expect(list.status).toBe(403);
-    expect(await list.json()).toEqual({ error: "forbidden" });
+    expect(await list.json()).toEqual({ error: "forbidden", reason: "on the e2e deny list" });
     const proxy = await carolJar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`);
     expect(proxy.status).toBe(403);
   });

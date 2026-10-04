@@ -195,7 +195,8 @@ auth:
 # connect; with a webhook URL set, the API asks the webhook before serving sessions.
 authz:
   webhook:
-    # POST {"user":{"uid","email","name"}}, expects {"allowed": bool}. Errors deny.
+    # POST {"user":{"uid","email","name"}}, expects {"allowed": bool, "reason"?: string}.
+    # The reason is shown to denied users. Errors deny.
     url: ""
     # Optional Secret key whose value is sent as "Authorization: Bearer <token>".
     tokenSecret:

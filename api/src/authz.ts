@@ -19,6 +19,14 @@ export interface AuthzOptions {
   deniedTtl: number;
 }
 
+/** The webhook's optional reason for a denial, shown to the user. */
+export interface Decision {
+  allowed: boolean;
+  reason?: string;
+}
+
+const MAX_REASON = 300;
+
 // Evicting everyone bumps the generation, so old entries are never read again and expire.
 const key = {
   gen: "orc:v2:authz:gen",
@@ -39,16 +47,25 @@ export class Authorizer {
   }
 
   async allowed(user: AccessClaims): Promise<boolean> {
-    if (!this.enabled) return true;
+    return (await this.check(user)).allowed;
+  }
+
+  async check(user: AccessClaims): Promise<Decision> {
+    if (!this.enabled) return { allowed: true };
     const gen = (await this.redis.get(key.gen)) ?? "0";
     const cached = await this.redis.get(key.decision(gen, user.uid));
-    if (cached !== null) return cached === "1";
+    // Cached as "1", "0" or "0:<reason>".
+    if (cached !== null) {
+      if (cached === "1") return { allowed: true };
+      return cached.startsWith("0:") ? { allowed: false, reason: cached.slice(2) } : { allowed: false };
+    }
 
     const decision = await this.ask(user);
     // A failed call denies without caching, so the next request asks again.
-    if (decision === null) return false;
-    const ttl = decision ? this.opts.allowedTtl : this.opts.deniedTtl;
-    await this.redis.set(key.decision(gen, user.uid), decision ? "1" : "0", "EX", ttl);
+    if (decision === null) return { allowed: false };
+    const ttl = decision.allowed ? this.opts.allowedTtl : this.opts.deniedTtl;
+    const value = decision.allowed ? "1" : decision.reason ? `0:${decision.reason}` : "0";
+    await this.redis.set(key.decision(gen, user.uid), value, "EX", ttl);
     return decision;
   }
 
@@ -61,7 +78,7 @@ export class Authorizer {
     await this.redis.incr(key.gen);
   }
 
-  private async ask(user: AccessClaims): Promise<boolean | null> {
+  private async ask(user: AccessClaims): Promise<Decision | null> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.opts.webhookToken) headers.Authorization = `Bearer ${this.opts.webhookToken}`;
     try {
@@ -80,9 +97,10 @@ export class Authorizer {
         console.error(`authz: webhook response has no boolean allowed user=${user.uid} email=${user.email}`);
         return null;
       }
-      const reason = typeof body.reason === "string" ? ` reason=${body.reason}` : "";
-      console.log(`authz: user=${user.uid} email=${user.email} allowed=${body.allowed}${reason}`);
-      return body.allowed;
+      const reason = typeof body.reason === "string" && body.reason ? body.reason.slice(0, MAX_REASON) : undefined;
+      console.log(`authz: user=${user.uid} email=${user.email} allowed=${body.allowed}${reason ? ` reason=${reason}` : ""}`);
+      if (body.allowed) return { allowed: true };
+      return reason ? { allowed: false, reason } : { allowed: false };
     } catch (err) {
       console.error(`authz: webhook failed user=${user.uid} email=${user.email}:`, err);
       return null;
@@ -92,14 +110,16 @@ export class Authorizer {
 
 export function requireAccess(authorizer: Authorizer): MiddlewareHandler<AuthEnv> {
   return async (c, next) => {
-    let ok: boolean;
+    let decision: Decision;
     try {
-      ok = await authorizer.allowed(c.get("claims"));
+      decision = await authorizer.check(c.get("claims"));
     } catch (err) {
       console.error("authz check failed:", err);
       return c.json({ error: "unavailable" }, 503);
     }
-    if (!ok) return c.json({ error: "forbidden" }, 403);
+    if (!decision.allowed) {
+      return c.json({ error: "forbidden", ...(decision.reason ? { reason: decision.reason } : {}) }, 403);
+    }
     await next();
   };
 }

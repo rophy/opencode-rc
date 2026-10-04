@@ -117,7 +117,7 @@ function App(props: { loginExpired: boolean }) {
       </Match>
       <Match when={user()?.allowed === false}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
-        <NoAccessScreen email={user()!.email} onRetry={() => refetchUser()} />
+        <NoAccessScreen email={user()!.email} reason={user()!.reason} onRetry={() => refetchUser()} />
       </Match>
       <Match when={user() && !sessionId}>
         <UserBar user={user()!} onSettings={() => setShowConfig(true)} />
