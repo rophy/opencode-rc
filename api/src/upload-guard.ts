@@ -59,10 +59,16 @@ const BLOCKED: { method: string; path: RegExp }[] = [
   { method: "PATCH", path: /^\/session\/[^/]+\/message\/[^/]+\/part\/[^/]+$/i },
 ];
 
-// Hono's c.req.path leaves these encoded, but the gateway, the CLI and opencode's router
-// decode them or cut the path at them, so a request carrying one could reach a route the
-// rules here never matched. Checked on the raw, undecoded path.
-const UNSAFE_PATH = /;|%2f|%3f|%23|%3b|%25/i;
+// Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router
+// each parse the path again: '\' becomes '/', tabs and newlines are dropped, trailing
+// spaces are trimmed, encodings are decoded, ';' '?' '#' cut it short, and dot segments
+// are resolved. A path made only of these characters, with no "." or ".." segment, looks
+// the same at every hop, so the rules here check exactly the path that is forwarded.
+const PLAIN_PATH = /^[A-Za-z0-9/_.~-]*$/;
+
+export function isPlainPath(path: string): boolean {
+  return PLAIN_PATH.test(path) && !path.split("/").some((seg) => seg === "." || seg === "..");
+}
 
 // With uploads disabled, rejects requests that would send a file to opencode. Matched
 // requests are buffered and checked, and the proxy forwards those same bytes; other
@@ -71,7 +77,7 @@ export function uploadGuard(enabled: boolean): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
     if (enabled) return next();
     const method = c.req.method;
-    if (method !== "GET" && method !== "HEAD" && UNSAFE_PATH.test(new URL(c.req.raw.url).pathname)) {
+    if (method !== "GET" && method !== "HEAD" && !isPlainPath(new URL(c.req.raw.url).pathname)) {
       console.log(`upload blocked user=${c.get("userId")} ${method} unsupported path characters`);
       return c.text("unsupported characters in path", 400);
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { sessionAccess, proxyHttp, type ProxyEnv } from "./proxy.js";
-import { isUploadPart, uploadGuard } from "./upload-guard.js";
+import { isPlainPath, isUploadPart, uploadGuard } from "./upload-guard.js";
 import type { SessionStore, SessionMeta } from "./store.js";
 
 const meta: SessionMeta = {
@@ -43,6 +43,25 @@ const mcp = {
   url: "data:text/plain;base64,AAAA",
   source: { type: "resource", clientName: "docs", uri: "docs://a", text: { value: "", start: 0, end: 0 } },
 };
+
+describe("isPlainPath", () => {
+  it.each([
+    ["/proxy/alice-dev/session/ses_1/message", true],
+    ["/proxy/my-host.local/api/session/ses_1/prompt", true],
+    ["/proxy/a/b_c~d", true],
+    ["/proxy/a/./message", false],
+    ["/proxy/a/../message", false],
+    ["/proxy/a/.", false],
+    ["/proxy/a/..", false],
+    ["/proxy/a/%2e%2e/b", false],
+    ["/proxy/a\\b", false],
+    ["/proxy/a;b", false],
+    ["/proxy/a b", false],
+    ["/proxy/a\tb", false],
+  ])("%j -> %s", (path, expected) => {
+    expect(isPlainPath(path)).toBe(expected);
+  });
+});
 
 describe("isUploadPart", () => {
   it.each([
@@ -102,17 +121,41 @@ describe("uploadGuard", () => {
   it.each([
     ["';'", "/session/ses_1/message;x"],
     ["%2F", "/session/ses_1%2Fmessage"],
-    ["%2f", "/session/ses_1%2fmessage"],
     ["%3F", "/session/ses_1/message%3F"],
     ["%23", "/session/ses_1/message%23"],
     ["%3B", "/session/ses_1/message%3Bx"],
     ["%25", "/session/ses_1/message%252F"],
+    ["%5C", "/session/ses_1%5Cmessage"],
+    ["%5c", "/session/ses_1%5cmessage"],
+    ["%09", "/session/ses_1/mes%09sage"],
+    ["a trailing %20", "/session/ses_1/message%20"],
+    ["%00", "/session/ses_1/message%00"],
+    ["%01", "/session/ses_1/message%01"],
+    ["x%5C..%5Cmessage", "/session/ses_1/x%5C..%5Cmessage"],
   ])("rejects a POST whose raw path contains %s", async (_name, path) => {
     const res = await send("POST", path, JSON.stringify({ parts: [dataPart] }));
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("unsupported characters in path");
     expect(upstream).not.toHaveBeenCalled();
   });
+
+  it("rejects a PATCH of a part whose path hides a slash as %5C", async () => {
+    const res = await send("PATCH", "/session/ses_1/message/msg_1/part%5Cprt_1", JSON.stringify({ type: "text", text: "hi" }));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("unsupported characters in path");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  // The URL parser resolves dot segments (also %2e forms) before the guard reads the raw
+  // path, so a request carries the resolved path everywhere and the rules apply to it.
+  it.each(["/session/ses_1/x/../message", "/session/./ses_1/message", "/session/ses_1/x/%2e%2e/message"])(
+    "applies the rules to the resolved path of %s",
+    async (path) => {
+      const res = await send("POST", path, JSON.stringify({ parts: [dataPart] }));
+      expect(res.status).toBe(403);
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
 
   it("lets a GET with an encoded slash through", async () => {
     const res = await makeApp().request("/proxy/alice-dev/file/content%2Fa.ts", { method: "GET" });
