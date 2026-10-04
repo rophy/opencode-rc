@@ -74,7 +74,7 @@ On the corporate Mac:
 3. Open `App/App.xcodeproj` in Xcode, set the corporate signing team, build.
 4. Distribute via MDM (Intune, Jamf) or TestFlight.
 
-No Node, bun, or opencode source is needed on that Mac, only Xcode.
+For the generic build no Node, bun, or opencode source is needed on that Mac, only Xcode.
 
 ## Building Locally
 

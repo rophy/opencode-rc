@@ -10,6 +10,7 @@ COPY config/ config/
 COPY ui/ ui/
 # Path of the deployment's config.json inside the build context (e.g. --build-arg
 # RC_CONFIG=deploy/config.json). Empty builds the generic image: users enter the server.
+# The path must not be excluded by .dockerignore (it excludes docs/ and dist/); needs BuildKit.
 ARG RC_CONFIG=""
 RUN --mount=type=bind,target=/ctx \
     if [ -n "$RC_CONFIG" ]; then cp "/ctx/$RC_CONFIG" /src/rc-config.json; fi

@@ -195,7 +195,9 @@ pasting into the terminal is not covered.
 
 - **UI**: the published `ui` image is generic and asks users for the server. Build your own
   with `docker build -f ui/web/Dockerfile --build-arg RC_CONFIG=path/to/config.json .` and set
-  `ui.image`; for mobile apps see `docs/ios-app.md`.
+  `ui.image`; for mobile apps see `docs/ios-app.md`. `RC_CONFIG` must be a path inside the
+  build context that `.dockerignore` does not exclude (it excludes `docs/` and `dist/`), and
+  the build needs BuildKit (the default in current Docker).
 - **API**: set the chart value `config` to the same content (the API ignores `serverUrl`).
 
 ### Air-Gapped Environments
