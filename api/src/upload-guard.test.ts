@@ -77,14 +77,47 @@ describe("uploadGuard", () => {
     expect(res.status).toBe(403);
   });
 
-  it("rejects a PATCH that turns a part into an upload", async () => {
-    const res = await send("PATCH", "/session/ses_1/message/msg_1/part/prt_1", JSON.stringify(dataPart));
+  it.each([
+    ["a data: file part", JSON.stringify(dataPart)],
+    ["a resource part", JSON.stringify(mcp)],
+    ["a plain text part", JSON.stringify({ type: "text", text: "hi" })],
+    [
+      "a tool part with data: attachments",
+      JSON.stringify({ type: "tool", state: { status: "completed", attachments: [dataPart] } }),
+    ],
+    ["a non-JSON body", "{not json"],
+  ])("rejects PATCH of a part outright: %s", async (_name, body) => {
+    const res = await send("PATCH", "/session/ses_1/message/msg_1/part/prt_1", body);
     expect(res.status).toBe(403);
+    expect(await res.text()).toBe("uploads are disabled");
+    expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("rejects a PATCH that turns a resource part into an upload", async () => {
-    const res = await send("PATCH", "/session/ses_1/message/msg_1/part/prt_1", JSON.stringify(mcp));
+  it("rejects case and trailing-slash variants of the PATCH part path", async () => {
+    const res = await send("PATCH", "/Session/ses_1/Message/msg_1/Part/prt_1/", JSON.stringify({ type: "text", text: "hi" }));
     expect(res.status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["';'", "/session/ses_1/message;x"],
+    ["%2F", "/session/ses_1%2Fmessage"],
+    ["%2f", "/session/ses_1%2fmessage"],
+    ["%3F", "/session/ses_1/message%3F"],
+    ["%23", "/session/ses_1/message%23"],
+    ["%3B", "/session/ses_1/message%3Bx"],
+    ["%25", "/session/ses_1/message%252F"],
+  ])("rejects a POST whose raw path contains %s", async (_name, path) => {
+    const res = await send("POST", path, JSON.stringify({ parts: [dataPart] }));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("unsupported characters in path");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("lets a GET with an encoded slash through", async () => {
+    const res = await makeApp().request("/proxy/alice-dev/file/content%2Fa.ts", { method: "GET" });
+    expect(res.status).toBe(204);
+    expect(upstream).toHaveBeenCalled();
   });
 
   it("rejects POST /sync/replay outright", async () => {
