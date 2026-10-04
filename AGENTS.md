@@ -17,6 +17,7 @@ config/         # config.json schema shared by the UI build and the API
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode # Git submodule — upstream opencode source (build dependency for ui/)
+vendor/patches  # Our patches to vendor/opencode, applied by the UI build per disabled feature
 docs/           # Design docs
 ```
 
@@ -35,6 +36,29 @@ git submodule update --init --recursive
 cd vendor/opencode && git fetch --tags && git checkout <new-tag>
 cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
 ```
+
+### Patches (`vendor/patches/`)
+
+Our changes to upstream opencode live in `vendor/patches/<feature>/*.patch`: plain `git diff`
+output, paths relative to `vendor/opencode`. The submodule itself is never edited. The UI build
+applies a feature's patches in memory (`ui/build/vendor-patches.ts`) when the deployment's
+config.json disables that feature (e.g. `vendor/patches/uploads/` for `features.uploads`).
+Patches apply with no fuzz; one that no longer applies fails the build.
+
+```bash
+# Change a patch: apply it, edit the files, write it back, reset the submodule
+cd vendor/opencode
+git apply ../patches/uploads/composer-v1.patch
+# ...edit packages/app/src/components/prompt-input.tsx...
+git diff -- packages/app/src/components/prompt-input.tsx packages/app/src/components/prompt-input/attachments.ts > ../patches/uploads/composer-v1.patch
+git checkout -- .
+
+# After bumping opencode: rebase each patch onto the new tag
+git apply --3way ../patches/uploads/composer-v1.patch   # resolve conflicts, then write it back as above
+```
+
+`ui/build/upload-patches.test.ts` checks what the upload patches remove; it runs against the
+pinned submodule (CI checks it out for the UI tests).
 
 ## Package Managers
 

@@ -5,8 +5,7 @@ import path from "path"
 import fs from "fs"
 import { parseConfig, parseConfigText, type RcConfig } from "../config/schema"
 import { contentSecurityPolicy } from "./csp"
-import { featureRewrites } from "./build/feature-rewrites"
-import { uploadRewrites } from "./build/upload-rewrites"
+import { readPatches, vendorPatches } from "./build/vendor-patches"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
@@ -162,7 +161,8 @@ export default defineConfig({
     __RC_CONFIG__: JSON.stringify(rcConfig),
   },
   plugins: [
-    featureRewrites(opencodePackages, rcConfig.features.uploads.enabled ? [] : uploadRewrites),
+    // vendor/patches/<feature>: our changes to upstream opencode, applied when the feature is disabled.
+    vendorPatches(opencodeRoot, rcConfig.features.uploads.enabled ? [] : readPatches(path.resolve(__dirname, "../vendor/patches/uploads"))),
     opencodeResolver(),
     opencodeAppFonts(),
     solid(),

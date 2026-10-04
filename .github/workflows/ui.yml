@@ -7,12 +7,14 @@ on:
       - 'ui/**'
       - 'config/**'
       - 'vendor/opencode'
+      - 'vendor/patches/**'
       - '.github/workflows/ui.yml'
   pull_request:
     paths:
       - 'ui/**'
       - 'config/**'
       - 'vendor/opencode'
+      - 'vendor/patches/**'
       - '.github/workflows/ui.yml'
   workflow_dispatch:
 

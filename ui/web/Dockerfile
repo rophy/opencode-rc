@@ -7,6 +7,7 @@ RUN cd vendor/opencode && bun install --frozen-lockfile --ignore-scripts
 COPY ui/package.json ui/bun.lock ui/
 RUN cd ui && bun install --frozen-lockfile
 COPY config/ config/
+COPY vendor/patches/ vendor/patches/
 COPY ui/ ui/
 # Path of the deployment's config.json inside the build context (e.g. --build-arg
 # RC_CONFIG=deploy/config.json). Empty builds the generic image: users enter the server.

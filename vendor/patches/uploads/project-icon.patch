@@ -1,0 +1,21 @@
+diff --git a/packages/app/src/components/edit-project.ts b/packages/app/src/components/edit-project.ts
+index 0c5d576e93..94f996cf63 100644
+--- a/packages/app/src/components/edit-project.ts
++++ b/packages/app/src/components/edit-project.ts
+@@ -25,7 +25,7 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+   let iconInput: HTMLInputElement | undefined
+ 
+   function selectFile(file: File) {
+-    if (!file.type.startsWith("image/")) return
++    return
+     const reader = new FileReader()
+     reader.onload = (event) => {
+       const result = event.target?.result
+@@ -62,7 +62,6 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+       setStore("iconOverride", "")
+       return
+     }
+-    iconInput?.click()
+   }
+ 
+   const save = useMutation(() => ({

@@ -1,0 +1,120 @@
+diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
+index 41cf7d30ca..e3b8944a5f 100644
+--- a/packages/app/src/components/prompt-input.tsx
++++ b/packages/app/src/components/prompt-input.tsx
+@@ -443,14 +443,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+   const normalModeKey = "mod+shift+e"
+ 
+   command.register("prompt-input", () => [
+-    {
+-      id: "file.attach",
+-      title: language.t("prompt.action.attachFile"),
+-      category: language.t("command.category.file"),
+-      keybind: "mod+u",
+-      disabled: store.mode !== "normal",
+-      onSelect: pick,
+-    },
+     {
+       id: "prompt.mode.shell",
+       title: language.t("command.prompt.mode.shell"),
+@@ -1174,21 +1166,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+     getPathForFile: platform.getPathForFile,
+   })
+ 
+-  const fileAttachmentInput = () => (
+-    <input
+-      ref={(el) => (fileInputRef = el)}
+-      type="file"
+-      multiple
+-      accept={ACCEPTED_FILE_TYPES.join(",")}
+-      class="hidden"
+-      onChange={(e) => {
+-        const list = e.currentTarget.files
+-        if (list) void addAttachments(Array.from(list))
+-        e.currentTarget.value = ""
+-      }}
+-    />
+-  )
+-
+   const variants = createMemo(() => ["default", ...props.controls.model.selection.variant.list()])
+   // Check provider variants directly: `variants` also includes the UI-only default option.
+   const showVariantControl = createMemo(() => props.controls.model.selection.variant.list().length > 0)
+@@ -1501,7 +1478,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+           onMouseDown={(e) => {
+             const target = e.target
+             if (!(target instanceof HTMLElement)) return
+-            if (target.closest('[data-action="prompt-attach"], [data-action="prompt-submit"]')) {
++            if (target.closest('[data-action="prompt-submit"]')) {
+               return
+             }
+             editorRef?.focus()
+@@ -1561,19 +1538,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+           />
+ 
+           <div class="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
+-            <input
+-              ref={fileInputRef}
+-              type="file"
+-              multiple
+-              accept={ACCEPTED_FILE_TYPES.join(",")}
+-              class="hidden"
+-              onChange={(e) => {
+-                const list = e.currentTarget.files
+-                if (list) void addAttachments(Array.from(list))
+-                e.currentTarget.value = ""
+-              }}
+-            />
+-
+             <div class="flex items-center gap-1 pointer-events-auto">
+               <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
+                 <IconButton
+@@ -1598,25 +1562,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+                 "pointer-events": buttonsSpring() > 0.5 ? "auto" : "none",
+               }}
+             >
+-              <TooltipKeybind
+-                placement="top"
+-                title={language.t("prompt.action.attachFile")}
+-                keybind={command.keybind("file.attach")}
+-              >
+-                <Button
+-                  data-action="prompt-attach"
+-                  type="button"
+-                  variant="ghost"
+-                  class="size-8 p-0"
+-                  style={buttons()}
+-                  onClick={pick}
+-                  disabled={store.mode !== "normal"}
+-                  tabIndex={store.mode === "normal" ? undefined : -1}
+-                  aria-label={language.t("prompt.action.attachFile")}
+-                >
+-                  <Icon name="plus" class="size-4.5" />
+-                </Button>
+-              </TooltipKeybind>
+             </div>
+           </div>
+         </div>
+diff --git a/packages/app/src/components/prompt-input/attachments.ts b/packages/app/src/components/prompt-input/attachments.ts
+index 6f3ef57c66..b9eb12b96c 100644
+--- a/packages/app/src/components/prompt-input/attachments.ts
++++ b/packages/app/src/components/prompt-input/attachments.ts
+@@ -44,7 +44,7 @@ export function createPromptAttachmentsCore(input: PromptAttachmentsCoreInput) {
+   }
+ 
+   const add = async (file: File, toast = true, target = capture()) => {
+-    if (!target) return false
++    return false
+     const mime = await attachmentMime(file)
+     if (!mime) {
+       if (toast) input.warn?.()
+@@ -168,9 +168,7 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
+     event.preventDefault()
+     const hasFiles = event.dataTransfer?.types.includes("Files")
+     const hasText = event.dataTransfer?.types.includes("text/plain")
+-    if (hasFiles) {
+-      input.setDraggingType("image")
+-    } else if (hasText) {
++    if (hasText) {
+       input.setDraggingType("@mention")
+     }
+   }
