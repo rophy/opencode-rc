@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'api/**'
+      - 'config/**'
       - '.github/workflows/api.yml'
   pull_request:
     paths:
       - 'api/**'
+      - 'config/**'
       - '.github/workflows/api.yml'
   workflow_dispatch:
 
