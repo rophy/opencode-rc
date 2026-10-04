@@ -2,7 +2,7 @@ suite: ui deployment
 templates:
   - templates/ui-deployment.yaml
 tests:
-  - it: renders the ui deployment with the api URL from the service
+  - it: renders the ui deployment
     asserts:
       - equal:
           path: metadata.name
@@ -10,34 +10,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: ghcr.io/rophy/opencode-rc/ui:0.6.0
-      - contains:
+      - isNull:
           path: spec.template.spec.containers[0].env
-          content:
-            name: API_URL
-            value: http://RELEASE-NAME-opencode-rc-api:8080
-
-  - it: uses the exposed api URL
-    set:
-      expose.type: ingress
-      expose.host: example.com
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: API_URL
-            value: https://RELEASE-NAME.example.com
-
-  - it: honours expose.scheme http for the api URL
-    set:
-      expose.type: ingress
-      expose.host: example.com
-      expose.scheme: http
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: API_URL
-            value: http://RELEASE-NAME.example.com
 
   - it: is not rendered when ui is disabled
     set:
@@ -45,18 +19,6 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-
-  - it: uses api.publicUrl for API_URL, trimming a trailing slash
-    set:
-      api.publicUrl: https://api.rc.example.com/
-      expose.type: ingress
-      expose.host: example.com
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: API_URL
-            value: https://api.rc.example.com
 
   - it: fails when ui.publicUrl is set but the api is not exposed
     set:

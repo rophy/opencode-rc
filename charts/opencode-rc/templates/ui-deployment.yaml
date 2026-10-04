@@ -41,9 +41,6 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          env:
-            - name: API_URL
-              value: {{ include "opencode-rc.apiPublicUrl" . | quote }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -53,7 +50,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            # The config script and nginx write here; keeps readOnlyRootFilesystem working.
+            # nginx writes here; keeps readOnlyRootFilesystem working.
             - name: tmp
               mountPath: /tmp
           {{- with .Values.ui.containerSecurityContext }}
