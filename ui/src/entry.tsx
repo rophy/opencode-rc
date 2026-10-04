@@ -43,7 +43,7 @@ import {
   notifyIfNotBlocked,
 } from "@solidjs/router"
 import "@opencode-ai/app/index.css"
-import { fetchMe, getBaseUrl, isPreConfigured, loadConfig } from "./api"
+import { fetchMe, getBaseUrl, isPreConfigured } from "./api"
 import { completeLogin, getAccessToken, getCachedAccessToken, invalidateAccessToken, onLoggedOut } from "./auth"
 import { installProxyFetch, installProxyWebSocket } from "./proxy-fetch"
 import { UserBar } from "./user-bar"
@@ -241,7 +241,5 @@ function App(props: { loginExpired: boolean }) {
 
 const root = document.getElementById("root")
 if (root) {
-  loadConfig()
-    .then(() => completeLogin())
-    .then((result) => render(() => <App loginExpired={result === "expired"} />, root))
+  completeLogin().then((result) => render(() => <App loginExpired={result === "expired"} />, root))
 }

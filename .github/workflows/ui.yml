@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'ui/**'
+      - 'config/**'
       - 'vendor/opencode'
       - '.github/workflows/ui.yml'
   pull_request:
     paths:
       - 'ui/**'
+      - 'config/**'
       - 'vendor/opencode'
       - '.github/workflows/ui.yml'
   workflow_dispatch:

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'ui/**'
+      - 'config/**'
       - 'vendor/opencode'
       - '.github/workflows/ios.yml'
   workflow_dispatch:

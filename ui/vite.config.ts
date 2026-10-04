@@ -3,6 +3,8 @@ import solid from "vite-plugin-solid"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 import fs from "fs"
+import { parseConfig, parseConfigText, type RcConfig } from "../config/schema"
+import { contentSecurityPolicy } from "./csp"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
@@ -35,6 +37,16 @@ function loadOpenCodePackages(): PkgMeta[] {
 }
 
 const ocPackages = loadOpenCodePackages()
+
+// The deployment config (config.json) named by OPENCODE_RC_CONFIG, relative to ui/ or
+// absolute. Unset: no preset server, every feature enabled. An invalid file fails the build.
+function readBuildConfig(): RcConfig {
+  const file = process.env.OPENCODE_RC_CONFIG
+  if (!file) return parseConfig({})
+  return parseConfigText(fs.readFileSync(path.resolve(__dirname, file), "utf8"), file)
+}
+
+const rcConfig = readBuildConfig()
 
 // Resolve @opencode-ai/pkg/subpath using the package's exports map
 function resolveExport(source: string): string | null {
@@ -129,34 +141,24 @@ function opencodeAppFonts(): Plugin {
   }
 }
 
-// Production builds carry a CSP meta tag, which is what the mobile app gets (the web UI's
-// nginx sends a stricter header with the API origin). The app's API origin is chosen at
-// runtime, so connect-src allows any http(s)/ws(s) origin; scripts are still limited to the bundle.
-const APP_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' data: http: https: ws: wss:",
-  "media-src 'self' data:",
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'none'",
-].join("; ")
-
+// Production builds carry a CSP meta tag, which is what the mobile apps get (the web image's
+// nginx sends the same policy as a header, plus frame-ancestors).
 function cspMeta(): Plugin {
+  const content = contentSecurityPolicy(rcConfig.serverUrl)
   return {
     name: "csp-meta",
     apply: "build",
     transformIndexHtml: () => [
-      { tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: APP_CSP }, injectTo: "head-prepend" },
+      { tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content }, injectTo: "head-prepend" },
     ],
   }
 }
 
 export default defineConfig({
   base: "/",
+  define: {
+    __RC_CONFIG__: JSON.stringify(rcConfig),
+  },
   plugins: [opencodeResolver(), opencodeAppFonts(), solid(), tailwindcss(), cspMeta()],
   resolve: {
     alias: {

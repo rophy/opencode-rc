@@ -1,24 +1,22 @@
+import { buildConfig } from "./build-config"
+
 const STORAGE_KEY = "opencode-rc-endpoint"
 
-let preConfiguredUrl: string | undefined
-
-export async function loadConfig(): Promise<void> {
-  try {
-    const res = await fetch("/config.json", { signal: AbortSignal.timeout(3000) })
-    if (!res.ok) return
-    const config = await res.json()
-    if (config.serverUrl) {
-      preConfiguredUrl = config.serverUrl.replace(/\/+$/, "")
-    }
-  } catch {}
-}
+// A server compiled into the build (config.json serverUrl) wins over the one the user enters.
+let preConfiguredUrl: string | undefined = buildConfig.serverUrl
 
 export function isPreConfigured(): boolean {
   return !!preConfiguredUrl
 }
 
+// Tests only: preset a server as if it was compiled in.
+export function presetServerUrl(url: string | undefined) {
+  preConfiguredUrl = url?.replace(/\/+$/, "")
+}
+
+// Tests only: back to the build-time server.
 export function resetConfig() {
-  preConfiguredUrl = undefined
+  preConfiguredUrl = buildConfig.serverUrl
 }
 
 export function getBaseUrl(): string {
