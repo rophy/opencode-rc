@@ -56,9 +56,30 @@ describe("featureRewrites plugin", () => {
     expect(() => plugin.buildStart()).toThrow(/app\/b\.ts: expected 1 match/)
   })
 
+  it("fails the bundle when a listed file was never transformed", () => {
+    fs.writeFileSync(path.join(dir, "app/b.ts"), "other\n")
+    const plugin = featureRewrites(dir, rewrites) as any
+    plugin.buildStart()
+    plugin.transform("const on = true\nattach()\n", path.join(dir, "app/a.ts"))
+    expect(() => plugin.generateBundle()).toThrow(/app\/b\.ts was not transformed; the rewrite did not apply/)
+    expect(() => plugin.generateBundle()).not.toThrow(/app\/a\.ts/)
+  })
+
+  it("forgets transformed files at the next build start", () => {
+    fs.writeFileSync(path.join(dir, "app/b.ts"), "other\n")
+    const plugin = featureRewrites(dir, rewrites) as any
+    plugin.buildStart()
+    plugin.transform("const on = true\nattach()\n", path.join(dir, "app/a.ts"))
+    plugin.transform("other\n", path.join(dir, "app/b.ts"))
+    expect(() => plugin.generateBundle()).not.toThrow()
+    plugin.buildStart()
+    expect(() => plugin.generateBundle()).toThrow(/app\/a\.ts, app\/b\.ts was not transformed/)
+  })
+
   it("does nothing without rewrites", () => {
     const plugin = featureRewrites(dir, []) as any
     expect(() => plugin.buildStart()).not.toThrow()
     expect(plugin.transform("const on = true", path.join(dir, "app/a.ts"))).toBeNull()
+    expect(() => plugin.generateBundle()).not.toThrow()
   })
 })

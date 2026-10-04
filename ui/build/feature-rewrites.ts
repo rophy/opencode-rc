@@ -28,19 +28,33 @@ export function applyRewrites(code: string, file: string, rewrites: Rewrite[]): 
 
 // Removes disabled features from upstream opencode at build time. buildStart checks every
 // rewrite against the files on disk, so an opencode bump that changes or moves the code
-// fails the build instead of silently bringing a feature back.
+// fails the build instead of silently bringing a feature back. generateBundle (build only)
+// checks that every listed file actually went through transform, so a module resolved
+// under another path (a different OPENCODE_ROOT, a symlink) cannot skip the rewrite.
 export function featureRewrites(packagesDir: string, rewrites: Rewrite[]): Plugin {
   const files = [...new Set(rewrites.map((r) => r.file))]
+  const transformed = new Set<string>()
   return {
     name: "feature-rewrites",
     enforce: "pre",
     buildStart() {
+      transformed.clear()
       for (const file of files) applyRewrites(fs.readFileSync(path.join(packagesDir, file), "utf8"), file, rewrites)
     },
     transform(code, id) {
       const file = path.relative(packagesDir, id.split("?")[0])
       if (!files.includes(file)) return null
-      return { code: applyRewrites(code, file, rewrites), map: null }
+      const out = applyRewrites(code, file, rewrites)
+      transformed.add(file)
+      return { code: out, map: null }
+    },
+    generateBundle() {
+      const missed = files.filter((file) => !transformed.has(file))
+      if (missed.length > 0) {
+        throw new Error(
+          `${missed.join(", ")} was not transformed; the rewrite did not apply (check OPENCODE_ROOT / symlinks)`,
+        )
+      }
     },
   }
 }
