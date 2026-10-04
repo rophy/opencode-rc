@@ -23,6 +23,10 @@ describe("parseConfig", () => {
     expect(parseConfig({ serverUrl: "http://gw.example.com/rc/" }).serverUrl).toBe("http://gw.example.com/rc");
   });
 
+  it("drops surrounding spaces from serverUrl", () => {
+    expect(parseConfig({ serverUrl: " https://x.example.com/ " }).serverUrl).toBe("https://x.example.com");
+  });
+
   it("disables uploads", () => {
     expect(parseConfig({ features: { uploads: { enabled: false } } })).toEqual({
       features: { uploads: { enabled: false } },

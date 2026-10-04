@@ -48,7 +48,7 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") fail("serverUrl must start with http:// or https://");
     if (url.search || url.hash) fail("serverUrl must not have a query or fragment");
-    serverUrl = raw.serverUrl.replace(/\/+$/, "");
+    serverUrl = url.href.replace(/\/+$/, "");
   }
 
   const features = raw.features ?? {};
