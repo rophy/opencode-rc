@@ -82,6 +82,18 @@ describe("uploadGuard", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects a PATCH that turns a resource part into an upload", async () => {
+    const res = await send("PATCH", "/session/ses_1/message/msg_1/part/prt_1", JSON.stringify(mcp));
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects POST /sync/replay outright", async () => {
+    const res = await send("POST", "/sync/replay", "not even json");
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("uploads are disabled");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
   it("rejects a non-file: uri in a v2 prompt", async () => {
     const body = { prompt: { text: "hi", files: [{ uri: "file:///project/a.ts" }, { uri: "data:image/png;base64,AAAA" }] } };
     const res = await send("POST", "/api/session/ses_1/prompt", JSON.stringify(body));

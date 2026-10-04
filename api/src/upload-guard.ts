@@ -15,6 +15,12 @@ export function isUploadPart(part: unknown): boolean {
   return !isFileUri(part.url);
 }
 
+// PATCHing a part stores it as-is for the model to read later; opencode only ignores a
+// resource part's url on the prompt path, not here, so this has no resource exemption.
+function isUploadPartPatch(part: unknown): boolean {
+  return isObject(part) && part.type === "file" && !isFileUri(part.url);
+}
+
 interface Rule {
   method: string;
   path: RegExp;
@@ -32,7 +38,7 @@ const RULES: Rule[] = [
   {
     method: "PATCH",
     path: /^\/session\/[^/]+\/message\/[^/]+\/part\/[^/]+$/i,
-    denies: isUploadPart,
+    denies: isUploadPartPatch,
   },
   {
     method: "POST",
@@ -54,6 +60,10 @@ const RULES: Rule[] = [
   },
 ];
 
+// The UI never calls /sync/*; replaying part events this way reaches the model without
+// passing through any of the rules above, so it is blocked outright, not body-checked.
+const SYNC_REPLAY = /^\/sync\/replay$/i;
+
 // With uploads disabled, rejects requests that would send a file to opencode. Matched
 // requests are buffered and checked, and the proxy forwards those same bytes; other
 // requests stream through untouched.
@@ -61,6 +71,12 @@ export function uploadGuard(enabled: boolean): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
     if (enabled) return next();
     const rest = proxyRest(c.req.path, c.req.param("sessionId")!).replace(/\/+$/, "");
+
+    if (c.req.method === "POST" && SYNC_REPLAY.test(rest)) {
+      console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
+      return c.text("uploads are disabled", 403);
+    }
+
     const rule = RULES.find((r) => r.method === c.req.method && r.path.test(rest));
     if (!rule) return next();
 
