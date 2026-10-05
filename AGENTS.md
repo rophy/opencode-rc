@@ -37,6 +37,10 @@ cd vendor/opencode && git fetch --tags && git checkout <new-tag>
 cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
+The Android app's language list (`ui/android/app/src/main/res/xml/locales_config.xml`, shown under
+Settings > App languages) is generated from opencode's UI languages. After a bump, regenerate it
+with `cd ui && bun build/locales-config.ts`; `ui/build/locales-config.test.ts` fails until you do.
+
 ### Patches (`vendor/patches/`)
 
 Our changes to upstream opencode live in `vendor/patches/<feature>/*.patch`: plain `git diff`
