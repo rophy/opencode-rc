@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ConfigError, parseConfig, parseConfigText } from "../../config/schema.js";
 import { loadRcConfig } from "./rc-config.js";
 
-const ALL_ON = { features: { uploads: { enabled: true } } };
+const ALL_ON = { features: { uploads: { enabled: true }, terminal: { enabled: true } } };
 
 describe("parseConfig", () => {
   it("enables every feature for an empty object", () => {
@@ -29,7 +29,7 @@ describe("parseConfig", () => {
 
   it("disables uploads", () => {
     expect(parseConfig({ features: { uploads: { enabled: false } } })).toEqual({
-      features: { uploads: { enabled: false } },
+      features: { uploads: { enabled: false }, terminal: { enabled: true } },
     });
   });
 

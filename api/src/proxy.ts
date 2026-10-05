@@ -13,6 +13,25 @@ export function proxyRest(path: string, sessionId: string): string {
   return rest.startsWith("/") ? rest : `/${rest}`;
 }
 
+// How a path may be read by the hops after the API (see PLAIN_PATH in feature-guards.ts), for guards that must
+// match GET requests too, where paths are not required to be plain: fully percent-decoded,
+// '\' as '/', spaces and control characters dropped, cut at ';' '?' '#', slashes collapsed,
+// dot segments resolved, lower case. null when it cannot be decoded.
+export function canonicalPath(path: string): string | null {
+  let p = path;
+  for (let i = 0; i < 5 && /%[0-9a-f]{2}/i.test(p); i++) {
+    try {
+      p = decodeURIComponent(p);
+    } catch {
+      return null;
+    }
+  }
+  if (/%[0-9a-f]{2}/i.test(p)) return null;
+  p = p.replace(/\\/g, "/").replace(/[\x00-\x20\x7f]/g, "").split(/[;?#]/)[0];
+  p = `/${p}`.replace(/\/{2,}/g, "/");
+  return new URL(p, "http://x").pathname.replace(/\/{2,}/g, "/").toLowerCase();
+}
+
 export function upstreamUrl(
   scheme: "http" | "ws",
   gatewayAddr: string,

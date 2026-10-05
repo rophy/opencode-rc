@@ -1,0 +1,77 @@
+diff --git a/packages/app/src/components/session/session-header.tsx b/packages/app/src/components/session/session-header.tsx
+index dc6cdaa6f3..73ffdf959c 100644
+--- a/packages/app/src/components/session/session-header.tsx
++++ b/packages/app/src/components/session/session-header.tsx
+@@ -445,21 +445,6 @@ export function SessionHeader() {
+                         <StatusPopover />
+                       </Tooltip>
+                     </Show>
+-                    <TooltipKeybind
+-                      title={language.t("command.terminal.toggle")}
+-                      keybind={command.keybind("terminal.toggle")}
+-                    >
+-                      <Button
+-                        variant="ghost"
+-                        class="group/terminal-toggle titlebar-icon w-8 h-6 p-0 box-border shrink-0"
+-                        onClick={toggleTerminal}
+-                        aria-label={language.t("command.terminal.toggle")}
+-                        aria-expanded={view().terminal.opened()}
+-                        aria-controls="terminal-panel"
+-                      >
+-                        <Icon size="small" name={view().terminal.opened() ? "terminal-active" : "terminal"} />
+-                      </Button>
+-                    </TooltipKeybind>
+ 
+                     <div class="hidden md:flex items-center gap-1 shrink-0">
+                       <TooltipKeybind
+diff --git a/packages/app/src/pages/session/use-session-commands.tsx b/packages/app/src/pages/session/use-session-commands.tsx
+index 18d5b172ff..0b66e7be7b 100644
+--- a/packages/app/src/pages/session/use-session-commands.tsx
++++ b/packages/app/src/pages/session/use-session-commands.tsx
+@@ -544,21 +544,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
+   ]
+ 
+   const viewCmds = () => [
+-    viewCommand({
+-      id: "terminal.toggle",
+-      title: language.t("command.terminal.toggle"),
+-      keybind: "ctrl+`",
+-      slash: "terminal",
+-      onSelect: () => {
+-        if (view().terminal.opened()) {
+-          terminal.cancelFocus()
+-          view().terminal.close()
+-          return
+-        }
+-        terminal.requestFocus(terminal.active())
+-        view().terminal.open()
+-      },
+-    }),
+     viewCommand({
+       id: "review.toggle",
+       title: language.t("command.review.toggle"),
+@@ -583,23 +568,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
+     }),
+   ]
+ 
+-  const terminalCmds = () => [
+-    terminalCommand({
+-      id: "terminal.close",
+-      title: language.t("terminal.close"),
+-      keybind: "mod+w",
+-      hidden: true,
+-      when: (event) => event.target instanceof Element && !!event.target.closest('[data-component="terminal"]'),
+-      onSelect: closeTerminal,
+-    }),
+-    terminalCommand({
+-      id: "terminal.new",
+-      title: language.t("command.terminal.new"),
+-      description: language.t("command.terminal.new.description"),
+-      keybind: "ctrl+alt+t",
+-      onSelect: openTerminal,
+-    }),
+-  ]
++  const terminalCmds = (): ReturnType<typeof terminalCommand>[] => []
+ 
+   const messageCmds = () => [
+     sessionCommand({

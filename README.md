@@ -188,13 +188,18 @@ One `config.json` per deployment presets the UI's server and switches features o
 }
 ```
 
-Every key is optional and unknown keys are errors. `features.uploads.enabled: false` removes
-image and file attachments from the UI (pasted, dropped or picked files and project icons)
-and makes the API reject them with `403`. `@` references to workspace files keep working;
-pasting into the terminal is not covered. While uploads are disabled the API also rejects
-(`400`) write requests whose path contains characters other than letters, digits and
-`/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID` must stick to those characters (the
-default `<hostname>-<id>` does).
+Every key is optional and unknown keys are errors. Features (all enabled by default):
+
+- `features.uploads.enabled: false` removes image and file attachments from the UI (pasted,
+  dropped or picked files and project icons) and makes the API reject them with `403`. `@`
+  references to workspace files keep working; pasting into the terminal is not covered.
+- `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
+  machine) from the UI and makes the API reject terminal requests, including the WebSocket,
+  with `403`.
+
+While any feature is disabled the API also rejects (`400`) write requests whose path contains
+characters other than letters, digits and `/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID`
+must stick to those characters (the default `<hostname>-<id>` does).
 
 - **UI**: the published `ui` image is generic and asks users for the server. Build your own
   with `docker build -f ui/web/Dockerfile --build-arg RC_CONFIG=path/to/config.json .` and set

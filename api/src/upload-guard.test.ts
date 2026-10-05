@@ -21,7 +21,7 @@ function makeApp(enabled = false) {
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards({ features: { uploads: { enabled } } }), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards({ features: { uploads: { enabled }, terminal: { enabled: true } } }), proxyHttp());
   return app;
 }
 

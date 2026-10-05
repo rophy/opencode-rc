@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
+import { terminalGuard } from "./terminal-guard.js";
 import { uploadGuard } from "./upload-guard.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
@@ -13,6 +14,7 @@ type Guard = MiddlewareHandler<ProxyEnv>;
 // until it has an entry.
 export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   uploads: uploadGuard(),
+  terminal: terminalGuard(),
 };
 
 // Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router

@@ -1,0 +1,25 @@
+diff --git a/packages/app/src/context/layout.tsx b/packages/app/src/context/layout.tsx
+index 6235f35c45..2eeb108119 100644
+--- a/packages/app/src/context/layout.tsx
++++ b/packages/app/src/context/layout.tsx
+@@ -875,16 +875,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
+             },
+           },
+           terminal: {
+-            opened: terminalOpened,
+-            open() {
+-              setTerminalOpened(true)
+-            },
+-            close() {
+-              setTerminalOpened(false)
+-            },
+-            toggle() {
+-              setTerminalOpened(!terminalOpened())
+-            },
++            opened: () => false,
++            open() {},
++            close() {},
++            toggle() {},
+           },
+           reviewPanel: {
+             opened: reviewPanelOpened,

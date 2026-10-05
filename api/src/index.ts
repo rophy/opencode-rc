@@ -103,8 +103,9 @@ app.all(
   auth,
   access,
   sessionAccess(store),
-  wsRelay(),
+  // Before the WebSocket relay, so a guard can refuse an upgrade (the terminal).
   featureGuards(rcConfig),
+  wsRelay(),
   proxyHttp(),
 );
 
