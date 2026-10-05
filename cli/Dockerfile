@@ -47,7 +47,7 @@ WORKDIR /e2e
 COPY e2e/package.json e2e/package-lock.json ./
 RUN npm install
 COPY e2e/tsconfig.json e2e/vitest.config.ts e2e/playwright.config.ts ./
-COPY e2e/*.test.ts ./
+COPY e2e/*.test.ts e2e/helpers.ts ./
 COPY e2e/playwright/ ./playwright/
 COPY e2e/k8s/ ./k8s/
 
