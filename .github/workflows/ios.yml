@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
         with:
@@ -43,6 +43,20 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "iOS version: $VERSION"
 
+      # Unsigned, so it runs only in the iOS Simulator (xcrun simctl install booted App.app).
+      - name: Build debug app for the simulator
+        run: |
+          cd ui/ios/App
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO build
+          ditto -c -k --keepParent "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/App.app.zip"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: opencode-rc-ios-${{ steps.version.outputs.version }}-simulator
+          path: ${{ runner.temp }}/App.app.zip
+          if-no-files-found: error
+
       - name: Publish to releases/ios
         run: |
           cd /tmp
@@ -54,6 +68,8 @@ jobs:
           cp -r $GITHUB_WORKSPACE/ui/ios/. .
           cp $GITHUB_WORKSPACE/LICENSE .
           rm -f .gitignore
+          # Written by the simulator build; Package.swift already pins Capacitor exactly.
+          rm -rf App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
 
           git add -A
           git commit -m "build: update iOS project from ${GITHUB_SHA::8}"

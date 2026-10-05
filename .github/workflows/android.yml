@@ -1,0 +1,96 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - 'config/**'
+      - 'vendor/opencode'
+      - 'vendor/patches/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install submodule deps
+        run: cd vendor/opencode && bun install --frozen-lockfile
+
+      - name: Build SPA
+        run: cd ui && bun install --frozen-lockfile && bun run build
+
+      - name: Sync Android project
+        run: cd ui && npx cap sync android
+
+      - name: Read Android version
+        id: version
+        run: |
+          GRADLE=ui/android/app/build.gradle
+          NAME=$(sed -n 's/.*versionName "\(.*\)".*/\1/p' "$GRADLE" | head -1)
+          CODE=$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' "$GRADLE" | head -1)
+          VERSION="${NAME}-${CODE}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Android version: $VERSION"
+
+      # Copy the synced project before Gradle writes its build output into it.
+      - name: Prepare releases/android
+        run: |
+          mkdir /tmp/android-publish
+          cp -r ui/android/. /tmp/android-publish/
+          cp LICENSE /tmp/android-publish/
+          cd /tmp/android-publish
+          # Capacitor's Android library lives in node_modules; ship it with the project.
+          cp -r $GITHUB_WORKSPACE/ui/node_modules/@capacitor/android/capacitor capacitor-android
+          sed -i "s|new File('../node_modules/@capacitor/android/capacitor')|new File('capacitor-android')|" capacitor.settings.gradle
+          grep -q "new File('capacitor-android')" capacitor.settings.gradle
+          # Keep the files `cap sync` generated (web app, plugins, config).
+          sed -i '/^# Cordova plugins for Capacitor/,$d' .gitignore
+
+      - name: Build debug APK
+        run: cd ui/android && ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: opencode-rc-android-${{ steps.version.outputs.version }}-debug
+          path: ui/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish to releases/android
+        run: |
+          cd /tmp/android-publish
+          git init -b releases/android
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          git commit -m "build: update Android project from ${GITHUB_SHA::8}"
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push -f origin releases/android
+
+      - name: Tag release
+        run: |
+          TAG="android/${{ steps.version.outputs.version }}"
+          # The checkout has no tags, so ask the remote.
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists, skipping"
+          else
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
