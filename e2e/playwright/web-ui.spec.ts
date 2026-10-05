@@ -146,6 +146,27 @@ test.describe("access webhook", () => {
     await page.locator("button[title='Sign out']").click();
     await expect(page.locator("button", { hasText: "Sign in with OIDC" })).toBeVisible();
   });
+
+  test("a user granted access gets in with Check again", async ({ page }) => {
+    const hook = process.env.AUTHZ_HOOK_URL ?? "http://authz-hook:8080";
+    const api = process.env.API_URL ?? "http://opencode-rc-api:8080";
+    const evict = () =>
+      fetch(`${api}/admin/authz/cache/user3`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${process.env.ADMIN_TOKEN ?? "e2e-admin-token"}` },
+      });
+    await loginAs(page, "Carol");
+    await expect(page.locator("h1", { hasText: "No access" })).toBeVisible();
+    try {
+      await fetch(`${hook}/deny/user3`, { method: "DELETE" });
+      expect((await evict()).status).toBe(204);
+      await page.locator("button", { hasText: "Check again" }).click();
+      await expect(page.locator("h1", { hasText: "Sessions" })).toBeVisible();
+    } finally {
+      await fetch(`${hook}/deny/user3`, { method: "PUT" });
+      await evict();
+    }
+  });
 });
 
 test.describe("uploads disabled", () => {

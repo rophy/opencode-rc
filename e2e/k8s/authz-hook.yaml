@@ -1,5 +1,6 @@
-# Stub access webhook. Denies the uids in its deny list (user3 at start); tests change
-# the list with PUT/DELETE /deny/<uid>.
+# Stub access webhook. Denies the uids in its deny list (user3 at start) and answers 500
+# for the uids in its fail list (empty at start); tests change the lists with
+# PUT/DELETE /deny/<uid> and /fail/<uid>.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,21 +9,29 @@ data:
   hook.js: |
     const http = require("node:http");
     const deny = new Set(["user3"]);
+    const fail = new Set();
     http
       .createServer((req, res) => {
         const send = (status, body) => {
           res.writeHead(status, { "content-type": "application/json" });
           res.end(body === undefined ? "" : JSON.stringify(body));
         };
-        const deny_ = req.url.match(/^\/deny\/([^/]+)$/);
-        if (deny_ && req.method === "PUT") return deny.add(deny_[1]), send(204);
-        if (deny_ && req.method === "DELETE") return deny.delete(deny_[1]), send(204);
+        const list = req.url.match(/^\/(deny|fail)\/([^/]+)$/);
+        if (list && (req.method === "PUT" || req.method === "DELETE")) {
+          const set = list[1] === "deny" ? deny : fail;
+          req.method === "PUT" ? set.add(list[2]) : set.delete(list[2]);
+          return send(204);
+        }
         if (req.url !== "/check" || req.method !== "POST") return send(404, { error: "not found" });
         if (req.headers.authorization !== "Bearer e2e-hook-token") return send(401, { error: "unauthorized" });
         let raw = "";
         req.on("data", (c) => (raw += c));
         req.on("end", () => {
           const { user } = JSON.parse(raw);
+          if (fail.has(user.uid)) {
+            console.log(`check uid=${user.uid} failing on purpose`);
+            return send(500, { error: "failing on purpose" });
+          }
           const allowed = !deny.has(user.uid);
           console.log(`check uid=${user.uid} email=${user.email} allowed=${allowed}`);
           send(200, allowed ? { allowed } : { allowed, reason: "on the e2e deny list" });

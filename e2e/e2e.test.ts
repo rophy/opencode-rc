@@ -645,6 +645,23 @@ describe("access webhook", () => {
     fetch(`${API_URL}${path}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
   const setDenied = (uid: string, denied: boolean) =>
     fetch(`${HOOK_URL}/deny/${uid}`, { method: denied ? "PUT" : "DELETE" });
+  // The stub answers 500 for these uids.
+  const setFailing = (uid: string, failing: boolean) =>
+    fetch(`${HOOK_URL}/fail/${uid}`, { method: failing ? "PUT" : "DELETE" });
+  // The HTTP status of a WebSocket upgrade: 101 when it opens, else the refusal's status.
+  const upgradeStatus = (url: string) =>
+    new Promise<number>((resolve, reject) => {
+      const ws = new WebSocket(url);
+      ws.on("unexpected-response", (_req, res) => {
+        resolve(res.statusCode ?? 0);
+        ws.terminate();
+      });
+      ws.on("open", () => {
+        resolve(101);
+        ws.close();
+      });
+      ws.on("error", reject);
+    });
 
   let aliceJar: TokenSession;
   let bobJar: TokenSession;
@@ -670,6 +687,58 @@ describe("access webhook", () => {
     expect(await list.json()).toEqual({ error: "forbidden", reason: "on the e2e deny list" });
     const proxy = await carolJar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`);
     expect(proxy.status).toBe(403);
+    expect(await proxy.json()).toEqual({ error: "forbidden", reason: "on the e2e deny list" });
+  });
+
+  it("a revoked owner loses their own session, including the terminal WebSocket", async () => {
+    const health = () => aliceJar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`);
+    const terminal = () =>
+      upgradeStatus(
+        API_URL.replace(/^http/, "ws") +
+          `/proxy/${SESSION_ID}/pty/x/connect?access_token=${encodeURIComponent(aliceJar.access)}`,
+      );
+    expect((await health()).status).toBe(200);
+    try {
+      await setDenied("user1", true);
+      expect((await admin("/admin/authz/cache/user1")).status).toBe(204);
+      expect((await health()).status).toBe(403);
+      expect(await terminal()).toBe(403);
+    } finally {
+      await setDenied("user1", false);
+      await admin("/admin/authz/cache/user1");
+    }
+    expect((await health()).status).toBe(200);
+  });
+
+  it("a failing webhook denies, and the failure is not cached", async () => {
+    const sessions = () => bobJar.fetch(`${API_URL}/gateway/sessions`);
+    try {
+      await setFailing("user2", true);
+      expect((await admin("/admin/authz/cache/user2")).status).toBe(204);
+      const res = await sessions();
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({ error: "forbidden" });
+      await setFailing("user2", false);
+      // No eviction: an error is never cached, so the next request asks the webhook again.
+      expect((await sessions()).status).toBe(200);
+    } finally {
+      await setFailing("user2", false);
+      await admin("/admin/authz/cache/user2");
+    }
+  });
+
+  it("evicting every user applies a change at once", async () => {
+    const sessions = () => bobJar.fetch(`${API_URL}/gateway/sessions`);
+    expect((await sessions()).status).toBe(200);
+    try {
+      await setDenied("user2", true);
+      expect((await admin("/admin/authz/cache")).status).toBe(204);
+      expect((await sessions()).status).toBe(403);
+    } finally {
+      await setDenied("user2", false);
+      await admin("/admin/authz/cache");
+    }
+    expect((await sessions()).status).toBe(200);
   });
 
   it("the admin API requires its token", async () => {
@@ -681,7 +750,7 @@ describe("access webhook", () => {
     try {
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
       await setDenied("user2", true);
-      // The allowed decision is cached for 60s.
+      // The allowed decision is cached for authz.cacheTTL.allowed (60s by default).
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
       expect((await admin("/admin/authz/cache/user2")).status).toBe(204);
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(403);
