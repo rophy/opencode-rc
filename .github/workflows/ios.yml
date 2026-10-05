@@ -14,8 +14,40 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
+  # Builds and publishes only a version that has no tag yet.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read iOS version
+        id: version
+        run: |
+          PBXPROJ=ui/ios/App/App.xcodeproj/project.pbxproj
+          MARKETING=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' "$PBXPROJ" | head -1 | tr -d ' ')
+          BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' "$PBXPROJ" | head -1 | tr -d ' ')
+          VERSION="${MARKETING}-${BUILD}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # The checkout has no tags, so ask the remote.
+          if git ls-remote --exit-code --tags origin "refs/tags/ios/$VERSION" >/dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ios/$VERSION exists, nothing to build"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "New version: $VERSION"
+          fi
+
   build:
+    needs: version
+    if: needs.version.outputs.new == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,16 +65,6 @@ jobs:
       - name: Sync iOS project
         run: cd ui && npx cap sync ios
 
-      - name: Read iOS version
-        id: version
-        run: |
-          cd ui/ios/App/App.xcodeproj
-          MARKETING=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' project.pbxproj | head -1 | tr -d ' ')
-          BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' project.pbxproj | head -1 | tr -d ' ')
-          VERSION="${MARKETING}-${BUILD}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "iOS version: $VERSION"
-
       # Unsigned, so it runs only in the iOS Simulator (xcrun simctl install booted App.app).
       - name: Build debug app for the simulator
         run: |
@@ -53,7 +75,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: opencode-rc-ios-${{ steps.version.outputs.version }}-simulator
+          name: opencode-rc-ios-${{ needs.version.outputs.version }}-simulator
           path: ${{ runner.temp }}/App.app.zip
           if-no-files-found: error
 
@@ -78,13 +100,7 @@ jobs:
 
       - name: Tag release
         run: |
-          TAG="ios/${{ steps.version.outputs.version }}"
-          # The checkout has no tags, so ask the remote.
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists, skipping"
-          else
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "ios/${{ needs.version.outputs.version }}"
+          git push origin "ios/${{ needs.version.outputs.version }}"

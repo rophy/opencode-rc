@@ -14,8 +14,40 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
+  # Builds and publishes only a version that has no tag yet.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      new: ${{ steps.version.outputs.new }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read Android version
+        id: version
+        run: |
+          GRADLE=ui/android/app/build.gradle
+          NAME=$(sed -n 's/.*versionName "\(.*\)".*/\1/p' "$GRADLE" | head -1)
+          CODE=$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' "$GRADLE" | head -1)
+          VERSION="${NAME}-${CODE}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # The checkout has no tags, so ask the remote.
+          if git ls-remote --exit-code --tags origin "refs/tags/android/$VERSION" >/dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "Tag android/$VERSION exists, nothing to build"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "New version: $VERSION"
+          fi
+
   build:
+    needs: version
+    if: needs.version.outputs.new == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -38,16 +70,6 @@ jobs:
       - name: Sync Android project
         run: cd ui && npx cap sync android
 
-      - name: Read Android version
-        id: version
-        run: |
-          GRADLE=ui/android/app/build.gradle
-          NAME=$(sed -n 's/.*versionName "\(.*\)".*/\1/p' "$GRADLE" | head -1)
-          CODE=$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' "$GRADLE" | head -1)
-          VERSION="${NAME}-${CODE}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Android version: $VERSION"
-
       # Copy the synced project before Gradle writes its build output into it.
       - name: Prepare releases/android
         run: |
@@ -67,7 +89,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: opencode-rc-android-${{ steps.version.outputs.version }}-debug
+          name: opencode-rc-android-${{ needs.version.outputs.version }}-debug
           path: ui/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -84,13 +106,7 @@ jobs:
 
       - name: Tag release
         run: |
-          TAG="android/${{ steps.version.outputs.version }}"
-          # The checkout has no tags, so ask the remote.
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists, skipping"
-          else
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "android/${{ needs.version.outputs.version }}"
+          git push origin "android/${{ needs.version.outputs.version }}"

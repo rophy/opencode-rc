@@ -60,12 +60,12 @@ same file (chart value `config`).
 
 ## Distribution
 
-On every push to `main`, `.github/workflows/ios.yml` builds the UI, runs
-`npx cap sync ios`, and force-pushes the resulting Xcode project (with the web
-assets already bundled) to the `releases/ios` branch. It tags each new
-`MARKETING_VERSION`-`CURRENT_PROJECT_VERSION` as `ios/<version>`. The run also uploads an
-unsigned debug build of the app for the iOS Simulator as a workflow artifact
-(`xcrun simctl install booted App.app`).
+When a push to `main` brings a new `MARKETING_VERSION`-`CURRENT_PROJECT_VERSION` (no
+`ios/<version>` tag yet), `.github/workflows/ios.yml` builds the UI, runs `npx cap sync ios`,
+force-pushes the resulting Xcode project (with the web assets already bundled) to the
+`releases/ios` branch and tags it `ios/<version>`. It also uploads an unsigned debug build
+for the iOS Simulator as a workflow artifact (`xcrun simctl install booted App.app`).
+Pushes that keep the version build nothing.
 
 On the corporate Mac:
 

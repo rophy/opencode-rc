@@ -25,8 +25,8 @@ cd opencode-rc-android
 For a release build, add your signing config to `app/build.gradle` and run
 `./gradlew assembleRelease` (or `bundleRelease` for Google Play).
 
-Each CI run also uploads the debug APK as a workflow artifact. Each new
-`versionName`-`versionCode` is tagged `android/<version>`.
+CI publishes this branch only for a new `versionName`-`versionCode`, tags it
+`android/<version>`, and uploads the debug APK as a workflow artifact.
 
 ## Updating
 
