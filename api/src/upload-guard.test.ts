@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { sessionAccess, proxyHttp, type ProxyEnv } from "./proxy.js";
 import { isUploadPart } from "./upload-guard.js";
 import { featureGuards, isPlainPath, rawPath } from "./feature-guards.js";
+import { parseConfig } from "../../config/schema.js";
 import type { SessionStore, SessionMeta } from "./store.js";
 
 const meta: SessionMeta = {
@@ -21,7 +22,7 @@ function makeApp(enabled = false) {
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards({ features: { uploads: { enabled }, terminal: { enabled: true } } }), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards(parseConfig({ features: { uploads: { enabled } } })), proxyHttp());
   return app;
 }
 

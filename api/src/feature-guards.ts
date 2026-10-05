@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
+import { blockGuard } from "./block-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
 import { uploadGuard } from "./upload-guard.js";
 
@@ -15,6 +16,12 @@ type Guard = MiddlewareHandler<ProxyEnv>;
 export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   uploads: uploadGuard(),
   terminal: terminalGuard(),
+  // Shell mode: one command at a time, run on the dev machine and kept in the session.
+  shell: blockGuard("shell", "shell commands are disabled", [{ method: "POST", path: /^\/session\/[^/]+\/shell$/i }]),
+  // Built in the browser from data the UI already loads, so there is nothing to enforce.
+  export: null,
+  // Publishing a session through opencode's share service. Unsharing stays allowed.
+  share: blockGuard("share", "sharing is disabled", [{ method: "POST", path: /^\/session\/[^/]+\/share$/i }]),
 };
 
 // Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router

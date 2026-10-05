@@ -196,6 +196,16 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 - `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
+- `features.shell.enabled: false` removes shell mode (`!`: one command run on the developer's
+  machine, kept in the session) from the UI and makes the API reject it with `403`. The terminal
+  and shell mode are separate: to stop users from running commands themselves, disable both.
+  The AI's own tools are not affected.
+- `features.export.enabled: false` removes exporting a session as JSON from the UI. The export is
+  built in the browser from what the UI already shows, so there is nothing for the API to reject.
+- `features.share.enabled: false` removes sharing from the UI and makes the API reject publishing
+  a session through opencode's share service with `403` (unsharing still works). A dev machine
+  whose opencode config has `"share": "auto"` still shares on its own; set `"share": "disabled"`
+  there too.
 
 While any feature is disabled the API also rejects (`400`) write requests whose path contains
 characters other than letters, digits and `/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID`

@@ -3,10 +3,11 @@ import { Hono } from "hono";
 import type { ProxyEnv } from "./proxy.js";
 import { canonicalPath } from "./proxy.js";
 import { featureGuards } from "./feature-guards.js";
+import { parseConfig } from "../../config/schema.js";
 import { isTerminalPath } from "./terminal-guard.js";
 
-const terminalOff = { features: { uploads: { enabled: true }, terminal: { enabled: false } } };
-const terminalOn = { features: { uploads: { enabled: true }, terminal: { enabled: true } } };
+const terminalOff = parseConfig({ features: { terminal: { enabled: false } } });
+const terminalOn = parseConfig({});
 
 // The guards in front of a stand-in for the WebSocket relay and the proxy, as in index.ts.
 function makeApp(config = terminalOff) {

@@ -3,11 +3,11 @@ import { execFileSync } from "node:child_process";
 import { WebSocket } from "ws";
 import { API_URL, SESSION_ID, waitFor, loginAs, upgradeStatus, type TokenSession } from "./helpers.js";
 
-// The terminal toggle is read by the API at startup, so the disabled case redeploys the API
-// with a changed config (the chart's api-config ConfigMap) and restores it afterwards. The
-// e2e vitest config runs test files one at a time, so no other file sees the restart. The
-// UI image is built once with the terminal enabled; the UI patches are covered by
-// ui/build/terminal-patches.test.ts.
+// Feature toggles are read by the API at startup, so the disabled case redeploys the API with
+// a changed config (the chart's api-config ConfigMap) and restores it afterwards. The e2e
+// vitest config runs test files one at a time, so no other file sees the restart. The UI
+// image is built once with these features enabled; their UI patches are covered by the tests
+// in ui/build/. Sharing is only tested disabled: enabled, it would publish the session.
 
 const NAMESPACE = process.env.NAMESPACE ?? "default";
 const CONFIG_MAP = "opencode-rc-api-config";
@@ -94,7 +94,21 @@ describe("terminal enabled", () => {
   });
 });
 
-describe("terminal disabled", () => {
+describe("shell commands enabled", () => {
+  it("runs a shell command in a session", async () => {
+    const jar = await loginAs("user1");
+    const json = { "content-type": "application/json" };
+    const session = await (await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session`, { method: "POST", headers: json, body: "{}" })).json();
+    const res = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session/${session.id}/shell`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ agent: "build", command: "echo e2e-shell-$((40+2))" }),
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("terminal, shell commands and sharing disabled", () => {
   let jar: TokenSession;
   let original: string;
 
@@ -102,7 +116,9 @@ describe("terminal disabled", () => {
     jar = await loginAs("user1");
     original = kubectl(["get", "configmap", CONFIG_MAP, "-o", "jsonpath={.data.config\\.json}"]);
     const config = JSON.parse(original);
-    await redeployApi(JSON.stringify({ ...config, features: { ...config.features, terminal: { enabled: false } } }), jar, 403);
+    const off = { enabled: false };
+    const features = { ...config.features, terminal: off, shell: off, share: off };
+    await redeployApi(JSON.stringify({ ...config, features }), jar, 403);
   }, 300_000);
 
   afterAll(async () => {
@@ -124,6 +140,21 @@ describe("terminal disabled", () => {
       upgradeStatus(API_URL.replace(/^http/, "ws") + `/proxy/${SESSION_ID}${path}?access_token=${encodeURIComponent(jar.access)}`);
     expect(await ws("/pty/x/connect")).toBe(403);
     expect(await ws("/api/pty/x/connect")).toBe(403);
+  });
+
+  it("refuses shell commands and sharing", async () => {
+    const json = { "content-type": "application/json" };
+    const session = await (await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session`, { method: "POST", headers: json, body: "{}" })).json();
+    const shell = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session/${session.id}/shell`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ agent: "build", command: "echo no" }),
+    });
+    expect(shell.status).toBe(403);
+    expect(await shell.text()).toBe("shell commands are disabled");
+    const share = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session/${session.id}/share`, { method: "POST" });
+    expect(share.status).toBe(403);
+    expect(await share.text()).toBe("sharing is disabled");
   });
 
   it("still serves the rest of the session", async () => {

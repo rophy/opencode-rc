@@ -1,0 +1,50 @@
+diff --git a/packages/app/src/components/prompt-input-v2.tsx b/packages/app/src/components/prompt-input-v2.tsx
+index 481b7922cf..d265690233 100644
+--- a/packages/app/src/components/prompt-input-v2.tsx
++++ b/packages/app/src/components/prompt-input-v2.tsx
+@@ -424,7 +424,8 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
+       title: language.t("command.prompt.mode.shell"),
+       category: language.t("command.category.session"),
+       keybind: "mod+shift+x",
+-      disabled: controller.state.mode === "shell",
++      disabled: true,
++      hidden: true,
+       onSelect: () => controller.dispatch({ type: "mode.shell" }),
+     },
+     {
+diff --git a/packages/session-ui/src/v2/components/prompt-input/index.tsx b/packages/session-ui/src/v2/components/prompt-input/index.tsx
+index ff4ff0f1d4..221f9a683c 100644
+--- a/packages/session-ui/src/v2/components/prompt-input/index.tsx
++++ b/packages/session-ui/src/v2/components/prompt-input/index.tsx
+@@ -514,9 +514,6 @@ export function PromptInputV2AddMenu(props: {
+             <MenuV2.Item onSelect={props.onContext} shortcut="@">
+               {props.contextLabel}
+             </MenuV2.Item>
+-            <MenuV2.Item onSelect={props.onShell} shortcut="!">
+-              {props.shellLabel}
+-            </MenuV2.Item>
+           </MenuV2.Content>
+         </MenuV2.Portal>
+       </MenuV2>
+diff --git a/packages/session-ui/src/v2/components/prompt-input/machine.ts b/packages/session-ui/src/v2/components/prompt-input/machine.ts
+index d2508e249c..0702cc37ae 100644
+--- a/packages/session-ui/src/v2/components/prompt-input/machine.ts
++++ b/packages/session-ui/src/v2/components/prompt-input/machine.ts
+@@ -70,7 +70,7 @@ export function transitionPromptInputV2(
+   if (event.type === "popover.close") return changed({ ...state, popover: { type: "closed" } })
+   if (event.type === "popover.select") return suggestionSelected(state, event.item, persisted)
+   if (event.type === "key.down") return keyDown(state, event)
+-  if (event.type === "mode.shell") return changed({ ...state, mode: "shell", popover: { type: "closed" } })
++  if (event.type === "mode.shell") return changed({ ...state, mode: "normal", popover: { type: "closed" } })
+   if (event.type === "mode.normal") return changed({ ...state, mode: "normal" })
+   if (event.type === "drag.enter") return changed({ ...state, drag: "active" })
+   if (event.type === "drag.leave") return changed({ ...state, drag: "idle" })
+@@ -88,7 +88,7 @@ function inputChanged(
+   cursor: number | undefined,
+ ): PromptInputV2Transition {
+   const setText: PromptInputV2InteractionCommand[] = persist ? [{ type: "draft.setText", value }] : []
+-  if (state.mode === "normal" && value === "!") {
++  if (false) {
+     return changed({ ...state, mode: "shell", popover: { type: "closed" }, focus: "editor" }, [
+       { type: "draft.setText", value: "" },
+     ])

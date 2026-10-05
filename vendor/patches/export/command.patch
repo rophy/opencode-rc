@@ -1,0 +1,19 @@
+diff --git a/packages/app/src/pages/session/use-session-commands.tsx b/packages/app/src/pages/session/use-session-commands.tsx
+index 18d5b172ff..2be07be2b1 100644
+--- a/packages/app/src/pages/session/use-session-commands.tsx
++++ b/packages/app/src/pages/session/use-session-commands.tsx
+@@ -491,14 +491,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
+       disabled: !params.id || visibleUserMessages().length === 0,
+       onSelect: fork,
+     }),
+-    sessionCommand({
+-      id: "session.export",
+-      title: language.t("command.session.export"),
+-      description: language.t("command.session.export.description"),
+-      slash: "export",
+-      disabled: !params.id,
+-      onSelect: exportSession,
+-    }),
+     sessionCommand({
+       id: "session.archive",
+       title: language.t("command.session.archive"),

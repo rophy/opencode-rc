@@ -1,0 +1,26 @@
+diff --git a/packages/app/src/pages/session/timeline/message-timeline.tsx b/packages/app/src/pages/session/timeline/message-timeline.tsx
+index e083882557..4a87803d2c 100644
+--- a/packages/app/src/pages/session/timeline/message-timeline.tsx
++++ b/packages/app/src/pages/session/timeline/message-timeline.tsx
+@@ -299,7 +299,7 @@ export function MessageTimeline(props: {
+   const titleValue = createMemo(() => info()?.title)
+   const titleLabel = createMemo(() => sessionTitle(titleValue()))
+   const shareUrl = createMemo(() => info()?.share?.url)
+-  const shareEnabled = createMemo(() => sync().data.config.share !== "disabled")
++  const shareEnabled = createMemo(() => false)
+   const parentID = createMemo(() => info()?.parentID)
+   const parent = createMemo(() => {
+     const id = parentID()
+diff --git a/packages/app/src/pages/session/use-session-commands.tsx b/packages/app/src/pages/session/use-session-commands.tsx
+index 18d5b172ff..9c2c9574eb 100644
+--- a/packages/app/src/pages/session/use-session-commands.tsx
++++ b/packages/app/src/pages/session/use-session-commands.tsx
+@@ -422,7 +422,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
+   }
+ 
+   const shareCmds = () => {
+-    if (sync().data.config.share === "disabled") return []
++    return []
+     return [
+       sessionCommand({
+         id: "session.share",

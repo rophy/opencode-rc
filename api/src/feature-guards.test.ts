@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono, type MiddlewareHandler } from "hono";
-import { FEATURES } from "../../config/schema.js";
+import { FEATURES, parseConfig, type FeatureName } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
 import { FEATURE_GUARDS, featureGuards, plainPath } from "./feature-guards.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
 
-const off = { features: { uploads: { enabled: false }, terminal: { enabled: true } } };
-const on = { features: { uploads: { enabled: true }, terminal: { enabled: true } } };
+const off = parseConfig({ features: { uploads: { enabled: false } } });
+const on = parseConfig({});
+// A guard table with no guard except the given ones.
+const guards = (only: Partial<Record<FeatureName, Guard>>) =>
+  ({ ...Object.fromEntries(FEATURES.map((name) => [name, null])), ...only }) as Record<FeatureName, Guard | null>;
 
 function makeApp(guard: Guard) {
   const app = new Hono<ProxyEnv>();
@@ -29,19 +32,19 @@ describe("FEATURE_GUARDS", () => {
 describe("featureGuards", () => {
   it("runs the guard of a disabled feature", async () => {
     const blocked: Guard = async (c) => c.text("blocked", 403);
-    const res = await makeApp(featureGuards(off, { uploads: blocked, terminal: null })).request("/proxy/s/x", { method: "POST" });
+    const res = await makeApp(featureGuards(off, guards({ uploads: blocked }))).request("/proxy/s/x", { method: "POST" });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe("blocked");
   });
 
   it("passes through when the feature is enabled", async () => {
     const blocked: Guard = async (c) => c.text("blocked", 403);
-    const res = await makeApp(featureGuards(on, { uploads: blocked, terminal: null })).request("/proxy/s/x", { method: "POST" });
+    const res = await makeApp(featureGuards(on, guards({ uploads: blocked }))).request("/proxy/s/x", { method: "POST" });
     expect(await res.text()).toBe("forwarded");
   });
 
   it("passes through a disabled feature without a guard, with no path check", async () => {
-    const res = await makeApp(featureGuards(off, { uploads: null, terminal: null })).request("/proxy/s/a%5Cb", { method: "POST" });
+    const res = await makeApp(featureGuards(off, guards({}))).request("/proxy/s/a%5Cb", { method: "POST" });
     expect(await res.text()).toBe("forwarded");
   });
 
@@ -49,7 +52,7 @@ describe("featureGuards", () => {
     const guard = vi.fn<Guard>(async (_c, next) => {
       await next();
     });
-    const res = await makeApp(featureGuards(off, { uploads: guard, terminal: null })).request("/proxy/s/a%5Cb", { method: "POST" });
+    const res = await makeApp(featureGuards(off, guards({ uploads: guard }))).request("/proxy/s/a%5Cb", { method: "POST" });
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("unsupported characters in path");
     expect(guard).not.toHaveBeenCalled();
@@ -59,7 +62,7 @@ describe("featureGuards", () => {
     const pass: Guard = async (_c, next) => {
       await next();
     };
-    const res = await makeApp(featureGuards(off, { uploads: pass, terminal: null })).request("/proxy/s/x", { method: "POST" });
+    const res = await makeApp(featureGuards(off, guards({ uploads: pass }))).request("/proxy/s/x", { method: "POST" });
     expect(await res.text()).toBe("forwarded");
   });
 });

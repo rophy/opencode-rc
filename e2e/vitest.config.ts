@@ -5,7 +5,7 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     include: ["**/*.test.ts"],
-    // terminal.test.ts redeploys the API; no other file may run meanwhile.
+    // feature-toggles.test.ts redeploys the API; no other file may run meanwhile.
     fileParallelism: false,
   },
 });

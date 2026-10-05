@@ -1,0 +1,32 @@
+diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
+index 41cf7d30ca..4239c0e4d6 100644
+--- a/packages/app/src/components/prompt-input.tsx
++++ b/packages/app/src/components/prompt-input.tsx
+@@ -434,7 +434,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+   }
+ 
+   const setMode = (mode: "normal" | "shell") => {
+-    setStore("mode", mode)
++    setStore("mode", "normal")
+     setStore({ popover: null, slashMenu: false, slashMenuQuery: "" })
+     requestAnimationFrame(() => editorRef?.focus())
+   }
+@@ -456,7 +456,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+       title: language.t("command.prompt.mode.shell"),
+       category: language.t("command.category.session"),
+       keybind: shellModeKey,
+-      disabled: store.mode === "shell",
++      disabled: true,
++      hidden: true,
+       onSelect: () => setMode("shell"),
+     },
+     {
+@@ -1255,7 +1256,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+       }
+     }
+ 
+-    if (event.key === "!" && store.mode === "normal") {
++    if (false) {
+       const cursorPosition = getCursorPosition(editorRef)
+       if (cursorPosition === 0) {
+         setStore("mode", "shell")

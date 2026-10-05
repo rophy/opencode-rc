@@ -2,10 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConfigError, parseConfig, parseConfigText } from "../../config/schema.js";
+import { ConfigError, FEATURES, parseConfig, parseConfigText } from "../../config/schema.js";
 import { loadRcConfig } from "./rc-config.js";
 
-const ALL_ON = { features: { uploads: { enabled: true }, terminal: { enabled: true } } };
+const ALL_ON = { features: Object.fromEntries(FEATURES.map((name) => [name, { enabled: true }])) };
 
 describe("parseConfig", () => {
   it("enables every feature for an empty object", () => {
@@ -29,7 +29,7 @@ describe("parseConfig", () => {
 
   it("disables uploads", () => {
     expect(parseConfig({ features: { uploads: { enabled: false } } })).toEqual({
-      features: { uploads: { enabled: false }, terminal: { enabled: true } },
+      features: { ...ALL_ON.features, uploads: { enabled: false } },
     });
   });
 

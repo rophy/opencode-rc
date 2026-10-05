@@ -1,0 +1,44 @@
+diff --git a/packages/app/src/components/session/session-context-tab.tsx b/packages/app/src/components/session/session-context-tab.tsx
+index a0758f3eac..c933ba6075 100644
+--- a/packages/app/src/components/session/session-context-tab.tsx
++++ b/packages/app/src/components/session/session-context-tab.tsx
+@@ -359,15 +359,6 @@ export function SessionContextTab() {
+         <div class="flex flex-col gap-2">
+           <div class="flex items-center justify-between">
+             <div class="text-12-regular text-text-weak">{language.t("context.rawMessages.title")}</div>
+-            <Button
+-              size="small"
+-              variant="ghost"
+-              class="gap-1.5 px-2 text-text-weak hover:text-text-base"
+-              onClick={exportSession}
+-            >
+-              <Icon name="download" size="small" />
+-              <span>{language.t("context.export.session")}</span>
+-            </Button>
+           </div>
+           <Accordion multiple>
+             <For each={messages()}>
+diff --git a/packages/app/src/pages/session/timeline/message-timeline.tsx b/packages/app/src/pages/session/timeline/message-timeline.tsx
+index e083882557..cc7b7ebc90 100644
+--- a/packages/app/src/pages/session/timeline/message-timeline.tsx
++++ b/packages/app/src/pages/session/timeline/message-timeline.tsx
+@@ -1543,9 +1543,6 @@ export function MessageTimeline(props: {
+                                     </DropdownMenu.ItemLabel>
+                                   </DropdownMenu.Item>
+                                 </Show>
+-                                <DropdownMenu.Item onSelect={() => exportSession(id)}>
+-                                  <DropdownMenu.ItemLabel>{language.t("common.export")}</DropdownMenu.ItemLabel>
+-                                </DropdownMenu.Item>
+                                 <DropdownMenu.Item onSelect={() => void sessionArchive.archive(id)}>
+                                   <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
+                                 </DropdownMenu.Item>
+@@ -1617,9 +1614,6 @@ export function MessageTimeline(props: {
+                                   {language.t("session.share.action.share")}...
+                                 </MenuV2.Item>
+                               </Show>
+-                              <MenuV2.Item onSelect={() => exportSession(id)}>
+-                                {language.t("common.export")}...
+-                              </MenuV2.Item>
+                               <MenuV2.Item onSelect={() => void sessionArchive.archive(id)}>
+                                 {language.t("common.archive")}
+                               </MenuV2.Item>
