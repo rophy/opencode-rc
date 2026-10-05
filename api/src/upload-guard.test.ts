@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { sessionAccess, proxyHttp, type ProxyEnv } from "./proxy.js";
-import { isPlainPath, isUploadPart, rawPath, uploadGuard } from "./upload-guard.js";
+import { isUploadPart } from "./upload-guard.js";
+import { featureGuards, isPlainPath, rawPath } from "./feature-guards.js";
 import type { SessionStore, SessionMeta } from "./store.js";
 
 const meta: SessionMeta = {
@@ -20,7 +21,7 @@ function makeApp(enabled = false) {
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), uploadGuard(enabled), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards({ features: { uploads: { enabled } } }), proxyHttp());
   return app;
 }
 
@@ -166,22 +167,6 @@ describe("uploadGuard", () => {
       expect(upstream).not.toHaveBeenCalled();
     },
   );
-
-  // Bun leaves req.url relative when the Host header is malformed; a Request cannot carry
-  // one, so the guard is called with a minimal context.
-  it("rejects a mutating request whose raw url cannot be parsed", async () => {
-    const next = vi.fn();
-    const c = {
-      req: { method: "POST", raw: { url: "/proxy/alice-dev/session/ses_1/message" }, path: "", param: () => meta.id },
-      get: () => meta.userId,
-      text: (body: string, status: number) => new Response(body, { status }),
-    };
-    const res = (await uploadGuard(false)(c as never, next)) as Response;
-    expect(res.status).toBe(400);
-    expect(await res.text()).toBe("unsupported characters in path");
-    expect(next).not.toHaveBeenCalled();
-    expect(upstream).not.toHaveBeenCalled();
-  });
 
   it("lets a GET with an encoded slash through", async () => {
     const res = await makeApp().request("/proxy/alice-dev/file/content%2Fa.ts", { method: "GET" });

@@ -3,8 +3,10 @@ import { describe, it, expect } from "vitest"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { createTwoFilesPatch } from "diff"
-import { applyPatches, readPatches, vendorPatches } from "./vendor-patches"
+import { FEATURES } from "../../config/schema"
+import { applyPatches, featurePatches, readPatches, vendorPatches } from "./vendor-patches"
 
 const A = "const on = true\nattach()\nend\n"
 const B = "other\n"
@@ -98,5 +100,38 @@ describe("vendorPatches plugin", () => {
     expect(() => plugin.buildStart()).not.toThrow()
     expect(plugin.transform(A, path.join(root, "app/a.ts"))).toBeNull()
     expect(() => plugin.generateBundle()).not.toThrow()
+  })
+})
+
+describe("featurePatches", () => {
+  // vendor/patches with a directory per feature
+  function patchesRoot() {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "feature-patches-"))
+    for (const [name, file] of [["uploads", "app/a.ts"], ["terminal", "app/b.ts"]]) {
+      fs.mkdirSync(path.join(root, name))
+      fs.writeFileSync(path.join(root, name, "x.patch"), gitPatch(file, "old\n", "new\n"))
+    }
+    return root
+  }
+
+  it("returns the patches of the disabled features only", () => {
+    const root = patchesRoot()
+    expect(featurePatches(root, ["uploads", "terminal"], ["terminal"]).map((p) => p.file)).toEqual(["app/b.ts"])
+    expect(featurePatches(root, ["uploads", "terminal"], [])).toEqual([])
+  })
+
+  it("allows a disabled feature without a directory", () => {
+    const root = patchesRoot()
+    expect(featurePatches(root, ["uploads", "terminal", "other"], ["other"])).toEqual([])
+  })
+
+  it("rejects a directory that names no feature", () => {
+    const root = patchesRoot()
+    expect(() => featurePatches(root, ["uploads"], [])).toThrow(/terminal is not a feature in config\/schema\.ts/)
+  })
+
+  it("matches the features in the real vendor/patches", () => {
+    const real = fileURLToPath(new URL("../../vendor/patches", import.meta.url))
+    expect(() => featurePatches(real, FEATURES, [])).not.toThrow()
   })
 })

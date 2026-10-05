@@ -1,12 +1,16 @@
 // The deployment config (config.json), shared by the UI build (ui/vite.config.ts) and the
 // API (api/src/rc-config.ts). Keep it free of dependencies: both import it directly.
 
+// Every feature that can be switched off. A disabled feature gets the UI build's patches in
+// vendor/patches/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
+export const FEATURES = ["uploads"] as const;
+
+export type FeatureName = (typeof FEATURES)[number];
+
 export interface RcConfig {
   /** API URL compiled into the UI. The API ignores it. */
   serverUrl?: string;
-  features: {
-    uploads: { enabled: boolean };
-  };
+  features: Record<FeatureName, { enabled: boolean }>;
 }
 
 export class ConfigError extends Error {}
@@ -53,11 +57,11 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
 
   const features = raw.features ?? {};
   if (!isObject(features)) return fail("features must be an object");
-  only(features, ["uploads"], "features.");
+  only(features, [...FEATURES], "features.");
 
   return {
     ...(serverUrl ? { serverUrl } : {}),
-    features: { uploads: feature(features.uploads, "features.uploads") },
+    features: Object.fromEntries(FEATURES.map((name) => [name, feature(features[name], `features.${name}`)])) as RcConfig["features"],
   };
 }
 

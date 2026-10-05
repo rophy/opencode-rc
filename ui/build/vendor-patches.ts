@@ -29,6 +29,20 @@ export function readPatches(dir: string): FilePatch[] {
   return out
 }
 
+// The patches of the disabled features, from vendor/patches/<feature>/. A directory that
+// names no feature is an error, so a typo cannot silently leave a feature in the app. A
+// feature without a directory has nothing to patch (the API enforces it alone).
+export function featurePatches(patchesRoot: string, features: readonly string[], disabled: readonly string[]): FilePatch[] {
+  const dirs = fs.existsSync(patchesRoot)
+    ? fs.readdirSync(patchesRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+    : []
+  const unknown = dirs.filter((dir) => !features.includes(dir))
+  if (unknown.length > 0) {
+    throw new Error(`${patchesRoot}: ${unknown.join(", ")} is not a feature in config/schema.ts`)
+  }
+  return disabled.filter((name) => dirs.includes(name)).flatMap((name) => readPatches(path.join(patchesRoot, name)))
+}
+
 // Applies the patches for one file, in order, with no fuzz: context must match exactly.
 export function applyPatches(code: string, file: string, patches: FilePatch[]): string {
   let out = code

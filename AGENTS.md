@@ -60,6 +60,24 @@ git apply --3way ../patches/uploads/composer-v1.patch   # resolve conflicts, the
 `ui/build/upload-patches.test.ts` checks what the upload patches remove; it runs against the
 pinned submodule (CI checks it out for the UI tests).
 
+### Adding a feature toggle
+
+A deployment switches features off in its config.json (`{"features": {"<name>": {"enabled": false}}}`).
+Each feature has up to two parts, found by its name:
+
+1. **Name**: add it to `FEATURES` in `config/schema.ts`. The schema then accepts it, the UI
+   build and the API pick it up, and type-checking fails until step 3 has an entry.
+2. **UI** (optional): `vendor/patches/<name>/*.patch` removes or changes it in opencode's UI.
+   Applied by the UI build only while the feature is disabled. A patch directory that names no
+   feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
+3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
+   the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
+   is the enforcement; a UI patch alone can be bypassed by calling the API directly. While any
+   guard is active, write requests must have plain paths, so guards can match paths safely.
+4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`) and test both
+   parts, as the `uploads disabled` tests do.
+5. **Docs**: describe it in the README's "Deployment Config" section.
+
 ## Package Managers
 
 - `api/`, `ui/`, `vendor/opencode` — **bun** (`bun.lock`)

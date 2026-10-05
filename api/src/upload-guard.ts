@@ -59,41 +59,13 @@ const BLOCKED: { method: string; path: RegExp }[] = [
   { method: "PATCH", path: /^\/session\/[^/]+\/message\/[^/]+\/part\/[^/]+$/i },
 ];
 
-// Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router
-// each parse the path again: '\' becomes '/', tabs and newlines are dropped, trailing
-// spaces are trimmed, encodings are decoded, ';' '?' '#' cut it short, and dot segments
-// are resolved. A path made only of these characters, with no "." or ".." segment, looks
-// the same at every hop, so the rules here check exactly the path that is forwarded.
-const PLAIN_PATH = /^[A-Za-z0-9/_.~-]*$/;
-
-export function isPlainPath(path: string): boolean {
-  return PLAIN_PATH.test(path) && !path.split("/").some((seg) => seg === "." || seg === "..");
-}
-
-// The undecoded path of the request url, or null when it cannot be parsed (Bun leaves the
-// url relative when the Host header is malformed).
-export function rawPath(url: string): string | null {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return null;
-  }
-}
-
-// With uploads disabled, rejects requests that would send a file to opencode. Matched
-// requests are buffered and checked, and the proxy forwards those same bytes; other
-// requests stream through untouched.
-export function uploadGuard(enabled: boolean): MiddlewareHandler<ProxyEnv> {
+// The guard for a disabled uploads feature (see feature-guards.ts, which also makes sure the
+// path is plain): rejects requests that would send a file to opencode. Matched requests are
+// buffered and checked, and the proxy forwards those same bytes; other requests stream
+// through untouched.
+export function uploadGuard(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
-    if (enabled) return next();
     const method = c.req.method;
-    if (method !== "GET" && method !== "HEAD") {
-      const path = rawPath(c.req.raw.url);
-      if (path === null || !isPlainPath(path)) {
-        console.log(`upload blocked user=${c.get("userId")} ${method} unsupported path characters`);
-        return c.text("unsupported characters in path", 400);
-      }
-    }
     const rest = proxyRest(c.req.path, c.req.param("sessionId")!).replace(/\/+$/, "");
 
     if (BLOCKED.some((b) => b.method === method && b.path.test(rest))) {

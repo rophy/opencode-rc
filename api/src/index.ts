@@ -3,7 +3,8 @@ import { websocket } from "hono/bun";
 import Redis from "ioredis";
 import { loadConfig } from "./config.js";
 import { loadRcConfig } from "./rc-config.js";
-import { uploadGuard } from "./upload-guard.js";
+import { featureGuards } from "./feature-guards.js";
+import { FEATURES } from "../../config/schema.js";
 import { discoverOIDC, createProvider } from "./oidc.js";
 import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
 import { SessionStore } from "./store.js";
@@ -21,7 +22,8 @@ const version = pkg.version;
 
 const config = loadConfig();
 const rcConfig = loadRcConfig();
-if (!rcConfig.features.uploads.enabled) console.log("uploads disabled");
+const disabled = FEATURES.filter((name) => !rcConfig.features[name].enabled);
+if (disabled.length > 0) console.log(`features disabled: ${disabled.join(", ")}`);
 
 if (config.tlsInsecureSkipVerify) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -102,7 +104,7 @@ app.all(
   access,
   sessionAccess(store),
   wsRelay(),
-  uploadGuard(rcConfig.features.uploads.enabled),
+  featureGuards(rcConfig),
   proxyHttp(),
 );
 

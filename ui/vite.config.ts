@@ -3,9 +3,9 @@ import solid from "vite-plugin-solid"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 import fs from "fs"
-import { parseConfig, parseConfigText, type RcConfig } from "../config/schema"
+import { FEATURES, parseConfig, parseConfigText, type RcConfig } from "../config/schema"
 import { contentSecurityPolicy } from "./csp"
-import { readPatches, vendorPatches } from "./build/vendor-patches"
+import { featurePatches, vendorPatches } from "./build/vendor-patches"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
@@ -162,7 +162,14 @@ export default defineConfig({
   },
   plugins: [
     // vendor/patches/<feature>: our changes to upstream opencode, applied when the feature is disabled.
-    vendorPatches(opencodeRoot, rcConfig.features.uploads.enabled ? [] : readPatches(path.resolve(__dirname, "../vendor/patches/uploads"))),
+    vendorPatches(
+      opencodeRoot,
+      featurePatches(
+        path.resolve(__dirname, "../vendor/patches"),
+        FEATURES,
+        FEATURES.filter((name) => !rcConfig.features[name].enabled),
+      ),
+    ),
     opencodeResolver(),
     opencodeAppFonts(),
     solid(),
