@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { Hono } from "hono";
-import { proxyRest, upstreamUrl, sessionAccess, proxyHttp, type ProxyEnv } from "./proxy.js";
+import { proxyRest, upstreamUrl, sessionAccess, proxyHttp, endOnDenial, type ProxyEnv } from "./proxy.js";
+import type { AccessWatch } from "./authz.js";
 import type { SessionStore, SessionMeta } from "./store.js";
 
 const meta: SessionMeta = {
@@ -98,5 +99,81 @@ describe("proxy routes", () => {
     const server = { timeout: vi.fn() };
     await makeApp("alice@example.com").request("/proxy/alice-dev/api/health", {}, server);
     expect(server.timeout).not.toHaveBeenCalled();
+  });
+});
+
+describe("endOnDenial", () => {
+  // A watch the test denies by hand.
+  function fakeWatch() {
+    let deny: (() => void) | undefined;
+    const stop = vi.fn();
+    const watch: AccessWatch = (onDenied) => {
+      deny = () => onDenied({ allowed: false });
+      return stop;
+    };
+    return { watch, stop, deny: () => deny!() };
+  }
+
+  // Chunks already queued may still arrive after a denial; then the stream ends.
+  async function endsSoon(reader: ReadableStreamDefaultReader<Uint8Array>) {
+    for (let i = 0; i < 5; i++) if ((await reader.read()).done) return true;
+    return false;
+  }
+
+  // An event stream that never ends on its own.
+  function endless() {
+    const cancel = vi.fn();
+    let n = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull: (ctl) => ctl.enqueue(new TextEncoder().encode(`data: ${n++}\n\n`)),
+      cancel,
+    });
+    return { body, cancel };
+  }
+
+  it("passes events through until access is denied, then ends the stream", async () => {
+    const { watch, stop, deny } = fakeWatch();
+    const upstream = endless();
+    const reader = endOnDenial(upstream.body, watch).getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe("data: 0\n\n");
+    deny();
+    expect(await endsSoon(reader)).toBe(true);
+    expect(upstream.cancel).toHaveBeenCalled();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("stops watching when the upstream ends", async () => {
+    const { watch, stop } = fakeWatch();
+    const reader = endOnDenial(new Response("data: x\n\n").body!, watch).getReader();
+    while (!(await reader.read()).done);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("stops watching when the client goes away", async () => {
+    const { watch, stop } = fakeWatch();
+    const upstream = endless();
+    await endOnDenial(upstream.body, watch).cancel();
+    expect(stop).toHaveBeenCalled();
+    expect(upstream.cancel).toHaveBeenCalled();
+  });
+
+  it("is applied to event streams proxied for a watched user", async () => {
+    const { watch, deny } = fakeWatch();
+    const upstream = endless();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(upstream.body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    const app = new Hono<ProxyEnv>();
+    app.use("*", async (c, next) => {
+      c.set("userId", meta.userId);
+      c.set("token", "tok");
+      c.set("watchAccess", watch);
+      await next();
+    });
+    app.all("/proxy/:sessionId/*", sessionAccess(store), proxyHttp());
+    const reader = (await app.request("/proxy/alice-dev/global/event")).body!.getReader();
+    await reader.read();
+    deny();
+    expect(await endsSoon(reader)).toBe(true);
   });
 });

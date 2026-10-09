@@ -194,6 +194,103 @@ describe("requireAccess", () => {
   });
 });
 
+describe("Authorizer.watch", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("re-checks every allowedTtl and calls onDenied once when access is revoked", async () => {
+    const a = authorizer();
+    const onDenied = vi.fn();
+    a.watch(alice, onDenied);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).not.toHaveBeenCalled();
+    decide = () => Response.json({ allowed: false, reason: "left the office" });
+    await a.evict(alice.uid);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith({ allowed: false, reason: "left the office" });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(onDenied).toHaveBeenCalledTimes(1);
+  });
+
+  it("learns of a revocation once the cached decision expires", async () => {
+    const a = authorizer({ allowedTtl: 30 });
+    const onDenied = vi.fn();
+    await a.check(alice);
+    a.watch(alice, onDenied);
+    decide = () => Response.json({ allowed: false });
+    redis.advance(30);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(onDenied).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the stream when a re-check fails, and tries again", async () => {
+    const a = authorizer();
+    const onDenied = vi.fn();
+    a.watch(alice, onDenied);
+    const get = vi.spyOn(redis, "get").mockRejectedValue(new Error("redis down"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).not.toHaveBeenCalled();
+    get.mockRestore();
+    decide = () => Response.json({ allowed: false });
+    await a.evict(alice.uid);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the stream when the webhook fails", async () => {
+    const a = authorizer();
+    const onDenied = vi.fn();
+    a.watch(alice, onDenied);
+    decide = () => new Response("boom", { status: 500 });
+    await a.evict(alice.uid);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith({ allowed: false });
+  });
+
+  it("stops re-checking once stopped", async () => {
+    const a = authorizer();
+    const onDenied = vi.fn();
+    const stop = a.watch(alice, onDenied);
+    stop();
+    decide = () => Response.json({ allowed: false });
+    await a.evict(alice.uid);
+    hook.mockClear();
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(hook).not.toHaveBeenCalled();
+    expect(onDenied).not.toHaveBeenCalled();
+  });
+
+  it("does nothing without a webhook", async () => {
+    const onDenied = vi.fn();
+    authorizer({ webhookUrl: "" }).watch(alice, onDenied);
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(hook).not.toHaveBeenCalled();
+    expect(onDenied).not.toHaveBeenCalled();
+  });
+
+  it("is handed to the route by requireAccess", async () => {
+    const a = authorizer();
+    const app = new Hono<AuthEnv>();
+    let watching = false;
+    app.get(
+      "/x",
+      async (c, next) => {
+        c.set("claims", alice);
+        await next();
+      },
+      requireAccess(a),
+      (c) => {
+        const stop = c.get("watchAccess")?.(() => {});
+        watching = stop !== undefined;
+        stop?.();
+        return c.text("ok");
+      },
+    );
+    expect((await app.request("/x")).status).toBe(200);
+    expect(watching).toBe(true);
+  });
+});
+
 describe("adminRoutes", () => {
   const del = (app: Hono, path: string, token?: string) =>
     app.request(path, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });

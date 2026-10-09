@@ -27,6 +27,9 @@ export interface Decision {
 
 const MAX_REASON = 300;
 
+/** Starts re-checking the user of an open stream; onDenied runs once on a denial. Returns stop. */
+export type AccessWatch = (onDenied: (decision: Decision) => void) => () => void;
+
 // Evicting everyone bumps the generation, so old entries are never read again and expire.
 const key = {
   gen: "orc:v2:authz:gen",
@@ -69,6 +72,36 @@ export class Authorizer {
     return decision;
   }
 
+  // Re-checks the user of a stream that stays open (event stream, terminal) each time a cached
+  // "allowed" expires, so a revocation ends it within allowedTtl. A check that fails (Redis
+  // down) keeps the stream and retries at the next tick, as a new request gets 503, not 403.
+  watch(user: AccessClaims, onDenied: (decision: Decision) => void): () => void {
+    if (!this.enabled) return () => {};
+    let stopped = false;
+    let busy = false;
+    const timer = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const decision = await this.check(user);
+        if (!decision.allowed && !stopped) {
+          stop();
+          console.log(`authz: closing open stream user=${user.uid} email=${user.email}`);
+          onDenied(decision);
+        }
+      } catch (err) {
+        console.error(`authz: re-check failed user=${user.uid}:`, err);
+      } finally {
+        busy = false;
+      }
+    }, this.opts.allowedTtl * 1000);
+    const stop = () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+    return stop;
+  }
+
   async evict(uid: string): Promise<void> {
     const gen = (await this.redis.get(key.gen)) ?? "0";
     await this.redis.del(key.decision(gen, uid));
@@ -108,11 +141,13 @@ export class Authorizer {
   }
 }
 
+// Also hands the route a watch for streams it keeps open (c.get("watchAccess")).
 export function requireAccess(authorizer: Authorizer): MiddlewareHandler<AuthEnv> {
   return async (c, next) => {
+    const claims = c.get("claims");
     let decision: Decision;
     try {
-      decision = await authorizer.check(c.get("claims"));
+      decision = await authorizer.check(claims);
     } catch (err) {
       console.error("authz check failed:", err);
       return c.json({ error: "unavailable" }, 503);
@@ -120,6 +155,7 @@ export function requireAccess(authorizer: Authorizer): MiddlewareHandler<AuthEnv
     if (!decision.allowed) {
       return c.json({ error: "forbidden", ...(decision.reason ? { reason: decision.reason } : {}) }, 403);
     }
+    c.set("watchAccess", (onDenied) => authorizer.watch(claims, onDenied));
     await next();
   };
 }

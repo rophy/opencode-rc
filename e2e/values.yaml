@@ -16,6 +16,9 @@ authz:
     url: http://authz-hook:8080/check
     tokenSecret:
       name: authz-hook-token
+  # Short, so the e2e tests see open streams re-checked quickly.
+  cacheTTL:
+    allowed: 5s
 admin:
   tokenSecret:
     name: opencode-rc-admin

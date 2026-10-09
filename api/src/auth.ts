@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import type { AccessWatch } from "./authz.js";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
 import { verifyToken } from "./oidc.js";
@@ -21,6 +22,8 @@ export type AuthEnv = {
     userId: string;
     claims: AccessClaims;
     token: string;
+    /** Set by requireAccess, for routes that keep a stream open. */
+    watchAccess?: AccessWatch;
   };
 };
 

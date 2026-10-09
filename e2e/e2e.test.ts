@@ -538,6 +538,48 @@ describe("access webhook", () => {
     expect((await health()).status).toBe(200);
   });
 
+  // Open streams are re-checked every authz.cacheTTL.allowed (5s on e2e).
+  it("a revoked owner's open event stream and terminal are closed", async () => {
+    const created = await aliceJar.fetch(`${API_URL}/proxy/${SESSION_ID}/pty`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(created.status).toBe(200);
+    const pty = (await created.json()) as { id: string };
+    const ws = new WebSocket(
+      API_URL.replace(/^http/, "ws") +
+        `/proxy/${SESSION_ID}/pty/${pty.id}/connect?cursor=0&access_token=${encodeURIComponent(aliceJar.access)}`,
+    );
+    const wsClosed = new Promise<{ code: number; reason: string }>((resolve) =>
+      ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() })),
+    );
+    await new Promise((resolve, reject) => {
+      ws.once("open", resolve);
+      ws.once("error", reject);
+    });
+    const events = await aliceJar.fetch(`${API_URL}/proxy/${SESSION_ID}/global/event`);
+    expect(events.status).toBe(200);
+    const reader = events.body!.getReader();
+    await reader.read();
+    const streamEnded = (async () => {
+      while (!(await reader.read()).done);
+    })();
+
+    try {
+      await setDenied("user1", true);
+      expect((await admin("/admin/authz/cache/user1")).status).toBe(204);
+      const deadline = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error("not closed")), ms));
+      await Promise.race([streamEnded, deadline(15_000)]);
+      expect(await Promise.race([wsClosed, deadline(15_000)])).toEqual({ code: 1008, reason: "on the e2e deny list" });
+    } finally {
+      ws.close();
+      await reader.cancel().catch(() => {});
+      await setDenied("user1", false);
+      await admin("/admin/authz/cache/user1");
+    }
+  }, 40_000);
+
   it("a failing webhook denies, and the failure is not cached", async () => {
     const sessions = () => bobJar.fetch(`${API_URL}/gateway/sessions`);
     try {
@@ -576,9 +618,10 @@ describe("access webhook", () => {
 
   it("a revoked user keeps access until the cache is evicted", async () => {
     try {
+      // A fresh allowed decision, cached for authz.cacheTTL.allowed (5s on e2e).
+      await admin("/admin/authz/cache/user2");
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
       await setDenied("user2", true);
-      // The allowed decision is cached for authz.cacheTTL.allowed (60s by default).
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(200);
       expect((await admin("/admin/authz/cache/user2")).status).toBe(204);
       expect((await bobJar.fetch(`${API_URL}/gateway/sessions`)).status).toBe(403);

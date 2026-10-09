@@ -1,6 +1,7 @@
 import type { Handler, MiddlewareHandler } from "hono";
 import type { SessionStore, SessionMeta } from "./store.js";
 import type { AuthEnv } from "./auth.js";
+import type { AccessWatch } from "./authz.js";
 
 // Under Bun, Hono's env is the Bun server.
 type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
@@ -90,10 +91,52 @@ export function proxyHttp(): Handler<ProxyEnv> {
     for (const name of [...out.keys()]) {
       if (name.startsWith("access-control-")) out.delete(name);
     }
-    // Bun closes connections idle for 10s, which would cut SSE streams between heartbeats.
+    let body: ReadableStream<Uint8Array> | null = upstream.body;
     if (out.get("content-type")?.startsWith("text/event-stream")) {
+      // Bun closes connections idle for 10s, which would cut SSE streams between heartbeats.
       c.env?.timeout?.(c.req.raw, 0);
+      const watch = c.get("watchAccess");
+      if (body && watch) body = endOnDenial(body, watch);
     }
-    return new Response(upstream.body, { status: upstream.status, headers: out });
+    return new Response(body, { status: upstream.status, headers: out });
   };
+}
+
+// The event stream, ended when a re-check of the user's access denies. The client then
+// reconnects and gets the 403.
+export function endOnDenial(body: ReadableStream<Uint8Array>, watch: AccessWatch): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  let stop = () => {};
+  let closed = false;
+  const close = (ctl: ReadableStreamDefaultController<Uint8Array>) => {
+    if (closed) return;
+    closed = true;
+    stop();
+    ctl.close();
+  };
+  return new ReadableStream<Uint8Array>({
+    start(ctl) {
+      stop = watch(() => {
+        close(ctl);
+        reader.cancel().catch(() => {});
+      });
+    },
+    async pull(ctl) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) close(ctl);
+        else if (!closed) ctl.enqueue(value);
+      } catch (err) {
+        if (closed) return;
+        closed = true;
+        stop();
+        ctl.error(err);
+      }
+    },
+    cancel(reason) {
+      closed = true;
+      stop();
+      return reader.cancel(reason);
+    },
+  });
 }

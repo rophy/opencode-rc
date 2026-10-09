@@ -120,7 +120,7 @@ The `existingSecret` must contain:
 | `authz.webhook.url` | `""` | Access webhook (see [Access Control](#access-control)); empty: every signed-in user may use their sessions |
 | `authz.webhook.tokenSecret` | name `""`, key `token` | Secret key sent to the webhook as `Authorization: Bearer <token>` |
 | `authz.timeout` | `5s` | Webhook timeout; a timeout denies |
-| `authz.cacheTTL.allowed` / `.denied` | `60s` / `10s` | How long a decision is reused |
+| `authz.cacheTTL.allowed` / `.denied` | `60s` / `10s` | How long a decision is reused; open event streams and terminals are also re-checked every `allowed` |
 | `admin.tokenSecret` | name `""`, key `token` | Secret key holding the admin API bearer token; no admin API when the name is empty |
 | `redis.enabled` | `true` | Deploy Redis; set `false` to use external Redis via secret |
 | `tlsInsecureSkipVerify` | `false` | Skip TLS certificate verification for OIDC discovery |
@@ -175,7 +175,7 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/
 curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/authz/cache         # everyone
 ```
 
-The check runs when a request or stream starts: an already open event stream or terminal keeps running after access is revoked, until it closes.
+Open event streams and terminals are checked again every `authz.cacheTTL.allowed` and closed once the user is denied (a terminal closes with WebSocket code `1008` and the reason). Set it to how fresh the webhook's answer is: a revocation reaches open streams within that time, and evicting the cache does not shorten it. If the check itself cannot run (Redis unavailable), streams stay open and are checked again at the next interval.
 
 ### Deployment Config
 

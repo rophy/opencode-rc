@@ -208,7 +208,9 @@ authz:
       name: ""
       key: token
   timeout: 5s
-  # How long a decision is reused before the webhook is asked again.
+  # How long a decision is reused before the webhook is asked again. Open event streams and
+  # terminals are re-checked every `allowed` and closed once denied, so set it to how fresh
+  # the webhook's answer is (e.g. how quickly it learns a device left the corporate network).
   cacheTTL:
     allowed: 60s
     denied: 10s
