@@ -19,6 +19,11 @@ describe("access tokens", () => {
     expect(verifyAccessToken(token, secret)).toEqual(claims);
   });
 
+  it("round-trips the session id", () => {
+    const token = signAccessToken({ ...claims, sid: "chain-1" }, secret, 900);
+    expect(verifyAccessToken(token, secret)).toEqual({ ...claims, sid: "chain-1" });
+  });
+
   it("rejects an expired token", () => {
     const t0 = Date.now();
     const token = signAccessToken(claims, secret, 900, t0);

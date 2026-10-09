@@ -27,6 +27,9 @@ export interface Decision {
 
 const MAX_REASON = 300;
 
+/** The reason an open stream closes when the user's sign-in session ends. */
+export const SESSION_ENDED = "signed out";
+
 /** Starts re-checking the user of an open stream; onDenied runs once on a denial. Returns stop. */
 export type AccessWatch = (onDenied: (decision: Decision) => void) => () => void;
 
@@ -73,20 +76,30 @@ export class Authorizer {
   }
 
   // Re-checks the user of a stream that stays open (event stream, terminal) each time a cached
-  // "allowed" expires, so a revocation ends it within allowedTtl. A check that fails (Redis
-  // down) keeps the stream and retries at the next tick, as a new request gets 503, not 403.
-  watch(user: AccessClaims, onDenied: (decision: Decision) => void): () => void {
-    if (!this.enabled) return () => {};
+  // "allowed" expires, so a revocation ends it within allowedTtl. With sessionActive, it also
+  // ends the stream once the user's sign-in session does (signed out, expired). A check that
+  // fails (Redis down) keeps the stream and retries at the next tick, as a new request gets
+  // 503, not 403.
+  watch(
+    user: AccessClaims,
+    onDenied: (decision: Decision) => void,
+    sessionActive?: () => Promise<boolean>,
+  ): () => void {
+    if (!this.enabled && !sessionActive) return () => {};
     let stopped = false;
     let busy = false;
     const timer = setInterval(async () => {
       if (busy) return;
       busy = true;
       try {
-        const decision = await this.check(user);
+        let decision: Decision = { allowed: true };
+        if (sessionActive && !(await sessionActive())) decision = { allowed: false, reason: SESSION_ENDED };
+        else if (this.enabled) decision = await this.check(user);
         if (!decision.allowed && !stopped) {
           stop();
-          console.log(`authz: closing open stream user=${user.uid} email=${user.email}`);
+          console.log(
+            `authz: closing open stream user=${user.uid} email=${user.email}${decision.reason === SESSION_ENDED ? " (session ended)" : ""}`,
+          );
           onDenied(decision);
         }
       } catch (err) {
@@ -141,8 +154,13 @@ export class Authorizer {
   }
 }
 
+/** Tells whether a sign-in session still exists (TokenStore.sessionActive). */
+export interface Sessions {
+  sessionActive(sid: string): Promise<boolean>;
+}
+
 // Also hands the route a watch for streams it keeps open (c.get("watchAccess")).
-export function requireAccess(authorizer: Authorizer): MiddlewareHandler<AuthEnv> {
+export function requireAccess(authorizer: Authorizer, sessions?: Sessions): MiddlewareHandler<AuthEnv> {
   return async (c, next) => {
     const claims = c.get("claims");
     let decision: Decision;
@@ -155,7 +173,10 @@ export function requireAccess(authorizer: Authorizer): MiddlewareHandler<AuthEnv
     if (!decision.allowed) {
       return c.json({ error: "forbidden", ...(decision.reason ? { reason: decision.reason } : {}) }, 403);
     }
-    c.set("watchAccess", (onDenied) => authorizer.watch(claims, onDenied));
+    // Tokens issued before sign-in sessions were recorded in them carry no sid.
+    const sid = claims.sid;
+    const sessionActive = sessions && sid ? () => sessions.sessionActive(sid) : undefined;
+    c.set("watchAccess", (onDenied) => authorizer.watch(claims, onDenied, sessionActive));
     await next();
   };
 }

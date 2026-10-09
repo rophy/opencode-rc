@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Hono } from "hono";
-import { Authorizer, adminRoutes, requireAccess, type AuthzOptions } from "./authz.js";
+import { Authorizer, SESSION_ENDED, adminRoutes, requireAccess, type AuthzOptions } from "./authz.js";
 import { MockRedis } from "./testing/mock-redis.js";
 import type { AuthEnv } from "./auth.js";
 
@@ -266,6 +266,61 @@ describe("Authorizer.watch", () => {
     await vi.advanceTimersByTimeAsync(180_000);
     expect(hook).not.toHaveBeenCalled();
     expect(onDenied).not.toHaveBeenCalled();
+  });
+
+  it("closes the stream once the sign-in session ends", async () => {
+    const a = authorizer();
+    const onDenied = vi.fn();
+    let active = true;
+    a.watch(alice, onDenied, async () => active);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).not.toHaveBeenCalled();
+    active = false;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith({ allowed: false, reason: SESSION_ENDED });
+  });
+
+  it("checks the session without a webhook", async () => {
+    const onDenied = vi.fn();
+    authorizer({ webhookUrl: "" }).watch(alice, onDenied, async () => false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(hook).not.toHaveBeenCalled();
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith({ allowed: false, reason: SESSION_ENDED });
+  });
+
+  it("keeps the stream when the session check fails", async () => {
+    const onDenied = vi.fn();
+    authorizer().watch(alice, onDenied, async () => {
+      throw new Error("redis down");
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(onDenied).not.toHaveBeenCalled();
+  });
+
+  it("is given the token's session by requireAccess", async () => {
+    const sessionActive = vi.fn(async () => false);
+    const app = new Hono<AuthEnv>();
+    const onDenied = vi.fn();
+    app.get(
+      "/x/:sid",
+      async (c, next) => {
+        const sid = c.req.param("sid");
+        c.set("claims", sid === "none" ? alice : { ...alice, sid });
+        await next();
+      },
+      requireAccess(authorizer({ webhookUrl: "" }), { sessionActive }),
+      (c) => {
+        c.get("watchAccess")?.(onDenied);
+        return c.text("ok");
+      },
+    );
+    await app.request("/x/none");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sessionActive).not.toHaveBeenCalled();
+    await app.request("/x/chain-1");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sessionActive).toHaveBeenCalledWith("chain-1");
+    expect(onDenied).toHaveBeenCalledTimes(1);
   });
 
   it("is handed to the route by requireAccess", async () => {

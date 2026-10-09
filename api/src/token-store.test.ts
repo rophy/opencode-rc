@@ -28,19 +28,21 @@ describe("login codes", () => {
 });
 
 describe("refresh rotation", () => {
-  it("rotates to a new token with the same claims", async () => {
-    const t1 = await store.createChain(claims);
+  it("rotates to a new token with the same claims and session", async () => {
+    const session = await store.createChain(claims);
+    const t1 = session.refreshToken;
+    expect(session.claims).toEqual({ ...claims, sid: expect.any(String) });
     const r = await store.rotate(t1);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.refreshToken).not.toBe(t1);
-    expect(r.claims).toEqual(claims);
+    expect(r.claims).toEqual(session.claims);
     const r2 = await store.rotate(r.refreshToken);
     expect(r2.ok).toBe(true);
   });
 
   it("returns the same next token when reused within the grace window", async () => {
-    const t1 = await store.createChain(claims);
+    const { refreshToken: t1 } = await store.createChain(claims);
     const a = await store.rotate(t1);
     redis.advance(REFRESH_GRACE_SECONDS - 1);
     const b = await store.rotate(t1);
@@ -50,7 +52,7 @@ describe("refresh rotation", () => {
   });
 
   it("revokes the chain when reused after the grace window", async () => {
-    const t1 = await store.createChain(claims);
+    const { refreshToken: t1 } = await store.createChain(claims);
     const a = await store.rotate(t1);
     redis.advance(REFRESH_GRACE_SECONDS);
     expect((await store.rotate(t1)).ok).toBe(false);
@@ -60,7 +62,7 @@ describe("refresh rotation", () => {
   });
 
   it("stops working at the absolute session expiry", async () => {
-    let t = await store.createChain(claims);
+    let t = (await store.createChain(claims)).refreshToken;
     for (let i = 0; i < 6; i++) {
       redis.advance(24 * 3600);
       const r = await store.rotate(t);
@@ -76,9 +78,20 @@ describe("refresh rotation", () => {
   });
 
   it("revoke ends the chain", async () => {
-    const t1 = await store.createChain(claims);
+    const { refreshToken: t1 } = await store.createChain(claims);
     await store.revoke(t1);
     expect((await store.rotate(t1)).ok).toBe(false);
+  });
+
+  it("reports whether the session is active", async () => {
+    const { refreshToken, claims: c } = await store.createChain(claims);
+    expect(await store.sessionActive(c.sid!)).toBe(true);
+    await store.revoke(refreshToken);
+    expect(await store.sessionActive(c.sid!)).toBe(false);
+    const other = await store.createChain(claims);
+    redis.advance(WEEK);
+    expect(await store.sessionActive(other.claims.sid!)).toBe(false);
+    expect(await store.sessionActive("nope")).toBe(false);
   });
 
   it("revoke of an unknown token is a no-op", async () => {

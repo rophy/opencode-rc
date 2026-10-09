@@ -52,8 +52,14 @@ export function proxySocketUrl(input: string, opts: ProxyOptions, token: string 
   return out.href
 }
 
+// onForbidden: a proxied request got 403, which may mean the access hook now denies the
+// user. The caller asks /api/me to find out; guards (e.g. a disabled terminal) answer 403 too.
 export function installProxyFetch(
-  opts: ProxyOptions & { getToken: () => Promise<string | null>; invalidate: () => void },
+  opts: ProxyOptions & {
+    getToken: () => Promise<string | null>
+    invalidate: () => void
+    onForbidden?: () => void
+  },
 ): void {
   const original = globalThis.fetch.bind(globalThis)
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -95,15 +101,20 @@ export function installProxyFetch(
       if (token) req.headers.set("authorization", `Bearer ${token}`)
       return original(req)
     }
-    const res = await send()
-    if (res.status !== 401) return res
-    opts.invalidate()
-    return send()
+    let res = await send()
+    if (res.status === 401) {
+      opts.invalidate()
+      res = await send()
+    }
+    if (res.status === 403) opts.onForbidden?.()
+    return res
   }
 }
 
+// onForbidden: the API closed the socket with 1008 (policy violation), as it does when the
+// access hook denies the user of an open terminal.
 export function installProxyWebSocket(
-  opts: ProxyOptions & { getCachedToken: () => string | null; warmToken: () => void },
+  opts: ProxyOptions & { getCachedToken: () => string | null; warmToken: () => void; onForbidden?: () => void },
 ): void {
   const Native = globalThis.WebSocket
   class ProxiedWebSocket extends Native {
@@ -112,6 +123,9 @@ export function installProxyWebSocket(
       // No valid token cached: start a refresh so the terminal's reconnect gets one.
       if (!token) opts.warmToken()
       super(proxySocketUrl(String(url), opts, token) ?? url, protocols)
+      this.addEventListener("close", (e) => {
+        if (e.code === 1008) opts.onForbidden?.()
+      })
     }
   }
   globalThis.WebSocket = ProxiedWebSocket as typeof WebSocket

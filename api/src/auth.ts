@@ -205,9 +205,8 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       if (!record || !verifyCodeVerifier(stringField(body, "code_verifier"), record.challenge)) {
         return c.json({ error: "invalid_grant" }, 400);
       }
-      const { claims } = record;
-      const refreshToken = await tokens.createChain(claims);
-      return tokenResponse(c, config, claims, refreshToken);
+      const session = await tokens.createChain(record.claims);
+      return tokenResponse(c, config, session.claims, session.refreshToken);
     } catch (err) {
       console.error("token exchange failed:", err);
       return c.json({ error: "unavailable" }, 503);

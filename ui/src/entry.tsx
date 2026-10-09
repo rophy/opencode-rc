@@ -53,6 +53,7 @@ import { LoginScreen } from "./login-screen"
 import { protocolState, resetProtocolState } from "./protocol"
 import { ProtocolScreen } from "./protocol-screen"
 import { NoAccessScreen } from "./no-access-screen"
+import { accessRecheck } from "./access-recheck"
 
 const platform: Platform = {
   platform: "web",
@@ -85,7 +86,10 @@ function getSessionIdFromPath(): string | null {
 
 function App(props: { loginExpired: boolean }) {
   const [showConfig, setShowConfig] = createSignal(false)
-  const [user, { refetch: refetchUser }] = createResource(fetchMe)
+  const [user, { refetch: refetchUser, mutate: setUser }] = createResource(fetchMe)
+  // A revoked user's open session ends with 403s (and a terminal closed with 1008): show the
+  // denial. Not a refetch, which would unmount the session while it loads.
+  const recheckAccess = accessRecheck(fetchMe, setUser)
   onLoggedOut(() => refetchUser())
   const sessionId = getSessionIdFromPath()
 
@@ -130,11 +134,17 @@ function App(props: { loginExpired: boolean }) {
           const proxyUrl = `${serverOrigin}/proxy/${sessionId}/`
 
           const proxyOpts = { pageOrigin: location.origin, serverOrigin, sessionId: sessionId! }
-          installProxyFetch({ ...proxyOpts, getToken: getAccessToken, invalidate: invalidateAccessToken })
+          installProxyFetch({
+            ...proxyOpts,
+            getToken: getAccessToken,
+            invalidate: invalidateAccessToken,
+            onForbidden: recheckAccess,
+          })
           installProxyWebSocket({
             ...proxyOpts,
             getCachedToken: getCachedAccessToken,
             warmToken: () => void getAccessToken(),
+            onForbidden: recheckAccess,
           })
 
           const server: ServerConnection.Http = {

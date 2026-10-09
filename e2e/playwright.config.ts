@@ -12,6 +12,14 @@ export default defineConfig({
     {
       name: "chromium",
       use: { browserName: "chromium" },
+      testIgnore: /revocation\.spec\.ts/,
+    },
+    // Revokes Alice, the only user with a dev session: runs after every other test.
+    {
+      name: "revocation",
+      use: { browserName: "chromium" },
+      testMatch: /revocation\.spec\.ts/,
+      dependencies: ["chromium"],
     },
   ],
 });

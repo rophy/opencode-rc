@@ -77,7 +77,7 @@ app.route("/", adminRoutes(config.adminToken, authorizer));
 
 // Protected routes
 const auth = authMiddleware(config);
-const access = requireAccess(authorizer);
+const access = requireAccess(authorizer, tokens);
 
 app.get("/api/me", auth, async (c) => {
   const claims = c.get("claims");

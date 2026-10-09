@@ -4,6 +4,8 @@ export interface AccessClaims {
   uid: string;
   email: string;
   name: string;
+  /** The sign-in session (refresh chain) the token was issued for. Older tokens have none. */
+  sid?: string;
 }
 
 interface AccessPayload extends AccessClaims {
@@ -26,6 +28,7 @@ export function signAccessToken(
     uid: claims.uid,
     email: claims.email,
     name: claims.name,
+    ...(claims.sid ? { sid: claims.sid } : {}),
     exp: Math.floor(now / 1000) + ttlSeconds,
   };
   const payload = Buffer.from(JSON.stringify(body)).toString("base64url");
@@ -54,7 +57,9 @@ export function verifyAccessToken(
     return null;
   }
   if (Math.floor(now / 1000) >= body.exp) return null;
-  return { uid: body.uid, email: body.email ?? "", name: body.name ?? "" };
+  const claims: AccessClaims = { uid: body.uid, email: body.email ?? "", name: body.name ?? "" };
+  if (typeof body.sid === "string" && body.sid) claims.sid = body.sid;
+  return claims;
 }
 
 export function randomToken(bytes = 32): string {

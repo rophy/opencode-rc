@@ -12,6 +12,12 @@ export type RotateResult =
   | { ok: true; refreshToken: string; claims: AccessClaims }
   | { ok: false };
 
+/** A new sign-in session: its first refresh token, and claims carrying its id. */
+export interface NewSession {
+  refreshToken: string;
+  claims: AccessClaims;
+}
+
 export const REFRESH_GRACE_SECONDS = 30;
 
 export interface LoginCodeRecord {
@@ -52,10 +58,16 @@ export class TokenStore {
     return raw ? (JSON.parse(raw) as LoginCodeRecord) : null;
   }
 
-  async createChain(claims: AccessClaims): Promise<string> {
+  async createChain(claims: AccessClaims): Promise<NewSession> {
     const chain = randomToken(16);
     await this.redis.set(key.chain(chain), claims.uid, "EX", this.sessionTtlSeconds);
-    return this.issue({ chain, ...claims }, this.sessionTtlSeconds);
+    const refreshToken = await this.issue({ ...claims, chain }, this.sessionTtlSeconds);
+    return { refreshToken, claims: { uid: claims.uid, email: claims.email, name: claims.name, sid: chain } };
+  }
+
+  /** Whether a sign-in session still exists: not signed out, expired or ended by reuse. */
+  async sessionActive(sid: string): Promise<boolean> {
+    return (await this.redis.get(key.chain(sid))) !== null;
   }
 
   async rotate(refreshToken: string): Promise<RotateResult> {
@@ -65,7 +77,7 @@ export class TokenStore {
     const record = JSON.parse(raw) as RefreshRecord;
     const ttl = await this.redis.ttl(key.chain(record.chain));
     if (ttl <= 0) return { ok: false };
-    const claims: AccessClaims = { uid: record.uid, email: record.email, name: record.name };
+    const claims: AccessClaims = { uid: record.uid, email: record.email, name: record.name, sid: record.chain };
 
     if (await this.redis.get(key.used(hash))) {
       const graced = await this.redis.get(key.grace(hash));

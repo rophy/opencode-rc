@@ -580,6 +580,25 @@ describe("access webhook", () => {
     }
   }, 40_000);
 
+  it("signing out closes the session's open event stream", async () => {
+    // A sign-in of its own, so aliceJar stays signed in.
+    const jar = await loginAs("user1");
+    const events = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/global/event`);
+    expect(events.status).toBe(200);
+    const reader = events.body!.getReader();
+    await reader.read();
+    const streamEnded = (async () => {
+      while (!(await reader.read()).done);
+    })();
+    try {
+      expect((await postJson("/auth/logout", { refresh_token: jar.refresh })).status).toBe(204);
+      const deadline = new Promise((_, reject) => setTimeout(() => reject(new Error("not closed")), 15_000));
+      await Promise.race([streamEnded, deadline]);
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
+  }, 30_000);
+
   it("a failing webhook denies, and the failure is not cached", async () => {
     const sessions = () => bobJar.fetch(`${API_URL}/gateway/sessions`);
     try {

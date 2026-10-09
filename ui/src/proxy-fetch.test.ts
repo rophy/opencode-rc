@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { proxyTarget, proxySocketUrl, installProxyFetch } from "./proxy-fetch"
+import { proxyTarget, proxySocketUrl, installProxyFetch, installProxyWebSocket } from "./proxy-fetch"
 
 const app = { pageOrigin: "https://localhost", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
 const web = { pageOrigin: "https://rc.example.com", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
 const capacitorApp = { pageOrigin: "capacitor://localhost", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
 
 const realFetch = globalThis.fetch
+const realWebSocket = globalThis.WebSocket
 afterEach(() => {
   vi.restoreAllMocks()
   globalThis.fetch = realFetch
+  globalThis.WebSocket = realWebSocket
 })
 
 describe("proxyTarget", () => {
@@ -139,5 +141,44 @@ describe("installProxyFetch", () => {
     // The body is read once (via a single clone().arrayBuffer()) and reused for
     // the retry; a per-attempt clone()/stream implementation would call this twice.
     expect(cloneSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ["a 403", [403], 1],
+    ["a 403 after the 401 retry", [401, 403], 1],
+    ["a 200", [200], 0],
+    ["a 401 then a 200", [401, 200], 0],
+  ])("reports %s to onForbidden", async (_name, statuses, calls) => {
+    const queue = [...statuses]
+    globalThis.fetch = vi.fn(async () => new Response("{}", { status: queue.shift() })) as unknown as typeof fetch
+    const onForbidden = vi.fn()
+    installProxyFetch({ ...web, getToken: async () => "tok", invalidate: () => {}, onForbidden })
+    await fetch("https://rc.example.com/global/event")
+    expect(onForbidden).toHaveBeenCalledTimes(calls)
+  })
+})
+
+describe("installProxyWebSocket", () => {
+  class FakeSocket extends EventTarget {
+    constructor(
+      public url: string,
+      public protocols?: string | string[],
+    ) {
+      super()
+    }
+  }
+
+  it.each([
+    [1008, 1],
+    [1000, 0],
+    [1006, 0],
+  ])("reports a close with code %i to onForbidden %i time(s)", (code, calls) => {
+    globalThis.WebSocket = FakeSocket as unknown as typeof WebSocket
+    const onForbidden = vi.fn()
+    installProxyWebSocket({ ...web, getCachedToken: () => "tok", warmToken: () => {}, onForbidden })
+    const ws = new WebSocket("wss://rc.example.com/pty/p1/connect")
+    expect((ws as unknown as FakeSocket).url).toBe("wss://rc.example.com/proxy/alice-dev/pty/p1/connect?access_token=tok")
+    ws.dispatchEvent(Object.assign(new Event("close"), { code }))
+    expect(onForbidden).toHaveBeenCalledTimes(calls)
   })
 })

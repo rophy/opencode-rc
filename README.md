@@ -175,7 +175,9 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/
 curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" https://<api host>/admin/authz/cache         # everyone
 ```
 
-Open event streams and terminals are checked again every `authz.cacheTTL.allowed` and closed once the user is denied (a terminal closes with WebSocket code `1008` and the reason). Set it to how fresh the webhook's answer is: a revocation reaches open streams within that time, and evicting the cache does not shorten it. If the check itself cannot run (Redis unavailable), streams stay open and are checked again at the next interval.
+Open event streams and terminals are checked again every `authz.cacheTTL.allowed` and closed once the user is denied (a terminal closes with WebSocket code `1008` and the reason), and the web UI and apps switch to the No access screen. Set it to how fresh the webhook's answer is: a revocation reaches open streams within that time, and evicting the cache does not shorten it. If the check itself cannot run (Redis unavailable), streams stay open and are checked again at the next interval.
+
+Open streams also close when the sign-in session they were opened with ends (signed out, or `auth.sessionTTL` reached), checked at the same interval, with or without a webhook.
 
 ### Deployment Config
 
