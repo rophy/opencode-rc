@@ -94,7 +94,7 @@ describe("relayEvents", async () => {
   it("stops watching when either side closes", () => {
     const stop = vi.fn();
     const a = open(() => stop);
-    a.events.onClose!(new CloseEvent("close", { code: 1000 }));
+    a.events.onClose!({ code: 1000 } as CloseEvent);
     expect(stop).toHaveBeenCalledTimes(1);
     const b = open(() => stop);
     b.upstream.onclose!({ code: 1000, reason: "" });
