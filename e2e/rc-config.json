@@ -1,6 +1,7 @@
 {
   "serverUrl": "http://opencode-rc-api:8080",
   "features": {
-    "uploads": { "enabled": false }
+    "uploads": { "enabled": false },
+    "terminal": { "enabled": false }
   }
 }

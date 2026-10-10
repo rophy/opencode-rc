@@ -58,9 +58,11 @@ ns: check-context ## Create the e2e namespace (labeled as ours), the dev-machine
 		--serviceaccount=$(NAMESPACE):dev-machine --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	@$(KUBECTL) apply -f e2e/k8s/secrets.yaml
 
+# No skaffold artifact cache: it tracks only COPY sources, not the config.json the UI image
+# reads through a bind mount. Docker's layer cache still skips unchanged steps.
 up: ns ## Deploy the e2e environment into NAMESPACE on an existing cluster
 	@echo "=== Building and deploying ==="
-	cd e2e && skaffold run --kube-context $(KUBE_CONTEXT) -n $(NAMESPACE)
+	cd e2e && skaffold run --cache-artifacts=false --kube-context $(KUBE_CONTEXT) -n $(NAMESPACE)
 	@echo ""
 	@echo "=== Waiting for services ==="
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-api --timeout=120s

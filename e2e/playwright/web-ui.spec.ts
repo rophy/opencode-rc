@@ -190,3 +190,37 @@ test.describe("uploads disabled", () => {
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
   });
 });
+
+// The UI image is built from e2e/rc-config.json, which turns the terminal off; the API's
+// config (values.yaml) keeps it on so the WebSocket relay stays covered. In the v2 layout the
+// terminal opens only through its commands: ctrl+` and /terminal.
+test.describe("terminal disabled", () => {
+  test("ctrl+` and /terminal open no terminal", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.locator("a[href*='/s/alice-dev/']").first().click();
+    await page.locator('[data-component="home-project-row"]').first().waitFor({ state: "visible", timeout: 30_000 });
+    const tabs = page.locator('[data-slot="titlebar-tab-item"]');
+    const before = await tabs.count();
+    await page.locator('button[aria-label="New session"]').first().click();
+    await expect(tabs).toHaveCount(before + 1, { timeout: 30_000 });
+    await tabs.last().locator('[data-slot="tab-link"]').click();
+    const composer = page.locator('[data-component="prompt-input"]');
+    await expect(composer).toBeVisible({ timeout: 30_000 });
+    // The model is listed once opencode has loaded its agents; a prompt sent earlier is lost.
+    await expect(page.getByRole("button", { name: "GPT-4o" })).toBeVisible({ timeout: 30_000 });
+    await composer.click();
+    await page.keyboard.type("Hello");
+    await page.locator('[data-action="prompt-submit"]').click();
+    await expect(page.getByText("Hello from aimock!").first()).toBeVisible({ timeout: 30_000 });
+
+    await composer.click();
+    await page.keyboard.press("Control+Backquote");
+    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-component="terminal"]')).toHaveCount(0);
+    await composer.click();
+    await page.keyboard.type("/terminal");
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("button", { name: /^\/terminal\b/ })).toHaveCount(0);
+  });
+});
