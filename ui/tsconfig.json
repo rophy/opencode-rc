@@ -12,7 +12,17 @@
     "resolveJsonModule": true,
     "strict": true,
     "noEmit": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "paths": {
+      "@opencode-ai/app": [
+        "../vendor/opencode/packages/app/src/index.ts"
+      ],
+      "@/*": [
+        "../vendor/opencode/packages/app/src/*"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

@@ -22,15 +22,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      # Unit tests read the pinned opencode source to check the upload rewrites; they do
-      # not install or import it (the image build installs it inside ui/web/Dockerfile).
+      # Unit tests read the pinned opencode source to check the upload rewrites. The type
+      # check compiles against it, so its dependencies are installed too.
       - uses: actions/checkout@v5
         with:
           submodules: true
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: cd ui && bun install --frozen-lockfile && bun run test
+      - run: cd vendor/opencode && bun install --frozen-lockfile
+      - run: cd ui && bun install --frozen-lockfile && bun run typecheck && bun run test
 
   build:
     runs-on: ubuntu-latest

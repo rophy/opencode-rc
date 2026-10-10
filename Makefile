@@ -21,12 +21,14 @@ unit-test: ## Run unit tests for all packages with coverage
 	@cd gateway && go test -cover ./...
 	@echo ""
 	@echo "=== API (TypeScript) ==="
+	@cd api && bun run typecheck
 	@cd api && npx vitest run --coverage
 	@echo ""
 	@echo "=== CLI (TypeScript) ==="
 	@cd cli && npx vitest run --coverage
 	@echo ""
 	@echo "=== UI (SolidJS) ==="
+	@cd ui && bun run typecheck
 	@cd ui && npx vitest run --coverage
 	@echo ""
 	@echo "=== Chart (helm unittest) ==="

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "hono": "^4.7.0",
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "@vitest/coverage-v8": "4",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

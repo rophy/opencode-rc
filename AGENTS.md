@@ -105,6 +105,10 @@ cd ui && bun install && bun run build
 
 Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
+Type-check with `bun run typecheck` (in `api/` and `ui/`; CI and `make unit-test` run both). The UI's
+maps `@opencode-ai/app` to the submodule's source, so it needs the submodule's deps installed;
+only errors in `ui/` fail it.
+
 The iOS/Android apps sign in through the system browser (local `SystemAuth` plugin, callback
 `com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server
 or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
