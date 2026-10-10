@@ -25,6 +25,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      # Vitest runs on Node; pin it so CI doesn't depend on the runner's default.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test

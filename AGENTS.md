@@ -109,6 +109,9 @@ Type-check with `bun run typecheck` (in `api/` and `ui/`; CI and `make unit-test
 maps `@opencode-ai/app` to the submodule's source, so it needs the submodule's deps installed;
 only errors in `ui/` fail it.
 
+CI runs the API and UI unit tests (vitest) on Node 22. Check code that may need a newer Node
+with `npx -y node@22 node_modules/vitest/vitest.mjs run` in `api/` or `ui/`.
+
 The iOS/Android apps sign in through the system browser (local `SystemAuth` plugin, callback
 `com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server
 or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
