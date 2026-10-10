@@ -1,4 +1,4 @@
-name: Android Build
+name: Android
 
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Builds and publishes only a version that has no tag yet.
+  # Every run compiles the app; only a version that has no tag yet is published.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -39,7 +39,7 @@ jobs:
           # The checkout has no tags, so ask the remote.
           if git ls-remote --exit-code --tags origin "refs/tags/android/$VERSION" >/dev/null; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-            echo "Tag android/$VERSION exists, nothing to build"
+            echo "Tag android/$VERSION exists, nothing to publish"
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
             echo "New version: $VERSION"
@@ -47,7 +47,6 @@ jobs:
 
   build:
     needs: version
-    if: needs.version.outputs.new == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -72,6 +71,7 @@ jobs:
 
       # Copy the synced project before Gradle writes its build output into it.
       - name: Prepare releases/android
+        if: needs.version.outputs.new == 'true'
         run: |
           mkdir /tmp/android-publish
           cp -r ui/android/. /tmp/android-publish/
@@ -84,16 +84,12 @@ jobs:
           # Keep the files `cap sync` generated (web app, plugins, config).
           sed -i '/^# Cordova plugins for Capacitor/,$d' .gitignore
 
+      # A compile check only; the APK is not published.
       - name: Build debug APK
         run: cd ui/android && ./gradlew assembleDebug
 
-      - uses: actions/upload-artifact@v5
-        with:
-          name: opencode-rc-android-${{ needs.version.outputs.version }}-debug
-          path: ui/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-
       - name: Publish to releases/android
+        if: needs.version.outputs.new == 'true'
         run: |
           cd /tmp/android-publish
           git init -b releases/android
@@ -105,6 +101,7 @@ jobs:
           git push -f origin releases/android
 
       - name: Tag release
+        if: needs.version.outputs.new == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"

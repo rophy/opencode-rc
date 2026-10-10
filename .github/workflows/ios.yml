@@ -1,4 +1,4 @@
-name: iOS Build
+name: iOS
 
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Builds and publishes only a version that has no tag yet.
+  # Publishes only a version that has no tag yet.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -39,7 +39,7 @@ jobs:
           # The checkout has no tags, so ask the remote.
           if git ls-remote --exit-code --tags origin "refs/tags/ios/$VERSION" >/dev/null; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ios/$VERSION exists, nothing to build"
+            echo "Tag ios/$VERSION exists, nothing to publish"
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
             echo "New version: $VERSION"
@@ -48,7 +48,7 @@ jobs:
   build:
     needs: version
     if: needs.version.outputs.new == 'true'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
@@ -65,20 +65,6 @@ jobs:
       - name: Sync iOS project
         run: cd ui && npx cap sync ios
 
-      # Unsigned, so it runs only in the iOS Simulator (xcrun simctl install booted App.app).
-      - name: Build debug app for the simulator
-        run: |
-          cd ui/ios/App
-          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO build
-          ditto -c -k --keepParent "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/App.app.zip"
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: opencode-rc-ios-${{ needs.version.outputs.version }}-simulator
-          path: ${{ runner.temp }}/App.app.zip
-          if-no-files-found: error
-
       - name: Publish to releases/ios
         run: |
           cd /tmp
@@ -90,8 +76,6 @@ jobs:
           cp -r $GITHUB_WORKSPACE/ui/ios/. .
           cp $GITHUB_WORKSPACE/LICENSE .
           rm -f .gitignore
-          # Written by the simulator build; Package.swift already pins Capacitor exactly.
-          rm -rf App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
 
           git add -A
           git commit -m "build: update iOS project from ${GITHUB_SHA::8}"
