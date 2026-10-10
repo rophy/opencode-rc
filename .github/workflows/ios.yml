@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Publishes only a version that has no tag yet.
+  # Every run builds and tests the app; only a version that has no tag yet is published.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -47,8 +47,7 @@ jobs:
 
   build:
     needs: version
-    if: needs.version.outputs.new == 'true'
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
         with:
@@ -65,24 +64,39 @@ jobs:
       - name: Sync iOS project
         run: cd ui && npx cap sync ios
 
-      - name: Publish to releases/ios
+      # Copy the synced project before Xcode writes its build state into it.
+      - name: Prepare releases/ios
+        if: needs.version.outputs.new == 'true'
         run: |
-          cd /tmp
-          mkdir ios-publish && cd ios-publish
+          mkdir /tmp/ios-publish
+          cp -r ui/ios/. /tmp/ios-publish/
+          cp LICENSE /tmp/ios-publish/
+          rm -f /tmp/ios-publish/.gitignore
+
+      # Unsigned, in the Simulator: compiles the app and runs the launch smoke test (AppUITests).
+      - name: Build and test
+        run: |
+          UDID=$(xcrun simctl list devices available -j \
+            | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$UDID" && test "$UDID" != null
+          cd ui/ios/App
+          xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
+            -destination "id=$UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO
+
+      - name: Publish to releases/ios
+        if: needs.version.outputs.new == 'true'
+        run: |
+          cd /tmp/ios-publish
           git init -b releases/ios
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-
-          cp -r $GITHUB_WORKSPACE/ui/ios/. .
-          cp $GITHUB_WORKSPACE/LICENSE .
-          rm -f .gitignore
-
           git add -A
           git commit -m "build: update iOS project from ${GITHUB_SHA::8}"
           git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push -f origin releases/ios
 
       - name: Tag release
+        if: needs.version.outputs.new == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
