@@ -179,6 +179,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.join(opencodePackages, "app/src"),
+      "#session-view": path.join(import.meta.dirname, "src/session-view-v1.tsx"),
     },
     conditions: ["import", "module", "browser", "default"],
     dedupe: ["solid-js", "@solidjs/router"],
