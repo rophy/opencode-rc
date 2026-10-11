@@ -242,6 +242,10 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
   writes to opencode's config, pairing, adding or removing MCP servers, plugin updates and
   persistent terminals (see `api/src/v2-routes.ts`).
 
+opencode 1.x and 2.x on the same machine share opencode's data directory and database. 2.x migrates the
+database in place the first time it runs, and opencode does not guarantee that a machine switched back to
+1.x afterwards can still use it.
+
 Known 2.x limitations: files whose names contain `#`, `%`, `?` or `;` cannot be opened remotely,
 and the 2.x UI includes opencode's Office preview, which makes the build (notably the mobile
 apps) larger.
