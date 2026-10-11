@@ -146,7 +146,7 @@ describe("proxyToLocal", () => {
       ws as unknown as WebSocket,
       5,
       { method: "GET", path: "/foo", headers: {}, hasBody: false },
-      "http://localhost:1234"
+      { url: "http://localhost:1234" }
     );
 
     expect(fetch).toHaveBeenCalledWith(
@@ -182,7 +182,7 @@ describe("proxyToLocal", () => {
       ws as unknown as WebSocket,
       9,
       { method: "GET", path: "/foo", headers: {}, hasBody: false },
-      "http://localhost:1234"
+      { url: "http://localhost:1234" }
     );
 
     const frames = decodeFrames(ws.sent);
@@ -199,6 +199,126 @@ describe("proxyToLocal", () => {
 
     const body = new TextDecoder().decode(frames[1].payload);
     expect(body).toContain("connection refused");
+  });
+});
+
+describe("proxyToLocal with local credentials", () => {
+  function stubFetch() {
+    const f = vi.fn().mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  async function forward(headers: Record<string, string>, path: string, local: { url: string; authorization?: string }) {
+    const f = stubFetch();
+    await proxyToLocal(
+      createMockWs() as unknown as WebSocket,
+      21,
+      { method: "GET", path, headers, hasBody: false },
+      local
+    );
+    const [url, init] = f.mock.calls[0];
+    return { url: url as string, headers: init.headers as Record<string, string> };
+  }
+
+  it("replaces the incoming bearer token with the local authorization", async () => {
+    const { headers } = await forward(
+      { authorization: "Bearer user-token", accept: "*/*" },
+      "/foo",
+      { url: "http://localhost:1234", authorization: "Basic abc" }
+    );
+    expect(Object.entries(headers).filter(([k]) => k.toLowerCase() === "authorization")).toEqual([
+      ["authorization", "Basic abc"],
+    ]);
+    expect(headers.accept).toBe("*/*");
+  });
+
+  it("replaces a capitalized Authorization header too", async () => {
+    const { headers } = await forward(
+      { Authorization: "Bearer user-token" },
+      "/foo",
+      { url: "http://localhost:1234", authorization: "Basic abc" }
+    );
+    expect(Object.entries(headers).filter(([k]) => k.toLowerCase() === "authorization")).toEqual([
+      ["authorization", "Basic abc"],
+    ]);
+  });
+
+  it("strips auth_token from the query and keeps the rest in order", async () => {
+    const { url } = await forward({}, "/api/session?auth_token=xyz&location=a&b=2", {
+      url: "http://localhost:1234",
+      authorization: "Basic abc",
+    });
+    expect(url).toBe("http://localhost:1234/api/session?location=a&b=2");
+  });
+
+  it("leaves headers and query unchanged without local.authorization", async () => {
+    const { url, headers } = await forward(
+      { Authorization: "Bearer user-token" },
+      "/api/session?auth_token=xyz&location=a",
+      { url: "http://localhost:1234" }
+    );
+    expect(url).toBe("http://localhost:1234/api/session?auth_token=xyz&location=a");
+    expect(headers).toEqual({ Authorization: "Bearer user-token" });
+  });
+
+  async function upgradeSeen(local: (port: number) => { url: string; authorization?: string }, path: string) {
+    const localServer = createServer();
+    let sock: import("node:net").Socket | undefined;
+    const seen = new Promise<{ url?: string; headers: Record<string, string | string[] | undefined>; raw: string[] }>(
+      (resolve) => {
+        localServer.on("upgrade", (req, socket) => {
+          sock = socket;
+          socket.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
+          resolve({ url: req.url, headers: req.headers, raw: req.rawHeaders });
+        });
+      }
+    );
+    await new Promise<void>((r) => localServer.listen(0, r));
+    const addr = localServer.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    try {
+      proxyToLocal(
+        createMockWs() as unknown as WebSocket,
+        23,
+        {
+          method: "GET",
+          path,
+          headers: {
+            upgrade: "websocket",
+            connection: "Upgrade",
+            Authorization: "Bearer user-token",
+            "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "sec-websocket-version": "13",
+          },
+          hasBody: false,
+        },
+        local(port)
+      );
+      return await seen;
+    } finally {
+      sock?.destroy();
+      localServer.close();
+    }
+  }
+
+  it("applies the same replacement and stripping to a WebSocket upgrade", async () => {
+    const r = await upgradeSeen(
+      (port) => ({ url: `http://127.0.0.1:${port}`, authorization: "Basic abc" }),
+      "/pty/abc/connect?auth_token=xyz&cursor=0"
+    );
+    expect(r.url).toBe("/pty/abc/connect?cursor=0");
+    expect(r.raw.filter((h) => h.toLowerCase() === "authorization")).toHaveLength(1);
+    expect(r.headers.authorization).toBe("Basic abc");
+  });
+
+  it("passes a WebSocket upgrade through unchanged without local.authorization", async () => {
+    const r = await upgradeSeen(
+      (port) => ({ url: `http://127.0.0.1:${port}` }),
+      "/pty/abc/connect?auth_token=xyz&cursor=0"
+    );
+    expect(r.url).toBe("/pty/abc/connect?auth_token=xyz&cursor=0");
+    expect(r.headers.authorization).toBe("Bearer user-token");
   });
 });
 
@@ -229,7 +349,7 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
           },
           hasBody: false,
         },
-        `http://127.0.0.1:${localPort}`
+        { url: `http://127.0.0.1:${localPort}` }
       );
 
       const localSocket = await localServerConn;
@@ -285,7 +405,7 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
         headers: { upgrade: "websocket" },
         hasBody: false,
       },
-      "http://127.0.0.1:1" // nothing listens here
+      { url: "http://127.0.0.1:1" } // nothing listens here
     );
 
     await vi.waitFor(() => {
@@ -337,7 +457,7 @@ describe("proxyToLocal with a WebSocket upgrade", () => {
           },
           hasBody: false,
         },
-        `http://127.0.0.1:${localPort}`
+        { url: `http://127.0.0.1:${localPort}` }
       );
 
       await vi.waitFor(() => {
@@ -375,7 +495,7 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           makeConfig(port),
           "test-token",
           "sess-ws",
-          `http://127.0.0.1:${localPort}`,
+          { url: `http://127.0.0.1:${localPort}` },
           "/tmp",
           "1.18.29",
         );
@@ -439,7 +559,7 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           makeConfig(port2),
           "test-token",
           "sess-http",
-          `http://127.0.0.1:${echoPort}`,
+          { url: `http://127.0.0.1:${echoPort}` },
           "/tmp",
           "1.18.29",
         );
@@ -525,7 +645,7 @@ describe("startTunnel", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -554,7 +674,7 @@ describe("startTunnel", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/my/project",
         "1.18.29"
       );
@@ -579,7 +699,7 @@ describe("startTunnel", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/my/project",
         ""
       );
@@ -612,7 +732,7 @@ describe("startTunnel", () => {
           makeConfig(port),
           "test-token",
           "sess1",
-          `http://127.0.0.1:${localPort}`,
+          { url: `http://127.0.0.1:${localPort}` },
           "/tmp",
           "1.18.29",
         );
@@ -677,7 +797,7 @@ describe("startTunnel", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       )
@@ -709,11 +829,11 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnel(makeConfig(port), "bad-token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 401");
 
         await expect(
-          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnel(makeConfig(port), "bad-token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toThrow("invalid token: token is expired");
       }
     );
@@ -727,7 +847,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnel(makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 403");
       }
     );
@@ -741,7 +861,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnel(makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 502");
       }
     );
@@ -760,12 +880,12 @@ describe("startTunnel pre-flight", () => {
       async (port) => {
         // Will fail on WebSocket upgrade (not pre-flight)
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnel(makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toThrow();
 
         // But NOT a pre-flight error
         const err = await startTunnel(
-          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29"
+          makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29"
         ).catch((e: Error) => e);
         expect(err.message).not.toContain("pre-flight");
       }
@@ -780,7 +900,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         const err = await startTunnel(
-          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29"
+          makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29"
         ).catch((e: Error) => e);
         expect(err.message).not.toContain("pre-flight");
       }
@@ -796,7 +916,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         const err = await startTunnel(
-          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "2.0.26"
+          makeConfig(port), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "2.0.26"
         ).catch((e: Error) => e);
         expect(err).toBeInstanceOf(ProtocolError);
         expect((err as Error).message).toBe(message);
@@ -807,7 +927,7 @@ describe("startTunnel pre-flight", () => {
   it("rejects with network error when server unreachable", async () => {
     // Use a port with no server
     await expect(
-      startTunnel(makeConfig(1), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+      startTunnel(makeConfig(1), "token", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
     ).rejects.toThrow();
   });
 });
@@ -822,7 +942,7 @@ describe("protocol versioning", () => {
         res.end("no");
       },
       async (port) => {
-        await expect(startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29")).rejects.toThrow();
+        await expect(startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")).rejects.toThrow();
       }
     );
     expect(seen).toBe("1");
@@ -835,7 +955,7 @@ describe("protocol versioning", () => {
         res.end(JSON.stringify({ error: "client_outdated", client: 1, minimum: 2, server: 2 }));
       },
       async (port) => {
-        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
+        const p = startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29");
         await expect(p).rejects.toBeInstanceOf(ProtocolError);
         await expect(p).rejects.toThrow("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
       }
@@ -849,7 +969,7 @@ describe("protocol versioning", () => {
         res.end("websocket required");
       },
       async (port) => {
-        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
+        const p = startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29");
         await expect(p).rejects.toBeInstanceOf(ProtocolError);
         await expect(p).rejects.toThrow(
           `The gateway at ${makeConfig(port).gatewayUrl} is older than this CLI supports. Ask your administrator to upgrade it.`
@@ -868,7 +988,7 @@ describe("protocol versioning", () => {
       },
       async (port) => {
         await expect(
-          startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29")
+          startTunnelWithReconnect(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29")
         ).rejects.toBeInstanceOf(ProtocolError);
       }
     );
@@ -882,7 +1002,7 @@ describe("protocol versioning", () => {
         res.end("bad gateway");
       },
       async (port) => {
-        const err = await startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29").catch((e) => e);
+        const err = await startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29").catch((e) => e);
         expect(err).not.toBeInstanceOf(ProtocolError);
         expect(err.message).toContain("Tunnel pre-flight failed: 502");
       }
@@ -912,7 +1032,7 @@ describe("protocol versioning", () => {
     const port = typeof address === "object" && address ? address.port : 0;
 
     try {
-      const handle = await startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
+      const handle = await startTunnelWithReconnect(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29");
       // Not a ProtocolError (would have rejected), and the server saw more
       // than one attempt — the header-less 502 was retried rather than fatal.
       expect(calls).toBeGreaterThan(1);
@@ -951,7 +1071,7 @@ describe("handleBodyFrame and proxyToLocal with body", () => {
           makeConfig(port),
           "test-token",
           "sess1",
-          `http://127.0.0.1:${localPort}`,
+          { url: `http://127.0.0.1:${localPort}` },
           "/tmp",
           "1.18.29",
         );
@@ -1022,7 +1142,7 @@ describe("startTunnel message handling", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -1052,7 +1172,7 @@ describe("startTunnel post-connection events", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -1078,7 +1198,7 @@ describe("startTunnelWithReconnect", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -1106,7 +1226,7 @@ describe("startTunnelWithReconnect", () => {
       makeConfig(port),
       "test-token",
       "sess1",
-      "http://localhost:9999",
+      { url: "http://localhost:9999" },
       "/tmp",
       "1.18.29",
     );
@@ -1143,7 +1263,7 @@ describe("startTunnelWithReconnect", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -1177,7 +1297,7 @@ describe("startTunnelWithReconnect", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
       );
@@ -1223,7 +1343,7 @@ describe("startTunnelWithReconnect", () => {
         makeConfig(port),
         "test-token",
         "sess1",
-        "http://localhost:9999",
+        { url: "http://localhost:9999" },
         "/tmp",
         "1.18.29",
         onFatal

@@ -52,7 +52,7 @@ export function decodeFrameHeader(data: ArrayBuffer): {
 // Pending requests waiting for body data
 const pendingRequests = new Map<
   number,
-  { req: RequestHeaders; bodyChunks: Uint8Array[]; localUrl: string; ws: WebSocket }
+  { req: RequestHeaders; bodyChunks: Uint8Array[]; local: LocalTarget; ws: WebSocket }
 >();
 
 // Raw sockets for a proxied WebSocket upgrade, keyed by tunnel streamId, so
@@ -119,7 +119,7 @@ export function handleBodyFrame(ws: WebSocket, streamId: number, type: number, p
       body.set(chunk, offset);
       offset += chunk.length;
     }
-    doProxyToLocal(pending.ws, streamId, pending.req, pending.localUrl, body);
+    doProxyToLocal(pending.ws, streamId, pending.req, pending.local, body);
   }
 }
 
@@ -130,19 +130,44 @@ function isWebSocketUpgrade(headers: Record<string, string>): boolean {
   return false;
 }
 
+export interface LocalTarget {
+  url: string;
+  authorization?: string;
+}
+
+// Builds the URL and headers for a request forwarded to the local opencode.
+// When the local server needs credentials (opencode 2.x), the browser's
+// Authorization header is our API's bearer token, not opencode's, so it is
+// replaced; an `auth_token` query parameter is dropped as well because
+// opencode checks it before the header and a stray one would cause a 401.
+function buildLocalRequest(
+  req: RequestHeaders,
+  local: LocalTarget
+): { target: URL; headers: Record<string, string> } {
+  const target = new URL(req.path, local.url);
+  if (local.authorization === undefined) return { target, headers: { ...req.headers } };
+  if (target.searchParams.has("auth_token")) target.searchParams.delete("auth_token");
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (k.toLowerCase() !== "authorization") headers[k] = v;
+  }
+  headers.authorization = local.authorization;
+  return { target, headers };
+}
+
 export function proxyToLocal(
   ws: WebSocket,
   streamId: number,
   req: RequestHeaders,
-  localUrl: string
+  local: LocalTarget
 ): Promise<void> | void {
   if (isWebSocketUpgrade(req.headers)) {
-    return proxyWebSocketToLocal(ws, streamId, req, localUrl);
+    return proxyWebSocketToLocal(ws, streamId, req, local);
   }
   if (req.hasBody) {
-    pendingRequests.set(streamId, { req, bodyChunks: [], localUrl, ws });
+    pendingRequests.set(streamId, { req, bodyChunks: [], local, ws });
   } else {
-    return doProxyToLocal(ws, streamId, req, localUrl, undefined);
+    return doProxyToLocal(ws, streamId, req, local, undefined);
   }
 }
 
@@ -174,12 +199,12 @@ function proxyWebSocketToLocal(
   ws: WebSocket,
   streamId: number,
   req: RequestHeaders,
-  localUrl: string
+  local: LocalTarget
 ): void {
-  const target = new URL(req.path, localUrl);
+  const { target, headers } = buildLocalRequest(req, local);
 
   const fwdHeaders: Record<string, string> = {};
-  for (const [k, v] of Object.entries(req.headers)) {
+  for (const [k, v] of Object.entries(headers)) {
     if (!WS_HOP_BY_HOP_HEADERS.has(k.toLowerCase())) fwdHeaders[k] = v;
   }
 
@@ -251,13 +276,13 @@ async function doProxyToLocal(
   ws: WebSocket,
   streamId: number,
   req: RequestHeaders,
-  localUrl: string,
+  local: LocalTarget,
   body: Uint8Array | undefined
 ): Promise<void> {
-  const url = new URL(req.path, localUrl);
+  const { target: url, headers } = buildLocalRequest(req, local);
 
   try {
-    const fwdHeaders = { ...req.headers };
+    const fwdHeaders = { ...headers };
     delete fwdHeaders["accept-encoding"];
     delete fwdHeaders["Accept-Encoding"];
 
@@ -316,7 +341,7 @@ export async function startTunnel(
   config: Config,
   idToken: string,
   sessionID: string,
-  localUrl: string,
+  local: LocalTarget,
   directory: string,
   opencodeVersion: string
 ): Promise<TunnelHandle> {
@@ -408,7 +433,7 @@ export async function startTunnel(
       if (frame.type === FRAME_REQUEST_HEADERS) {
         const json = new TextDecoder().decode(frame.payload);
         const req: RequestHeaders = JSON.parse(json);
-        proxyToLocal(ws as unknown as WebSocket, frame.streamId, req, localUrl);
+        proxyToLocal(ws as unknown as WebSocket, frame.streamId, req, local);
       } else if (frame.type === FRAME_DATA || frame.type === FRAME_END) {
         handleBodyFrame(ws as unknown as WebSocket, frame.streamId, frame.type, frame.payload);
       }
@@ -456,7 +481,7 @@ export async function startTunnelWithReconnect(
   config: Config,
   idToken: string,
   sessionID: string,
-  localUrl: string,
+  local: LocalTarget,
   directory: string,
   opencodeVersion: string,
   onFatal?: (err: ProtocolError) => void
@@ -472,7 +497,7 @@ export async function startTunnelWithReconnect(
           config,
           idToken,
           sessionID,
-          localUrl,
+          local,
           directory,
           opencodeVersion
         );
@@ -510,7 +535,7 @@ export async function startTunnelWithReconnect(
         config,
         idToken,
         sessionID,
-        localUrl,
+        local,
         directory,
         opencodeVersion
       );

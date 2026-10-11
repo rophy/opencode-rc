@@ -62,7 +62,7 @@ async function main() {
     config,
     idToken,
     sessionID,
-    server.url,
+    { url: server.url },
     process.cwd(),
     opencodeVersion,
     (err) => {
