@@ -1,0 +1,139 @@
+diff --git a/packages/app/src/components/file-tree.tsx b/packages/app/src/components/file-tree.tsx
+index 9853c0533f..dcb0d04773 100644
+--- a/packages/app/src/components/file-tree.tsx
++++ b/packages/app/src/components/file-tree.tsx
+@@ -153,7 +153,7 @@ const FileTreeNode = (
+         [local.nodeClass ?? ""]: !!local.nodeClass,
+       }}
+       style={`padding-inline-start: ${Math.max(0, 8 + local.level * 12 - (local.node.type === "file" ? 24 : 4))}px`}
+-      draggable={local.draggable}
++      draggable={false}
+       onDragStart={(event: DragEvent) => {
+         if (!local.draggable) return
+         event.dataTransfer?.setData("text/plain", `file:${local.node.path}`)
+diff --git a/packages/app/src/components/prompt-input-v2.tsx b/packages/app/src/components/prompt-input-v2.tsx
+index 481b7922cf..0b51f1d2a7 100644
+--- a/packages/app/src/components/prompt-input-v2.tsx
++++ b/packages/app/src/components/prompt-input-v2.tsx
+@@ -270,7 +270,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
+     })),
+   )
+   const context = createMemo<PromptInputV2Suggestion[]>(() => [
+-    ...references(),
+     ...props.controls.agents.available
+       .filter((agent) => !agent.hidden && agent.mode !== "primary")
+       .map((agent) => ({
+@@ -280,14 +279,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
+         mention: { type: "agent" as const, name: agent.name, content: `@${agent.name}`, start: 0, end: 0 },
+       })),
+     ...resources(),
+-    ...recent().map((path) => ({
+-      id: `file:${path}`,
+-      kind: "file" as const,
+-      label: path,
+-      path,
+-      recent: true,
+-      mention: { type: "file" as const, path, content: `@${path}`, start: 0, end: 0 },
+-    })),
+   ])
+   const slashCommands = createMemo(() => [
+     ...sync().data.command.map((item) => ({
+@@ -335,14 +326,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
+     },
+     commands,
+     context,
+-    searchContextFiles: async (query) =>
+-      (await files.searchFilesAndDirectories(query)).map((path) => ({
+-        id: `file:${path}`,
+-        kind: "file",
+-        label: path,
+-        path,
+-        mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
+-      })),
++    searchContextFiles: async () => [],
+     onContextRemove(item) {
+       if (item?.commentID) comments.remove(item.path, item.commentID)
+     },
+diff --git a/packages/app/src/components/prompt-input.tsx b/packages/app/src/components/prompt-input.tsx
+index 41cf7d30ca..97959715b4 100644
+--- a/packages/app/src/components/prompt-input.tsx
++++ b/packages/app/src/components/prompt-input.tsx
+@@ -654,20 +654,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
+     onInput: atOnInput,
+     onKeyDown: atOnKeyDown,
+   } = useFilteredList<AtOption>({
+-    items: async (query) => {
+-      const references = referenceList()
+-      const agents = agentList()
+-      const mcpResources = mcpResourceList()
+-      const open = recent()
+-      const seen = new Set(open)
+-      const pinned: AtOption[] = open.map((path) => ({ type: "file", path, display: path, recent: true }))
+-      if (!query.trim()) return [...references, ...agents, ...mcpResources, ...pinned]
+-      const paths = await files.searchFilesAndDirectories(query)
+-      const fileOptions: AtOption[] = paths
+-        .filter((path) => !seen.has(path))
+-        .map((path) => ({ type: "file", path, display: path }))
+-      return [...references, ...agents, ...mcpResources, ...pinned, ...fileOptions]
+-    },
++    // No files or references (directories) while downloads are disabled.
++    items: async () => [...agentList(), ...mcpResourceList()],
+     key: atKey,
+     filterKeys: ["display"],
+     skipFilter: (item) => item.type === "file" && !item.recent,
+diff --git a/packages/app/src/components/prompt-input/build-request-parts.ts b/packages/app/src/components/prompt-input/build-request-parts.ts
+index a1e3448b31..eb2ae9ee99 100644
+--- a/packages/app/src/components/prompt-input/build-request-parts.ts
++++ b/packages/app/src/components/prompt-input/build-request-parts.ts
+@@ -99,7 +99,8 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
+       ]
+     : []
+ 
+-  const files = input.prompt.filter(isFileAttachment).map((attachment) => {
++  // Workspace files are not sent while downloads are disabled; MCP resources are.
++  const files = input.prompt.filter(isFileAttachment).filter((attachment) => attachment.source?.type === "resource").map((attachment) => {
+     const path = absolute(input.sessionDirectory, attachment.path)
+     const source = attachment.source
+       ? {
+@@ -150,30 +151,8 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
+     if (!comment && used.has(url)) return []
+     used.add(url)
+ 
+-    const filePart = {
+-      id: Identifier.ascending("part"),
+-      type: "file",
+-      mime: "text/plain",
+-      url,
+-      filename: getFilename(item.path),
+-    } satisfies PromptRequestPart
+-
+-    if (!comment) return [filePart]
+-
+-    const mentions = parseCommentMentions(comment).flatMap((path) => {
+-      const url = `file://${encodeFilePath(absolute(input.sessionDirectory, path))}`
+-      if (used.has(url)) return []
+-      used.add(url)
+-      return [
+-        {
+-          id: Identifier.ascending("part"),
+-          type: "file",
+-          mime: "text/plain",
+-          url,
+-          filename: getFilename(path),
+-        } satisfies PromptRequestPart,
+-      ]
+-    })
++    // A comment is sent as its note, without the file.
++    if (!comment) return []
+ 
+     return [
+       {
+@@ -189,8 +168,6 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
+           origin: item.commentOrigin,
+         }),
+       } satisfies PromptRequestPart,
+-      filePart,
+-      ...mentions,
+     ]
+   })
+ 

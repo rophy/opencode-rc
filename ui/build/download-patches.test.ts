@@ -44,4 +44,28 @@ describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("download p
     expect(patched("packages/app/src/components/dialog-select-file.tsx")).not.toContain("searchFiles(")
     expect(patched("packages/app/src/components/dialog-command-palette-v2.tsx")).not.toContain("searchFiles(")
   })
+
+  it("the composers offer no files or directories after @, only agents and MCP resources", () => {
+    const v1 = patched("packages/app/src/components/prompt-input.tsx")
+    expect(v1).toContain("items: async () => [...agentList(), ...mcpResourceList()],")
+    expect(v1).not.toContain("searchFilesAndDirectories(")
+    const v2 = patched("packages/app/src/components/prompt-input-v2.tsx")
+    expect(v2).toContain("searchContextFiles: async () => [],")
+    expect(v2).not.toContain("searchFilesAndDirectories(")
+    expect(v2).not.toMatch(/\.\.\.references\(\),|\.\.\.recent\(\)\.map/)
+  })
+
+  it("files cannot be dragged from the tree into the composer", () => {
+    const code = patched("packages/app/src/components/file-tree.tsx")
+    expect(code).toContain("draggable={false}")
+    expect(code).not.toContain("draggable={local.draggable}")
+  })
+
+  it("prompts carry no file: parts: only MCP resources, and comments as their note", () => {
+    const code = patched("packages/app/src/components/prompt-input/build-request-parts.ts")
+    expect(code).toContain('.filter((attachment) => attachment.source?.type === "resource")')
+    expect(code).not.toContain("filePart")
+    expect(code).not.toContain("parseCommentMentions(comment)")
+    expect(code.match(/file:\/\/\$\{encodeFilePath/g)).toHaveLength(2)
+  })
 })
