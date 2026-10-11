@@ -4,9 +4,9 @@ import (
 	"net/http"
 )
 
-func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr, userClaim string, tokenSecret []byte) {
+func SetupGatewayRoutes(mux *http.ServeMux, verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr, userClaim string, tokenSecret []byte, versions VersionPolicy) {
 	mux.HandleFunc("/debug/coverage", CoverageHandler())
-	mux.HandleFunc("/tunnel", TunnelHandler(verifier, cliVerifier, registry, podAddr, userClaim))
+	mux.HandleFunc("/tunnel", TunnelHandler(verifier, cliVerifier, registry, podAddr, userClaim, versions))
 	mux.Handle("/proxy/", GatewayProxyHandler(registry, tokenSecret))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		status := "ok"

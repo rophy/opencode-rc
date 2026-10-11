@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,7 +18,7 @@ var upgrader = websocket.Upgrader{
 // TunnelHandler upgrades a CLI connection to a WebSocket tunnel.
 // The CLI authenticates with a Bearer token and provides a sessionID.
 // The gateway registers the session with the tunnel mux connection.
-func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr, userClaim string) http.HandlerFunc {
+func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry, podAddr, userClaim string, versions VersionPolicy) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !checkCLIProtocol(w, r) {
 			return
@@ -63,6 +64,15 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 
 		directory := r.URL.Query().Get("directory")
 
+		opencodeVersion := r.URL.Query().Get("opencodeVersion")
+		if err := versions.Check(opencodeVersion); err != nil {
+			slog.Warn("tunnel rejected: unsupported opencode", "session", sessionID, "user", userID, "email", email, "opencode", opencodeVersion)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			json.NewEncoder(w).Encode(map[string]string{"error": "opencode_unsupported", "message": err.Error()})
+			return
+		}
+
 		// Upgrade to WebSocket
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -72,7 +82,7 @@ func TunnelHandler(verifier, cliVerifier TokenVerifier, registry *TunnelRegistry
 
 		mux := newMuxConn(ws)
 
-		if err := registry.Register(r.Context(), userID, email, sessionID, directory, podAddr, mux); err != nil {
+		if err := registry.Register(r.Context(), userID, email, sessionID, directory, opencodeVersion, podAddr, mux); err != nil {
 			slog.Warn("tunnel registration rejected", "session", sessionID, "user", userID, "email", email, "error", err)
 			ws.WriteMessage(websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session owned by another user"))

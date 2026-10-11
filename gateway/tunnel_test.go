@@ -14,7 +14,7 @@ import (
 func TestTunnelHandlerMissingAuth(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -29,7 +29,7 @@ func TestTunnelHandlerMissingAuth(t *testing.T) {
 func TestTunnelHandlerInvalidToken(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{err: errors.New("invalid signature")}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -45,7 +45,7 @@ func TestTunnelHandlerInvalidToken(t *testing.T) {
 func TestTunnelHandlerUpgradeFailure(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	// Send a normal HTTP request (not WebSocket) — upgrader.Upgrade will fail
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1&directory=/proj", nil)
@@ -65,7 +65,7 @@ func TestTunnelHandlerUpgradeFailure(t *testing.T) {
 func TestTunnelHandlerClaimsError(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&badClaimsVerifier{}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -81,7 +81,7 @@ func TestTunnelHandlerClaimsError(t *testing.T) {
 func TestTunnelHandlerMissingSessionId(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	req := httptest.NewRequest("GET", "/tunnel", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -100,7 +100,7 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 
 	primary := &mockVerifier{err: errors.New("wrong audience")}
 	cli := &mockVerifier{claims: `{"email":"cliuser@example.com","sub":"sub2"}`}
-	handler := TunnelHandler(primary, cli, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(primary, cli, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -132,7 +132,7 @@ func TestTunnelHandlerCLIVerifierFallback(t *testing.T) {
 func TestTunnelHandlerMissingUserClaim(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com"}`}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1", nil)
 	req.Header.Set(ProtocolHeader, "1")
@@ -148,7 +148,7 @@ func TestTunnelHandlerMissingUserClaim(t *testing.T) {
 func TestTunnelHandlerConfiguredUserClaim(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"pairwise","oid":"stable-oid"}`}, nil, reg, "10.0.0.1:9090", "oid")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"pairwise","oid":"stable-oid"}`}, nil, reg, "10.0.0.1:9090", "oid", VersionPolicy{})
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -180,7 +180,7 @@ func TestTunnelHandlerConfiguredUserClaim(t *testing.T) {
 func TestTunnelHandlerSuccess(t *testing.T) {
 	store := testRedisStore(t)
 	reg := NewTunnelRegistry(store)
-	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub")
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -234,4 +234,66 @@ func TestTunnelHandlerSuccess(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("expected session to be deregistered after tunnel close")
+}
+
+func TestTunnelHandlerRejectsUnsupportedOpencode(t *testing.T) {
+	store := testRedisStore(t)
+	reg := NewTunnelRegistry(store)
+	handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
+
+	req := httptest.NewRequest("GET", "/tunnel?sessionId=s1&directory=/proj&opencodeVersion=2.0.26", nil)
+	req.Header.Set(ProtocolHeader, "1")
+	req.Header.Set("Authorization", "Bearer valid-token")
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Type"), "application/json") ||
+		!strings.Contains(rec.Body.String(), `"error":"opencode_unsupported"`) ||
+		!strings.Contains(rec.Body.String(), "2.0.26") {
+		t.Errorf("unexpected body: %s", rec.Body.String())
+	}
+	if _, ok, _ := store.Get(t.Context(), "s1"); ok {
+		t.Error("a rejected session must not be registered")
+	}
+}
+
+func TestTunnelHandlerStoresOpencodeVersion(t *testing.T) {
+	for _, tc := range []struct{ name, query, want string }{
+		{"reported", "&opencodeVersion=1.18.29", "1.18.29"},
+		{"missing", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := testRedisStore(t)
+			reg := NewTunnelRegistry(store)
+			handler := TunnelHandler(&mockVerifier{claims: `{"email":"user@example.com","sub":"user1"}`}, nil, reg, "10.0.0.1:9090", "sub", VersionPolicy{})
+			srv := httptest.NewServer(handler)
+			defer srv.Close()
+
+			wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "?sessionId=ver-sess&directory=/proj" + tc.query
+			header := http.Header{"Authorization": []string{"Bearer valid-token"}, ProtocolHeader: []string{"1"}}
+			ws, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+			if err != nil {
+				t.Fatalf("dial failed: %v", err)
+			}
+			if resp != nil {
+				defer resp.Body.Close()
+			}
+			defer ws.Close()
+
+			deadline := time.Now().Add(2 * time.Second)
+			for time.Now().Before(deadline) {
+				if m, ok := reg.GetMeta(t.Context(), "ver-sess"); ok {
+					if m.OpencodeVersion != tc.want {
+						t.Errorf("OpencodeVersion = %q, want %q", m.OpencodeVersion, tc.want)
+					}
+					return
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			t.Fatal("expected session to be registered")
+		})
+	}
 }

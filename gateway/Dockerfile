@@ -13,5 +13,6 @@ RUN if [ "$COVER" = "true" ]; then \
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /opencode-rc /opencode-rc
+COPY config/opencode-versions.json /etc/opencode-rc/opencode-versions.json
 EXPOSE 8080
 ENTRYPOINT ["/opencode-rc"]

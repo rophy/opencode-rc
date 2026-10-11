@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -162,7 +164,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 	registry := NewTunnelRegistry(store)
 
 	mux := http.NewServeMux()
-	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.OIDCUserClaim, cfg.TokenSecret)
+	SetupGatewayRoutes(mux, verifier, cliVerifier, registry, podAddr, cfg.OIDCUserClaim, cfg.TokenSecret, cfg.Versions)
 	// go-oidc checks the discovered issuer against OIDCIssuer, so the effective one is known here.
 	issuer := cfg.OIDCIssuer
 	if cfg.OIDCIssuerOverride != "" {
@@ -172,10 +174,31 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 	return requestLogger(withProtocolHeader(mux)), nil
 }
 
+// loadVersionPolicyFor loads the policy file. A missing default file (a locally built binary)
+// means no 2.x support; a missing file named by OPENCODE_VERSIONS_FILE is an error.
+func loadVersionPolicyFor(cfg *Config) (VersionPolicy, error) {
+	p, err := LoadVersionPolicy(cfg.OpencodeVersionsFile)
+	if err != nil && !cfg.OpencodeVersionsExplicit && errors.Is(err, fs.ErrNotExist) {
+		slog.Warn("opencode versions file not found, supporting opencode 1.x only", "path", cfg.OpencodeVersionsFile)
+		return VersionPolicy{}, nil
+	}
+	return p, err
+}
+
 func runGateway() error {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
+	}
+
+	cfg.Versions, err = loadVersionPolicyFor(cfg)
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	if cfg.Versions.V2 == nil {
+		slog.Info("opencode versions", "v2", "unsupported")
+	} else {
+		slog.Info("opencode versions", "v2", fmt.Sprintf(">=%s <%s", cfg.Versions.V2.Min, cfg.Versions.V2.Max))
 	}
 
 	ctx := contextWithTLS(context.Background(), cfg.TLSInsecureSkipVerify)

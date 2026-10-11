@@ -24,6 +24,11 @@ type Config struct {
 	PodIP                     string
 	ProxySecret               string
 	TLSInsecureSkipVerify     bool
+	OpencodeVersionsFile      string
+	// OpencodeVersionsExplicit is true when OPENCODE_VERSIONS_FILE was set.
+	OpencodeVersionsExplicit bool
+	// Versions is the loaded policy; runGateway fills it from OpencodeVersionsFile.
+	Versions VersionPolicy
 }
 
 func LoadConfig() (*Config, error) {
@@ -75,6 +80,12 @@ func LoadConfig() (*Config, error) {
 
 	tlsInsecure := os.Getenv("TLS_INSECURE_SKIP_VERIFY") == "true"
 
+	versionsFile, versionsExplicit := os.LookupEnv("OPENCODE_VERSIONS_FILE")
+	if versionsFile == "" {
+		versionsFile = "/etc/opencode-rc/opencode-versions.json"
+		versionsExplicit = false
+	}
+
 	return &Config{
 		Port:                      port,
 		OIDCIssuer:                issuer,
@@ -91,5 +102,7 @@ func LoadConfig() (*Config, error) {
 		RedisURL:                  redisURL,
 		PodIP:                     os.Getenv("POD_IP"),
 		TLSInsecureSkipVerify:     tlsInsecure,
+		OpencodeVersionsFile:      versionsFile,
+		OpencodeVersionsExplicit:  versionsExplicit,
 	}, nil
 }
