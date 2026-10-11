@@ -22,8 +22,13 @@ authz:
 admin:
   tokenSecret:
     name: opencode-rc-admin
-# Same features as e2e/rc-config.json, which the UI image is built from.
+# Same features as e2e/rc-config.json, which the UI image is built from (except terminal, which
+# stays enabled here so the terminal-enabled tests run).
 config:
   features:
     uploads:
       enabled: false
+  opencodeV2:
+    features:
+      uploads:
+        enabled: false

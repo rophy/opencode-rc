@@ -27,6 +27,12 @@ build:
       context: ..
       docker:
         dockerfile: cli/Dockerfile
+    - image: dev-machine-v2
+      context: ..
+      docker:
+        dockerfile: cli/Dockerfile
+        buildArgs:
+          OPENCODE_MAJOR: "2"
 manifests:
   rawYaml:
     - k8s/aimock.yaml

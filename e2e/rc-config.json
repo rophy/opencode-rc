@@ -3,5 +3,11 @@
   "features": {
     "uploads": { "enabled": false },
     "terminal": { "enabled": false }
+  },
+  "opencodeV2": {
+    "features": {
+      "uploads": { "enabled": false },
+      "terminal": { "enabled": false }
+    }
   }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
 import { randomBytes } from "node:crypto";
-import { API_URL, UI_URL, GATEWAY_URL, OIDC_URL, SESSION_ID, PROTOCOL, waitFor, TokenSession, postJson, loginCode, loginAs, upgradeStatus } from "./helpers.js";
+import { API_URL, UI_URL, GATEWAY_URL, OIDC_URL, SESSION_ID, SESSION_ID_V2, PROTOCOL, waitFor, TokenSession, postJson, loginCode, loginAs, upgradeStatus } from "./helpers.js";
 
 describe("opencode-rc e2e", () => {
   let jar: TokenSession;
@@ -51,11 +51,12 @@ describe("opencode-rc e2e", () => {
       try {
         const res = await jar.fetch(`${API_URL}/gateway/sessions`);
         sessions = await res.json();
-        if (sessions.length >= 1) break;
+        if ([SESSION_ID, SESSION_ID_V2].every((id) => sessions.some((s) => s.id === id))) break;
       } catch {}
       await new Promise((r) => setTimeout(r, 1000));
     }
-    expect(sessions.length).toBeGreaterThanOrEqual(1);
+    const ids = sessions.map((s) => s.id);
+    expect(ids, "both dev machines should register their sessions").toEqual(expect.arrayContaining([SESSION_ID, SESSION_ID_V2]));
   });
 
   it("session visible in dashboard", async () => {

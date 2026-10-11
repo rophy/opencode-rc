@@ -107,3 +107,57 @@ spec:
             items:
               - key: opencode.json
                 path: opencode.json
+---
+# Second dev machine on opencode 2.x; runs only the CLI (tests run in dev-machine).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-machine-v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dev-machine-v2
+  template:
+    metadata:
+      labels:
+        app: dev-machine-v2
+    spec:
+      serviceAccountName: dev-machine
+      containers:
+        - name: dev-machine-v2
+          image: dev-machine-v2
+          command: ["/bin/bash", "/config/entrypoint.sh"]
+          args: ["node", "/cli/dist/index.js"]
+          env:
+            - name: OPENCODE_RC_GATEWAY_URL
+              value: "http://opencode-rc-gateway:9090"
+            - name: OPENCODE_RC_SESSION_ID
+              value: "alice-dev-v2"
+            - name: OIDC_URL
+              value: "http://opencode-rc-oidc-mock:8080"
+            - name: E2E_CLI_CLIENT_ID
+              value: "opencode-rc-cli"
+            - name: OIDC_USER_SUB
+              value: "user1"
+            - name: OPENAI_API_KEY
+              value: "mock"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: opencode-config
+              mountPath: /project/opencode.json
+              subPath: opencode.json
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: dev-machine-config
+            defaultMode: 0755
+        - name: opencode-config
+          configMap:
+            name: dev-machine-config
+            items:
+              - key: opencode.json
+                path: opencode.json

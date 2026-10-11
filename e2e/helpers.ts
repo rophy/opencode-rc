@@ -9,6 +9,8 @@ export const GATEWAY_URL = process.env.GATEWAY_URL ?? "http://opencode-rc-gatewa
 export const OIDC_URL = process.env.OIDC_URL ?? "http://opencode-rc-oidc-mock:8080";
 export const OIDC_CLIENT_ID = process.env.WEB_OIDC_CLIENT_ID ?? "opencode-rc";
 export const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
+// The second dev machine, running opencode 2.x.
+export const SESSION_ID_V2 = process.env.OPENCODE_RC_SESSION_ID_V2 ?? "alice-dev-v2";
 
 export const PROTOCOL = { "OpenCode-RC-Protocol": "1" };
 

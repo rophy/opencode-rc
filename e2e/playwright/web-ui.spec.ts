@@ -66,14 +66,14 @@ test.describe("session picker", () => {
   });
 
   test("session card links to /s/{sessionID}/", async ({ page }) => {
-    const card = page.locator("a[href*='/s/']").first();
+    const card = page.locator("a[href*='/s/alice-dev/']").first();
     await expect(card).toBeVisible({ timeout: 10_000 });
     const href = await card.getAttribute("href");
     expect(href).toMatch(/^\/s\/alice-dev\//);
   });
 
   test("clicking session navigates to session UI", async ({ page }) => {
-    const card = page.locator("a[href*='/s/']").first();
+    const card = page.locator("a[href*='/s/alice-dev/']").first();
     await expect(card).toBeVisible({ timeout: 10_000 });
     await card.click();
     await expect(page).toHaveURL(/\/s\/alice-dev\//);
@@ -86,7 +86,7 @@ test.describe("session web UI", () => {
   });
 
   test("session page shows user bar with alice", async ({ page }) => {
-    const card = page.locator("a[href*='/s/']").first();
+    const card = page.locator("a[href*='/s/alice-dev/']").first();
     await expect(card).toBeVisible({ timeout: 10_000 });
     await card.click();
     await expect(page).toHaveURL(/\/s\/alice-dev\//);
@@ -95,7 +95,7 @@ test.describe("session web UI", () => {
   });
 
   test("user bar home link navigates to session picker", async ({ page }) => {
-    const card = page.locator("a[href*='/s/']").first();
+    const card = page.locator("a[href*='/s/alice-dev/']").first();
     await expect(card).toBeVisible({ timeout: 10_000 });
     await card.click();
     await expect(page).toHaveURL(/\/s\/alice-dev\//);

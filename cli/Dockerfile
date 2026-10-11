@@ -2,6 +2,8 @@ FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
 # Pinned, checksum-verified downloads (no remote install scripts). opencode matches
 # the vendor/opencode-v1 tag the UI is built from. Bump versions and checksums together.
+# OPENCODE_MAJOR picks which opencode the image carries: 1 (the tarball) or 2 (the npm package).
+ARG OPENCODE_MAJOR=1
 ARG TARGETARCH
 ARG KUBECTL_VERSION=v1.37.1
 ARG KUBECTL_SHA256_AMD64=65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8
@@ -9,6 +11,8 @@ ARG KUBECTL_SHA256_ARM64=ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acff
 ARG OPENCODE_VERSION=1.18.29
 ARG OPENCODE_SHA256_AMD64=ea800b7ff56226b70952126c9fc1e2517ca4c4b5682fd9d3f9e87449697a1194
 ARG OPENCODE_SHA256_ARM64=70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0
+# The 2.x release the gateway accepts (config/opencode-versions.json). Bump together with it.
+ARG OPENCODE_V2_VERSION=2.0.26
 # -C - resumes a partial download on retry (GitHub release downloads can be slow).
 ARG CURL="curl -fsSL -C - --retry 10 --retry-all-errors --connect-timeout 20 --max-time 900"
 
@@ -24,11 +28,20 @@ RUN set -eu; \
     $CURL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl"; \
     echo "${k_sha}  /usr/local/bin/kubectl" | sha256sum -c -; \
     chmod +x /usr/local/bin/kubectl; \
-    $CURL -o /tmp/opencode.tar.gz "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${o_arch}.tar.gz"; \
-    echo "${o_sha}  /tmp/opencode.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode; \
-    rm /tmp/opencode.tar.gz; \
-    opencode --version
+    if [ "$OPENCODE_MAJOR" = 1 ]; then \
+      $CURL -o /tmp/opencode.tar.gz "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-${o_arch}.tar.gz"; \
+      echo "${o_sha}  /tmp/opencode.tar.gz" | sha256sum -c -; \
+      tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin opencode; \
+      rm /tmp/opencode.tar.gz; \
+      want="${OPENCODE_VERSION}"; \
+    elif [ "$OPENCODE_MAJOR" = 2 ]; then \
+      npm install -g "@opencode/cli@${OPENCODE_V2_VERSION}"; \
+      want="v${OPENCODE_V2_VERSION}"; \
+    else \
+      echo "unsupported OPENCODE_MAJOR: $OPENCODE_MAJOR" >&2; exit 1; \
+    fi; \
+    got="$(opencode --version)"; echo "$got"; \
+    case "$got" in *"$want") ;; *) echo "expected opencode $want, got: $got" >&2; exit 1 ;; esac
 
 # Create a project directory for opencode to work in
 WORKDIR /project

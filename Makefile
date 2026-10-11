@@ -68,21 +68,25 @@ up: ns ## Deploy the e2e environment into NAMESPACE on an existing cluster
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-api --timeout=120s
 	@$(KUBECTL) wait --for=condition=Available deployment/opencode-rc-ui --timeout=120s
 	@$(KUBECTL) wait --for=condition=Available deployment/dev-machine --timeout=120s
-	@echo "Waiting for tunnel establishment..."
-	@for i in $$(seq 1 120); do \
-		if $(KUBECTL) logs deployment/dev-machine --tail=10 2>/dev/null | grep -q 'Session.*connected\|Tunnel established'; then \
-			echo "Tunnel established"; \
+	@$(KUBECTL) wait --for=condition=Available deployment/dev-machine-v2 --timeout=120s
+	@echo "Waiting for tunnel establishment (opencode 1.x and 2.x dev machines)..."
+	@for m in dev-machine dev-machine-v2; do \
+	for i in $$(seq 1 120); do \
+		if $(KUBECTL) logs deployment/$$m --tail=10 2>/dev/null | grep -q 'Session.*connected\|Tunnel established'; then \
+			echo "Tunnel established: $$m"; \
 			break; \
 		fi; \
 		if [ "$$i" -eq 120 ]; then \
-			echo "ERROR: tunnel not established after 240s"; \
+			echo "ERROR: $$m tunnel not established after 240s"; \
 			$(KUBECTL) logs deployment/opencode-rc-api --tail=30; \
 			$(KUBECTL) logs deployment/opencode-rc-ui --tail=30; \
 			$(KUBECTL) logs deployment/opencode-rc-gateway --tail=30; \
 			$(KUBECTL) logs deployment/dev-machine --tail=30; \
+			$(KUBECTL) logs deployment/dev-machine-v2 --tail=30; \
 			exit 1; \
 		fi; \
 		sleep 2; \
+	done; \
 	done
 	@echo ""
 	@echo "=== Cluster ready ==="
@@ -105,6 +109,7 @@ e2e-test: ## Run e2e tests (vitest + playwright + coverage)
 		$(KUBECTL) logs deployment/opencode-rc-ui --tail=50 || true; \
 		$(KUBECTL) logs deployment/opencode-rc-gateway --tail=50 || true; \
 		$(KUBECTL) logs deployment/dev-machine --tail=50 || true; \
+		$(KUBECTL) logs deployment/dev-machine-v2 --tail=50 || true; \
 	fi; \
 	echo ""; \
 	echo "=== Collecting coverage ==="; \
