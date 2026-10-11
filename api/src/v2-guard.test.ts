@@ -331,3 +331,39 @@ describe("v2 routes refused whatever the toggles", () => {
     await expectForwarded(await call(makeApp(), "POST", "/api/worktree/refresh", {}));
   });
 });
+
+describe("v2 mcp toggle", () => {
+  const off = () => makeApp(cfg({ mcp: { enabled: false } }));
+  const mcpIntegration = "mcp_0123456789abcdef";
+  const changes: [string, string][] = [
+    ["POST", "/api/experimental/mcp/docs/connect"],
+    ["POST", "/api/experimental/mcp/docs/disconnect"],
+    ["POST", "/API/Experimental/MCP/docs/Connect/"],
+    ["POST", `/api/integration/${mcpIntegration}/connect/oauth`],
+    ["POST", `/api/integration/${mcpIntegration}/connect/key`],
+    ["GET", `/api/integration/${mcpIntegration}/connect/oauth/att_1`],
+    ["DELETE", `/api/integration/${mcpIntegration}/connect/oauth/att_1`],
+    ["POST", `/api/integration/${mcpIntegration}/connect/oauth/att_1/complete`],
+    ["POST", `/API/Integration/MCP_0123456789ABCDEF/Connect/OAuth`],
+  ];
+
+  it.each(changes)("disabled: refuses %s %s", async (method, path) => {
+    await expectRejected(await call(off(), method, path, method === "GET" ? undefined : {}), /^MCP changes are disabled$/);
+  });
+
+  it.each(changes)("enabled: forwards %s %s", async (method, path) => {
+    await expectForwarded(await call(makeApp(), method, path, method === "GET" ? undefined : {}));
+  });
+
+  it.each([
+    ["GET", "/api/mcp"],
+    ["GET", "/api/mcp/resource"],
+    ["GET", `/api/integration/${mcpIntegration}`],
+    ["GET", "/api/integration"],
+    ["POST", "/api/integration/openai/connect/oauth"],
+    ["POST", "/api/integration/anthropic/connect/key"],
+    ["POST", "/api/integration/openai/connect/oauth/att_1/complete"],
+  ])("disabled: forwards %s %s", async (method, path) => {
+    await expectForwarded(await call(off(), method, path, method === "GET" ? undefined : {}));
+  });
+});

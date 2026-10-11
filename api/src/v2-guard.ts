@@ -20,7 +20,13 @@ const MESSAGES: Record<FeatureNameV2, string> = {
   terminal: "the terminal is disabled",
   shell: "shell commands are disabled",
   export: "export is disabled",
+  mcp: "MCP changes are disabled",
 };
+
+// opencode 2.x registers each remote MCP server as an integration named mcp_<16 hex>
+// (core/src/mcp/index.ts register), and the UI signs in to it with the integration's OAuth
+// routes. With mcp disabled those integrations cannot be connected; provider sign-in stays.
+const MCP_INTEGRATION = /^\/api\/integration\/mcp_[^/]*\/connect\//;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isFileUri = (v: unknown) => typeof v === "string" && v.toLowerCase().startsWith("file:");
@@ -151,6 +157,7 @@ export function v2Guard(
     if (route.rule !== "allow" && !features[route.rule].enabled) {
       return reject(c, MESSAGES[route.rule], `${method} ${trimmed}`);
     }
+    if (!features.mcp.enabled && MCP_INTEGRATION.test(trimmed)) return reject(c, MESSAGES.mcp, `${method} ${trimmed}`);
     const denied = await checkRequest(c, route.template, features, fetchServerInfo);
     if (denied) return reject(c, denied, `${method} ${trimmed}`);
     await next();

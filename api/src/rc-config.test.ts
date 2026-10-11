@@ -38,8 +38,16 @@ describe("parseConfig", () => {
   });
 
   it("enables every 2.x feature by default", () => {
-    expect(Object.keys(parseConfig({}).opencodeV2.features)).toEqual(["uploads", "downloads", "terminal", "shell", "export"]);
+    expect(Object.keys(parseConfig({}).opencodeV2.features)).toEqual(["uploads", "downloads", "terminal", "shell", "export", "mcp"]);
     expect(Object.values(parseConfig({}).opencodeV2.features).every((f) => f.enabled)).toBe(true);
+  });
+
+  it("enables mcp by default in both versions and parses it disabled", () => {
+    expect(parseConfig({}).features.mcp.enabled).toBe(true);
+    expect(parseConfig({}).opencodeV2.features.mcp.enabled).toBe(true);
+    const off = parseConfig({ features: { mcp: { enabled: false } }, opencodeV2: { features: { mcp: { enabled: false } } } });
+    expect(off.features.mcp.enabled).toBe(false);
+    expect(off.opencodeV2.features.mcp.enabled).toBe(false);
   });
 
   it("enables downloads by default in both versions and parses it disabled", () => {

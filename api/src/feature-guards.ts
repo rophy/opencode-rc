@@ -36,6 +36,15 @@ export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   // Changing opencode's config: the project and global config, adding MCP servers, project
   // commands. Independent of shell and downloads, which refuse parts of the same requests.
   config: configGuard(),
+  // Connecting or disconnecting a configured MCP server (it starts the server's command or
+  // reaches its remote service) and MCP sign-in, which "opens browser" on the dev machine and
+  // stores tokens (mcp.ts). Listing servers and their resources stays allowed; adding one is
+  // refused by config and shell.
+  mcp: blockGuard("mcp", "MCP changes are disabled", [
+    { method: "POST", path: /^\/mcp\/[^/]+\/(connect|disconnect)$/i },
+    { method: "POST", path: /^\/mcp\/[^/]+\/auth(\/callback|\/authenticate)?$/i },
+    { method: "DELETE", path: /^\/mcp\/[^/]+\/auth$/i },
+  ]),
 };
 
 // Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router

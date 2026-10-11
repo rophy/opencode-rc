@@ -30,8 +30,8 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["POST", "/api/experimental/integration/wellknown", "never"], // integration.wellknown.add
   ["DELETE", "/api/experimental/mcp/:server", "never"], // mcp.remove
   ["PUT", "/api/experimental/mcp/:server", "never"], // mcp.add
-  ["POST", "/api/experimental/mcp/:server/connect", "allow"], // mcp.connect
-  ["POST", "/api/experimental/mcp/:server/disconnect", "allow"], // mcp.disconnect
+  ["POST", "/api/experimental/mcp/:server/connect", "mcp"], // mcp.connect
+  ["POST", "/api/experimental/mcp/:server/disconnect", "mcp"], // mcp.disconnect
   ["GET", "/api/experimental/migration/v1", "allow"], // migration.v1.status
   ["DELETE", "/api/experimental/persistent-pty/:ptyID", "never"], // persistentPty.remove
   ["GET", "/api/experimental/persistent-pty/:ptyID", "never"], // persistentPty.get

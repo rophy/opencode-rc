@@ -6,14 +6,14 @@
 // vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
 // downloads blocks reading a file's contents, directly or by referencing it in a prompt (not listing
 // or finding files by name). config blocks changing opencode's config from the browser (1.x only:
-// 2.x never allows it).
-export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share", "config"] as const;
+// 2.x never allows it). mcp blocks connecting, disconnecting and signing in to MCP servers.
+export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share", "config", "mcp"] as const;
 
 export type FeatureName = (typeof FEATURES)[number];
 
 // The 2.x feature toggles. A disabled feature gets the 2.x UI patches in
 // vendor/patches/v2/<name>/ (step 4) and the API's v2 rules in api/src/v2-guard.ts.
-export const FEATURES_V2 = ["uploads", "downloads", "terminal", "shell", "export"] as const;
+export const FEATURES_V2 = ["uploads", "downloads", "terminal", "shell", "export", "mcp"] as const;
 
 export type FeatureNameV2 = (typeof FEATURES_V2)[number];
 
