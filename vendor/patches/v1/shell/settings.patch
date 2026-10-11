@@ -1,0 +1,46 @@
+diff --git a/packages/app/src/components/settings-general.tsx b/packages/app/src/components/settings-general.tsx
+index 8adaa1f0fd..739cdc634a 100644
+--- a/packages/app/src/components/settings-general.tsx
++++ b/packages/app/src/components/settings-general.tsx
+@@ -325,28 +325,6 @@ export const SettingsGeneral: Component = () => {
+           </div>
+         </SettingsRow>
+ 
+-        <SettingsRow
+-          title={language.t("settings.general.row.shell.title")}
+-          description={language.t("settings.general.row.shell.description")}
+-        >
+-          <Select
+-            data-action="settings-shell"
+-            options={shellOptions()}
+-            current={shellOptions().find((o) => o.value === currentShell()) ?? autoOption}
+-            value={(o) => o.id}
+-            label={(o) => o.label}
+-            onSelect={(option) => {
+-              if (!option) return
+-              if (option.value === currentShell()) return
+-              serverSync().updateConfig({ shell: option.value })
+-            }}
+-            variant="secondary"
+-            size="small"
+-            triggerVariant="settings"
+-            triggerStyle={{ "min-width": "180px" }}
+-          />
+-        </SettingsRow>
+-
+         <SettingsRow
+           title={language.t("settings.general.row.reasoningSummaries.title")}
+           description={language.t("settings.general.row.reasoningSummaries.description")}
+diff --git a/packages/app/src/components/settings-v2/general.tsx b/packages/app/src/components/settings-v2/general.tsx
+index b41da107ed..eda6b191ee 100644
+--- a/packages/app/src/components/settings-v2/general.tsx
++++ b/packages/app/src/components/settings-v2/general.tsx
+@@ -331,8 +331,6 @@ export const SettingsGeneralV2: Component<{
+ 
+         <PermissionScopeSetting controller={permissionScope} />
+ 
+-        <ShellSetting controller={shell} />
+-
+         <SettingsRowV2
+           title={language.t("settings.general.row.reasoningSummaries.title")}
+           description={language.t("settings.general.row.reasoningSummaries.description")}

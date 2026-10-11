@@ -37,6 +37,30 @@ describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("feature pa
     expect(menu).not.toContain("onSelect={props.onShell}")
   })
 
+  // The API refuses these requests while shell is disabled, so the UI must not send them.
+  it("shell: no terminal shell setting, no project start command", () => {
+    const general = patched("shell", "packages/app/src/components/settings-general.tsx")
+    expect(general).not.toContain('data-action="settings-shell"')
+    expect(general).not.toContain("updateConfig({ shell:")
+    const generalV2 = patched("shell", "packages/app/src/components/settings-v2/general.tsx")
+    expect(generalV2).not.toContain("<ShellSetting controller={shell} />")
+    expect(generalV2).toContain("<PermissionScopeSetting controller={permissionScope} />")
+    const model = patched("shell", "packages/app/src/components/edit-project.ts")
+    expect(model).not.toMatch(/^\s+commands: \{ start \},$/m) // a commented-out call remains
+    // A project without an id keeps its start command in the browser only.
+    expect(model).toContain("commands: { start: start || undefined },")
+    expect(model).toContain('icon: { color: store.color || "", override: store.iconOverride || "" },\n          })')
+    for (const file of ["dialog-edit-project.tsx", "dialog-edit-project-v2.tsx"]) {
+      const dialog = patched("shell", `packages/app/src/components/${file}`)
+      expect(dialog, file).not.toContain("dialog.project.edit.worktree.startup")
+      expect(dialog, file).toContain("dialog.project.edit.name")
+    }
+    // The app creates worktrees without a start command; a patch would be needed if that changed.
+    for (const file of ["packages/app/src/pages/layout.tsx", "packages/app/src/components/prompt-input/submit.ts"]) {
+      expect(fs.readFileSync(path.join(opencode, file), "utf8"), file).not.toContain("startCommand")
+    }
+  })
+
   it("export: no export menu items, button or command", () => {
     const timeline = patched("export", "packages/app/src/pages/session/timeline/message-timeline.tsx")
     expect(timeline).not.toContain("onSelect={() => exportSession(id)}")

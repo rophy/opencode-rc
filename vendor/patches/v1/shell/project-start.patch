@@ -1,0 +1,56 @@
+diff --git a/packages/app/src/components/dialog-edit-project-v2.tsx b/packages/app/src/components/dialog-edit-project-v2.tsx
+index dc9714aa06..a4edbd2db4 100644
+--- a/packages/app/src/components/dialog-edit-project-v2.tsx
++++ b/packages/app/src/components/dialog-edit-project-v2.tsx
+@@ -129,18 +129,6 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
+             </div>
+           </Show>
+ 
+-          <Field>
+-            <Field.Label>{language.t("dialog.project.edit.worktree.startup")}</Field.Label>
+-            <Field.Prefix>{language.t("dialog.project.edit.worktree.startup.description")}</Field.Prefix>
+-            <TextareaV2
+-              class="!w-full [&_[data-slot=textarea-v2-textarea]]:font-mono"
+-              rows={3}
+-              value={model.store.startup}
+-              placeholder={language.t("dialog.project.edit.worktree.startup.placeholder")}
+-              spellcheck={false}
+-              onInput={(event) => model.setStore("startup", event.currentTarget.value)}
+-            />
+-          </Field>
+         </DialogBody>
+         <DialogFooter>
+           <ButtonV2 type="button" variant="neutral" disabled={model.save.isPending} onClick={model.close}>
+diff --git a/packages/app/src/components/dialog-edit-project.tsx b/packages/app/src/components/dialog-edit-project.tsx
+index 86a9630359..b867666af5 100644
+--- a/packages/app/src/components/dialog-edit-project.tsx
++++ b/packages/app/src/components/dialog-edit-project.tsx
+@@ -144,16 +144,6 @@ export function DialogEditProject(props: { project: LocalProject; server: Server
+             </div>
+           </Show>
+ 
+-          <TextField
+-            multiline
+-            label={language.t("dialog.project.edit.worktree.startup")}
+-            description={language.t("dialog.project.edit.worktree.startup.description")}
+-            placeholder={language.t("dialog.project.edit.worktree.startup.placeholder")}
+-            value={model.store.startup}
+-            onChange={(v) => model.setStore("startup", v)}
+-            spellcheck={false}
+-            class="max-h-14 w-full overflow-y-auto font-mono text-xs"
+-          />
+         </div>
+ 
+         <div class="flex justify-end gap-2">
+diff --git a/packages/app/src/components/edit-project.ts b/packages/app/src/components/edit-project.ts
+index 0c5d576e93..4cea8f5691 100644
+--- a/packages/app/src/components/edit-project.ts
++++ b/packages/app/src/components/edit-project.ts
+@@ -78,7 +78,6 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+             directory: props.project.worktree,
+             name,
+             icon: { color: store.color || "", override: store.iconOverride || "" },
+-            commands: { start },
+           })
+           .then((result) => result.data)
+         if (!project) return
