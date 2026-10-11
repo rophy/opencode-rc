@@ -14,8 +14,8 @@ afterEach(() => {
 const user = { sub: "alice", email: "alice@example.com", name: "Alice" }
 
 // The shape /gateway/sessions returns (the gateway's session record plus "user").
-function session(id: string, directory: string, createdAt = new Date().toISOString()) {
-  return { id, userId: "alice", user: "alice", directory, gatewayAddr: "10.0.0.5:9090", createdAt }
+function session(id: string, directory: string, createdAt = new Date().toISOString(), opencodeVersion?: string) {
+  return { id, userId: "alice", user: "alice", directory, gatewayAddr: "10.0.0.5:9090", createdAt, opencodeVersion }
 }
 
 describe("SessionPicker", () => {
@@ -110,6 +110,23 @@ describe("SessionPicker", () => {
     const link = screen.getByText("proj").closest("a")
     // Relative so the mobile app stays in the bundled SPA; API calls are routed to the server by entry.tsx
     expect(link?.getAttribute("href")).toBe("/s/s1/")
+  })
+
+  it("links each session to the build for its opencode version", async () => {
+    const now = new Date().toISOString()
+    const sessions = [
+      session("a", "/pa", now, "1.14.2"),
+      session("b", "/pb", now),
+      session("c", "/pc", now, "2.0.0"),
+    ]
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
+    )
+    render(() => <SessionPicker user={user} />)
+    await vi.waitFor(() => expect(screen.getByText("pc")).toBeTruthy())
+    expect(screen.getByText("pa").closest("a")?.getAttribute("href")).toBe("/s/a/")
+    expect(screen.getByText("pb").closest("a")?.getAttribute("href")).toBe("/s/b/")
+    expect(screen.getByText("pc").closest("a")?.getAttribute("href")).toBe("/v2/s/c/")
   })
 
   it("refresh button triggers refetch", async () => {

@@ -26,8 +26,8 @@ if (typeof Object.groupBy !== "function") {
 
 
 import { render } from "solid-js/web"
-import { createResource, createSignal, Match, Switch } from "solid-js"
-import { fetchMe, isPreConfigured } from "./api"
+import { createResource, createSignal, Match, Show, Switch } from "solid-js"
+import { fetchMe, fetchSessions, isPreConfigured, type UserInfo } from "./api"
 import { completeLogin, onLoggedOut } from "./auth"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
@@ -38,12 +38,44 @@ import { ProtocolScreen } from "./protocol-screen"
 import { NoAccessScreen } from "./no-access-screen"
 import { accessRecheck } from "./access-recheck"
 import { BASE } from "./build-info"
+import { mismatchRedirect } from "./opencode-version"
 import { SessionView } from "#session-view"
 
 function getSessionIdFromPath(): string | null {
   const base = BASE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   const match = location.pathname.match(new RegExp(`^${base}/s/([^/]+)`))
   return match ? decodeURIComponent(match[1]) : null
+}
+
+// A session belongs to the build for its opencode version. Look it up first and move to the
+// other build when this one is the wrong one; an unknown session renders as before (the API
+// answers it).
+function SessionGate(props: { sessionId: string; user: UserInfo; onSettings: () => void; onForbidden: () => void }) {
+  const [target] = createResource(async () => {
+    const sessions = await fetchSessions().catch(() => [])
+    const url = mismatchRedirect(sessions, {
+      base: BASE,
+      id: props.sessionId,
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+    })
+    if (url) location.replace(url)
+    return url
+  })
+  return (
+    <Show
+      when={!target.loading && !target()}
+      fallback={<div class="flex items-center justify-center h-dvh text-v2-text-tertiary">Loading...</div>}
+    >
+      <SessionView
+        sessionId={props.sessionId}
+        user={props.user}
+        onSettings={props.onSettings}
+        onForbidden={props.onForbidden}
+      />
+    </Show>
+  )
 }
 
 function App(props: { loginExpired: boolean }) {
@@ -90,7 +122,7 @@ function App(props: { loginExpired: boolean }) {
         <SessionPicker user={user()!} />
       </Match>
       <Match when={user() && sessionId}>
-        <SessionView
+        <SessionGate
           sessionId={sessionId!}
           user={user()!}
           onSettings={() => setShowConfig(true)}
