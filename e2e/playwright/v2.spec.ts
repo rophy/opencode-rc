@@ -98,10 +98,15 @@ test.describe("opencode 2.x session UI", () => {
     await page.keyboard.press("Control+Backquote");
     await page.waitForTimeout(1000);
     await expect(page.locator('[data-component="terminal"]')).toHaveCount(0);
-    // The terminal's slash command is gone too.
-    await page.keyboard.type("/terminal");
+    // The terminal's slash command is gone too. Positive control first: "/" lists commands in
+    // the suggestion popover (editor.tsx ComposerEditorPopover: data-component="composer-suggestions",
+    // one button[data-suggestion-id] per item). The typed text itself is not part of that list.
+    const options = page.locator('[data-component="composer-suggestions"] [data-suggestion-id]');
+    await page.keyboard.type("/");
+    await expect(options.first()).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.type("terminal");
     await page.waitForTimeout(500);
-    await expect(page.getByText(/^\/terminal\b/)).toHaveCount(0);
+    await expect(options.filter({ hasText: /terminal/i })).toHaveCount(0);
   });
 });
 
