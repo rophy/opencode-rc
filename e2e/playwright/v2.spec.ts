@@ -156,15 +156,16 @@ test("opencode 2.x golden path: send a message and see the mock AI's reply", asy
 });
 
 test.describe("opencode 2.x downloads disabled", () => {
-  test("mod+p opens the command palette without files", async ({ page }) => {
+  test("the command palette (mod+k) lists no files", async ({ page }) => {
     test.setTimeout(90_000);
     await loginAs(page, "Alice");
     await page.goto(V2_PREFIX);
     await openV2Composer(page);
     await page.locator('[data-component="composer-editor"]').click();
-    // Positive control: the palette still opens, and lists commands for a command name.
-    await page.keyboard.press("Control+p");
-    const dialog = page.getByRole("dialog");
+    // Positive control: the palette (mod+k, registered on the draft page) still opens and lists
+    // commands. mod+p, the file picker, is gone with downloads.
+    await page.keyboard.press("Control+k");
+    const dialog = page.locator(".command-palette");
     await expect(dialog).toBeVisible({ timeout: 10_000 });
     await page.keyboard.type("new session");
     await expect(dialog.getByText(/new session/i).first()).toBeVisible({ timeout: 10_000 });
