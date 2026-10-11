@@ -8,6 +8,7 @@ import { downloadGuard } from "./download-guard.js";
 import { shellGuard } from "./shell-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
 import { uploadGuard } from "./upload-guard.js";
+import { v1NeverGuard } from "./v1-never.js";
 import { v1ApiGuard } from "./v1-routes.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
@@ -77,11 +78,12 @@ export function plainPathGuard(reject: (c: Context<ProxyEnv>) => Response): Guar
 
 export const plainPath: Guard = plainPathGuard((c) => c.text("unsupported characters in path", 400));
 
-// The guard set for opencode 1.x sessions: the /api route check plus the guards of the
-// features the config disables (FEATURES order). Always active, so writes need plain paths.
+// The guard set for opencode 1.x sessions: the /api route check, the routes refused whatever
+// the toggles (v1-never.ts), plus the guards of the features the config disables (FEATURES
+// order). Always active, so writes need plain paths.
 export function v1Guards(config: RcConfig, guards: Record<FeatureName, Guard | null> = FEATURE_GUARDS): Guard {
   const active = FEATURES.filter((name) => !config.features[name].enabled)
     .map((name) => guards[name])
     .filter((guard): guard is Guard => guard !== null);
-  return every(plainPath, v1ApiGuard(), ...active);
+  return every(plainPath, v1ApiGuard(), v1NeverGuard(), ...active);
 }
