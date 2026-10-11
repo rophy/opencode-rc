@@ -55,7 +55,7 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
-  const server = await startServer();
+  const server = await startServer(1);
 
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
   const tunnel = await startTunnelWithReconnect(
