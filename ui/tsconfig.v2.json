@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "#session-view": [
+        "./src/session-view-v2.tsx"
+      ],
+      "@opencode/app": [
+        "../vendor/opencode-v2/packages/app/src/index.ts"
+      ],
+      "@opencode/app/desktop": [
+        "../vendor/opencode-v2/packages/app/src/desktop.ts"
+      ],
+      "@/*": [
+        "../vendor/opencode-v2/packages/app/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/session-view-v1.tsx"
+  ]
+}

@@ -22,6 +22,14 @@ ASSET=$(curl -s "$B/" | grep -o '/assets/[^"]*\.js' | head -1)
 [ -n "$ASSET" ] || fail "no asset referenced from index.html"
 curl -sI "$B$ASSET" | grep -qi '^cache-control: public, max-age=31536000, immutable' || fail "asset cache-control"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$B/assets/nope.js")" = 404 ] || fail "missing asset should 404"
+# The 2.x build is served under /v2/ with its own index and assets.
+curl -s "$B/v2/" | grep -q '/v2/assets/' || fail "/v2/ is not the 2.x index.html"
+curl -s "$B/v2/s/x/" | grep -q '/v2/assets/' || fail "/v2/s/x/ SPA fallback"
+curl -sI "$B/v2/" | grep -qi '^cache-control: no-cache' || fail "v2 index cache-control"
+ASSET2=$(curl -s "$B/v2/" | grep -o '/v2/assets/[^"]*\.js' | head -1)
+[ -n "$ASSET2" ] || fail "no asset referenced from v2 index.html"
+curl -sI "$B$ASSET2" | grep -qi '^cache-control: public, max-age=31536000, immutable' || fail "v2 asset cache-control"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$B/v2/assets/nope.js")" = 404 ] || fail "missing v2 asset should 404"
 CSP=$(curl -sI "$B/" | grep -i '^content-security-policy:' || true)
 echo "$CSP" | grep -q "connect-src 'self' data: http: https: ws: wss:;" || fail "CSP connect-src: $CSP"
 echo "$CSP" | grep -q "script-src 'self' 'wasm-unsafe-eval';" || fail "CSP script-src: $CSP"

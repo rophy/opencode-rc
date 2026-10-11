@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && OPENCODE_MAJOR=2 vite build",
+    "build:v1": "vite build",
+    "build:v2": "OPENCODE_MAJOR=2 vite build",
+    "dev:v2": "OPENCODE_MAJOR=2 vite",
     "test": "vitest run",
     "typecheck": "bun build/typecheck.ts",
     "preview": "vite preview"

@@ -3,17 +3,23 @@ import solid from "vite-plugin-solid"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 import fs from "fs"
-import { FEATURES, parseConfig, parseConfigText, type RcConfig } from "../config/schema.ts"
+import { FEATURES, FEATURES_V2, parseConfig, parseConfigText, type RcConfig } from "../config/schema.ts"
 import { contentSecurityPolicy } from "./csp.ts"
 import { featurePatches, vendorPatches } from "./build/vendor-patches.ts"
 
-// The sibling opencode repo provides all @opencode-ai/* packages and their
-// npm dependencies. In CI, clone it as a build step.
-const opencodeRoot = process.env.OPENCODE_ROOT || path.resolve(import.meta.dirname, "../vendor/opencode-v1")
+// Which opencode the build wraps: unset or "1" builds the 1.x UI at /, "2" the 2.x UI at /v2/.
+const major = process.env.OPENCODE_MAJOR ?? "1"
+if (major !== "1" && major !== "2") throw new Error(`OPENCODE_MAJOR must be 1 or 2, got ${major}`)
+const v2 = major === "2"
+// The submodule provides all of its packages and their npm dependencies.
+const opencodeRoot = v2
+  ? process.env.OPENCODE_V2_ROOT || path.resolve(import.meta.dirname, "../vendor/opencode-v2")
+  : process.env.OPENCODE_ROOT || path.resolve(import.meta.dirname, "../vendor/opencode-v1")
+const scope = v2 ? "@opencode/" : "@opencode-ai/"
 const opencodePackages = path.join(opencodeRoot, "packages")
 const appNodeModules = path.join(opencodePackages, "app/node_modules")
 
-// Load all @opencode-ai/* package metadata for exports resolution
+// Load all package metadata for exports resolution
 interface PkgMeta {
   name: string
   dir: string
@@ -26,7 +32,7 @@ function loadOpenCodePackages(): PkgMeta[] {
     const pkgJsonPath = path.join(opencodePackages, dir, "package.json")
     if (!fs.existsSync(pkgJsonPath)) continue
     const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"))
-    if (pkgJson.name?.startsWith("@opencode-ai/")) {
+    if (pkgJson.name?.startsWith(scope)) {
       packages.push({
         name: pkgJson.name,
         dir: path.join(opencodePackages, dir),
@@ -49,7 +55,7 @@ function readBuildConfig(): RcConfig {
 
 const rcConfig = readBuildConfig()
 
-// Resolve @opencode-ai/pkg/subpath using the package's exports map
+// Resolve <scope>pkg/subpath using the package's exports map
 function resolveExport(source: string): string | null {
   for (const pkg of ocPackages) {
     if (source === pkg.name) {
@@ -92,8 +98,8 @@ function opencodeResolver(): Plugin {
     name: "opencode-resolver",
     enforce: "pre",
     async resolveId(source, importer, options) {
-      // Handle @opencode-ai/* imports from anywhere
-      if (source.startsWith("@opencode-ai/")) {
+      // Handle <scope>* imports from anywhere
+      if (source.startsWith(scope)) {
         const resolved = resolveExport(source)
         if (resolved) return resolved
       }
@@ -156,19 +162,25 @@ function cspMeta(): Plugin {
 }
 
 export default defineConfig({
-  base: "/",
+  base: v2 ? "/v2/" : "/",
   define: {
     __RC_CONFIG__: JSON.stringify(rcConfig),
   },
   plugins: [
-    // vendor/patches/v1/<feature>: our changes to opencode 1.x, applied when the feature is disabled.
+    // vendor/patches/<v1|v2>/<feature>: our changes to opencode, applied when the feature is disabled.
     vendorPatches(
       opencodeRoot,
-      featurePatches(
-        path.resolve(import.meta.dirname, "../vendor/patches/v1"),
-        FEATURES,
-        FEATURES.filter((name) => !rcConfig.features[name].enabled),
-      ),
+      v2
+        ? featurePatches(
+            path.resolve(import.meta.dirname, "../vendor/patches/v2"),
+            FEATURES_V2,
+            FEATURES_V2.filter((name) => !rcConfig.opencodeV2.features[name].enabled),
+          )
+        : featurePatches(
+            path.resolve(import.meta.dirname, "../vendor/patches/v1"),
+            FEATURES,
+            FEATURES.filter((name) => !rcConfig.features[name].enabled),
+          ),
     ),
     opencodeResolver(),
     opencodeAppFonts(),
@@ -179,7 +191,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.join(opencodePackages, "app/src"),
-      "#session-view": path.join(import.meta.dirname, "src/session-view-v1.tsx"),
+      "#session-view": path.join(import.meta.dirname, v2 ? "src/session-view-v2.tsx" : "src/session-view-v1.tsx"),
+      // Mirrors packages/app/vite.js upstream.
+      ...(v2
+        ? { "@betteroffice/fonts-cjk": path.join(opencodePackages, "gui-extensions/src/microsoft-office/fonts-cjk.ts") }
+        : {}),
     },
     conditions: ["import", "module", "browser", "default"],
     dedupe: ["solid-js", "@solidjs/router"],
@@ -203,6 +219,8 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
-    outDir: "dist",
+    // The 2.x build lands in dist/v2 and must not delete the 1.x output.
+    outDir: v2 ? "dist/v2" : "dist",
+    emptyOutDir: !v2,
   },
 })

@@ -7,6 +7,7 @@ on:
       - 'ui/**'
       - 'config/**'
       - 'vendor/opencode-v1'
+      - 'vendor/opencode-v2'
       - 'vendor/patches/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
@@ -64,8 +65,11 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install submodule deps
+      - name: Install submodule deps (1.x)
         run: cd vendor/opencode-v1 && bun install --frozen-lockfile
+
+      - name: Install submodule deps (2.x)
+        run: cd vendor/opencode-v2 && bun install --frozen-lockfile --ignore-scripts
 
       - name: Build SPA
         run: cd ui && bun install --frozen-lockfile && bun run build

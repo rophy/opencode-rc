@@ -27,5 +27,8 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/session-view-v2.tsx"
   ]
 }
