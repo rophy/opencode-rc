@@ -6,6 +6,8 @@ export interface SessionMeta {
   directory: string;
   gatewayAddr: string;
   createdAt: string;
+  /** opencode version on the dev machine; absent for older CLIs. */
+  opencodeVersion?: string;
 }
 
 export class SessionStore {

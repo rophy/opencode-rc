@@ -22,6 +22,8 @@ export interface DevSession {
   gatewayAddr: string
   /** When the current tunnel connected (ISO 8601). */
   createdAt: string
+  /** opencode version on the dev machine; absent for older CLIs. */
+  opencodeVersion?: string
 }
 
 export async function fetchMe(): Promise<UserInfo | null> {

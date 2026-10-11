@@ -50,6 +50,21 @@ describe("SessionPicker", () => {
     expect(screen.getByText("alice-de")).toBeTruthy()
   })
 
+  it("shows the opencode version when the session reports one", async () => {
+    const sessions = [
+      { ...session("a", "/p/a"), opencodeVersion: "1.18.29" },
+      session("b", "/p/b"),
+    ]
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
+    )
+    render(() => <SessionPicker user={user} />)
+    await vi.waitFor(() => {
+      expect(screen.getByText("opencode 1.18.29")).toBeTruthy()
+    })
+    expect(screen.queryAllByText(/^opencode \d/)).toHaveLength(1)
+  })
+
   it("shows how long the session has been connected", async () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000 - 1000).toISOString()
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

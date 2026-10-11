@@ -291,6 +291,8 @@ describe("session metadata", () => {
     expect(session.id).toBe(SESSION_ID);
     expect(session).toHaveProperty("user");
     expect(session).toHaveProperty("directory");
+    // The dev machine runs the opencode pinned in cli/Dockerfile (OPENCODE_VERSION).
+    expect(session.opencodeVersion).toBe("1.18.29");
   });
 
   it("session user matches logged-in user", async () => {

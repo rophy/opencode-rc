@@ -45,6 +45,9 @@ function SessionCard(props: { session: DevSession }) {
             Active
           </span>
           <span>Connected {timeAgo(props.session.createdAt)}</span>
+          <Show when={props.session.opencodeVersion}>
+            <span>opencode {props.session.opencodeVersion}</span>
+          </Show>
         </div>
       </div>
       <svg
