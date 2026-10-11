@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config"
 import solid from "vite-plugin-solid"
-import { parseConfig } from "../config/schema"
+import { parseConfig } from "../config/schema.ts"
 
 export default defineConfig({
   plugins: [solid()],

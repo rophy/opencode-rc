@@ -54,6 +54,10 @@ jobs:
           submodules: recursive
 
       - uses: oven-sh/setup-bun@v2
+      # Vite runs on Node; pin it so the build doesn't depend on the runner's default.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
 
       - name: Install submodule deps
         run: cd vendor/opencode-v1 && bun install --frozen-lockfile
