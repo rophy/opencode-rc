@@ -15,14 +15,14 @@ const meta: SessionMeta = {
 };
 const store = { get: async (id: string) => (id === meta.id ? meta : null) } as unknown as SessionStore;
 
-function makeApp(enabled = false) {
+function makeApp(enabled = false, downloads = true) {
   const app = new Hono<ProxyEnv>();
   app.use("*", async (c, next) => {
     c.set("userId", meta.userId);
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), v1Guards(parseConfig({ features: { uploads: { enabled } } })), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), v1Guards(parseConfig({ features: { uploads: { enabled }, downloads: { enabled: downloads } } })), proxyHttp());
   return app;
 }
 
@@ -241,5 +241,41 @@ describe("uploads disabled: both /api prompt body shapes on a 1.x session", () =
   it("passes file: entries in either shape", async () => {
     expect((await send("POST", url, JSON.stringify({ prompt: { text: "hi", files: [file] } }))).status).toBe(204);
     expect((await send("POST", url, JSON.stringify({ files: [file] }))).status).toBe(204);
+  });
+});
+
+// Both guards read the body of a prompt; the second reuses the bytes the first buffered.
+describe("uploads and downloads disabled together", () => {
+  const both = (method: string, path: string, body: string) =>
+    makeApp(false, false).request(`/proxy/alice-dev${path}`, { method, headers: { "content-type": "application/json" }, body });
+
+  it.each([
+    ["a text prompt", "/session/ses_1/message", { parts: [{ type: "text", text: "hi user@example.com" }] }],
+    ["an MCP resource", "/session/ses_1/prompt_async", { parts: [mcp] }],
+    ["a command without paths", "/session/ses_1/command", { command: "review", arguments: "HEAD", parts: [] }],
+    ["an /api prompt without files", "/api/session/ses_1/prompt", { prompt: { text: "hi" } }],
+  ])("forwards %s with the exact bytes", async (_name, path, body) => {
+    const raw = ` ${JSON.stringify(body, null, 1)}\n`;
+    const res = await both("POST", path, raw);
+    expect(res.status).toBe(204);
+    const init = upstream.mock.calls[0][1] as RequestInit;
+    expect(new TextDecoder().decode(init.body as ArrayBuffer)).toBe(raw);
+  });
+
+  it("each guard still rejects its own case", async () => {
+    const upload = await both("POST", "/session/ses_1/message", JSON.stringify({ parts: [dataPart] }));
+    expect(upload.status).toBe(403);
+    expect(await upload.text()).toBe("uploads are disabled");
+    const download = await both("POST", "/session/ses_1/message", JSON.stringify({ parts: [mention] }));
+    expect(download.status).toBe(403);
+    expect(await download.text()).toBe("file downloads are disabled");
+    const args = await both("POST", "/session/ses_1/command", JSON.stringify({ command: "c", arguments: "@a.ts", parts: [] }));
+    expect(await args.text()).toBe("file downloads are disabled");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a body that is not JSON", async () => {
+    expect((await both("POST", "/session/ses_1/message", "{not json")).status).toBe(400);
+    expect(upstream).not.toHaveBeenCalled();
   });
 });

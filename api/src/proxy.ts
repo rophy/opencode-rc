@@ -6,7 +6,7 @@ import type { AccessWatch } from "./authz.js";
 // Under Bun, Hono's env is the Bun server.
 type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
 
-// body: set by uploadGuard when it read the request body to check it.
+// body: set by the guards that read the request body to check it (request-body.ts).
 export type ProxyEnv = AuthEnv & ServerEnv & { Variables: { session: SessionMeta; body: ArrayBuffer | undefined } };
 
 export function proxyRest(path: string, sessionId: string): string {

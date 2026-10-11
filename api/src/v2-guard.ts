@@ -3,6 +3,7 @@ import { every } from "hono/combine";
 import type { FeatureNameV2, RcConfig } from "../../config/schema.js";
 import { plainPathGuard } from "./feature-guards.js";
 import { canonicalPath, proxyRest, upstreamUrl, type ProxyEnv } from "./proxy.js";
+import { jsonBody } from "./request-body.js";
 import { templateRegex } from "./route-template.js";
 import { V2_ROUTES } from "./v2-routes.js";
 
@@ -41,19 +42,12 @@ async function defaultFetchServerInfo(c: Context<ProxyEnv>): Promise<ServerInfo>
 }
 
 
-// Reads and parses a JSON object body, and stores the bytes so the proxy forwards exactly
-// what was checked.
+// Reads and parses a JSON object body; the proxy forwards exactly the bytes checked.
 async function readJson(c: Context<ProxyEnv>): Promise<Record<string, unknown> | string> {
-  const buffer = await c.req.raw.arrayBuffer();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(buffer));
-  } catch {
-    return "request body is not JSON";
-  }
-  if (!isObject(parsed)) return "request body is not a JSON object";
-  c.set("body", buffer);
-  return parsed;
+  const body = await jsonBody(c);
+  if (!body) return "request body is not JSON";
+  if (!isObject(body.json)) return "request body is not a JSON object";
+  return body.json;
 }
 
 async function checkFsWrite(
@@ -95,12 +89,18 @@ async function checkRequest(
     }
     return null;
   }
-  if (uploadsOff && (template === "/api/session/:sessionID/prompt" || template === "/api/session/:sessionID/command")) {
+  const downloadsOff = !features.downloads.enabled;
+  if ((uploadsOff || downloadsOff) && (template === "/api/session/:sessionID/prompt" || template === "/api/session/:sessionID/command")) {
     const body = await readJson(c);
     if (typeof body === "string") return body;
     // 2.x sends top-level files; 1.18's /api prompt nests them in prompt. Check both.
-    const lists = [body.files, isObject(body.prompt) ? body.prompt.files : undefined];
-    if (lists.some((l) => Array.isArray(l) && l.some((f) => !isObject(f) || !isFileUri(f.uri)))) return MESSAGES.uploads;
+    const files = [body.files, isObject(body.prompt) ? body.prompt.files : undefined].flatMap((l) => (Array.isArray(l) ? l : []));
+    if (uploadsOff && files.some((f) => !isObject(f) || !isFileUri(f.uri))) return MESSAGES.uploads;
+    // The server reads every uri that does not start with data: (core session/prompt.ts
+    // materializeAttachment), so with both toggles off no attachment gets through.
+    if (downloadsOff && files.some((f) => !isObject(f) || typeof f.uri !== "string" || !f.uri.startsWith("data:"))) {
+      return MESSAGES.downloads;
+    }
   }
   return null;
 }

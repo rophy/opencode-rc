@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono } from "hono";
 import type { ProxyEnv } from "./proxy.js";
 import { v1Guards } from "./feature-guards.js";
-import { downloadGuard } from "./download-guard.js";
+import { downloadGuard, hasFileReference } from "./download-guard.js";
 import { parseConfig } from "../../config/schema.js";
 
 const off = parseConfig({ features: { downloads: { enabled: false } } });
@@ -62,12 +62,118 @@ describe("downloads disabled (1.x)", () => {
   );
 
   it("leaves a non-GET to /file/content to the other guards", async () => {
-    expect(await (await get(makeApp(), "/file/content", "POST")).text()).toBe("forwarded");
+    expect(await (await post(makeApp(), "/file/content", "{}")).text()).toBe("forwarded");
   });
 
   it("allows everything while enabled", async () => {
     const on = makeApp(parseConfig({}));
     expect(await (await get(on, "/file/content?path=a")).text()).toBe("forwarded");
     expect(await (await get(on, "/api/fs/read/a")).text()).toBe("forwarded");
+    expect(await (await post(on, "/session/ses_1/message", { parts: [mention] })).text()).toBe("forwarded");
+    expect(await (await post(on, "/session/ses_1/command", { command: "c", arguments: "@a.ts", parts: [] })).text()).toBe("forwarded");
+  });
+});
+
+const text = { type: "text", text: "explain @src/a.ts to user@example.com" };
+const mention = { type: "file", mime: "text/plain", filename: "opencode.json", url: "file:///project/opencode.json" };
+const mcp = {
+  type: "file",
+  mime: "text/plain",
+  filename: "doc",
+  url: "file:///etc/passwd",
+  source: { type: "resource", clientName: "docs", uri: "docs://a", text: { value: "", start: 0, end: 0 } },
+};
+
+function post(app: Hono<ProxyEnv>, path: string, body: unknown) {
+  return app.request(new Request(`http://localhost/proxy/s${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  }));
+}
+
+async function expectBlocked(res: Response) {
+  expect(res.status).toBe(403);
+  expect(await res.text()).toBe("file downloads are disabled");
+}
+
+describe("hasFileReference", () => {
+  it.each([
+    ["@opencode.json", true],
+    ["see @src/a.ts", true],
+    ["@~/.ssh/id_rsa", true],
+    ["@/etc/passwd", true],
+    ["@.env", true],
+    ["(@general)", true],
+    ["user@example.com", false],
+    ["`@a.ts`", false],
+    ["a @ b", false],
+    ["@", false],
+    ["no mentions", false],
+    [undefined, false],
+    [1, false],
+  ])("%j -> %s", (value, expected) => {
+    expect(hasFileReference(value)).toBe(expected);
+  });
+});
+
+describe("downloads disabled (1.x): prompts that read files", () => {
+  const routes = ["/session/ses_1/message", "/session/ses_1/prompt_async", "/session/ses_1/command", "/SESSION/ses_1/Message", "/session/ses_1/message/"];
+
+  it.each(routes)("blocks a file: part on %s, whatever its mime", async (route) => {
+    for (const part of [
+      mention,
+      { ...mention, mime: "application/x-directory", url: "file:///project/src" },
+      { ...mention, mime: "image/png" },
+      { ...mention, url: "FILE:///etc/passwd" },
+      { ...mention, url: " file:///etc/passwd" },
+      { ...mention, url: "file:///project/a.ts?start=1&end=3" },
+    ]) {
+      await expectBlocked(await post(makeApp(), route, { parts: [text, part] }));
+    }
+  });
+
+  it.each(routes)("blocks a subtask whose prompt references a path on %s", async (route) => {
+    const subtask = { type: "subtask", prompt: "summarize @opencode.json", description: "d", agent: "general" };
+    await expectBlocked(await post(makeApp(), route, { parts: [subtask] }));
+  });
+
+  it("blocks a command whose arguments reference a path", async () => {
+    for (const args of ["@opencode.json", "look at @~/.ssh/id_rsa", "@/etc/passwd"]) {
+      await expectBlocked(await post(makeApp(), "/session/ses_1/command", { command: "review", arguments: args, parts: [] }));
+    }
+  });
+
+  it("blocks /api prompt files with a file: uri, in either shape", async () => {
+    const file = { uri: "file:///project/opencode.json" };
+    await expectBlocked(await post(makeApp(), "/api/session/ses_1/prompt", { prompt: { text: "", files: [file] } }));
+    await expectBlocked(await post(makeApp(), "/api/session/ses_1/prompt", { files: [file] }));
+    await expectBlocked(await post(makeApp(), "/API/session/ses_1/prompt/", { prompt: { text: "", files: [{ uri: "File:///a" }] } }));
+  });
+
+  it("forwards text, agent, MCP resource and data: parts, and commands without paths", async () => {
+    const app = makeApp();
+    const agent = { type: "agent", name: "general" };
+    const data = { type: "file", mime: "image/png", filename: "a.png", url: "data:image/png;base64,AAAA" };
+    const subtask = { type: "subtask", prompt: "mail user@example.com", description: "d", agent: "general" };
+    expect(await (await post(app, "/session/ses_1/message", { parts: [text, agent, mcp, data, subtask] })).text()).toBe("forwarded");
+    expect(await (await post(app, "/session/ses_1/command", { command: "review", arguments: "HEAD~1 user@example.com", parts: [] })).text()).toBe(
+      "forwarded",
+    );
+    expect(await (await post(app, "/api/session/ses_1/prompt", { prompt: { text: "@a.ts", files: [{ uri: "data:text/plain,a" }] } })).text()).toBe(
+      "forwarded",
+    );
+    expect(await (await post(app, "/session/ses_1/message", { parts: "not a list" })).text()).toBe("forwarded");
+  });
+
+  it("does not check other POST routes", async () => {
+    expect(await (await post(makeApp(), "/session/ses_1/shell", { command: "@a.ts" })).text()).toBe("forwarded");
+    expect(await (await post(makeApp(), "/session", { title: "@a.ts" })).text()).toBe("forwarded");
+  });
+
+  it("rejects a non-JSON body on a checked route", async () => {
+    const res = await post(makeApp(), "/session/ses_1/message", "not json");
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("request body is not JSON");
   });
 });

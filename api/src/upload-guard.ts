@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { proxyRest, type ProxyEnv } from "./proxy.js";
+import { jsonBody } from "./request-body.js";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -77,18 +78,12 @@ export function uploadGuard(): MiddlewareHandler<ProxyEnv> {
     const rule = RULES.find((r) => r.method === c.req.method && r.path.test(rest));
     if (!rule) return next();
 
-    const body = await c.req.raw.arrayBuffer();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(new TextDecoder().decode(body));
-    } catch {
-      return c.text("request body is not JSON", 400);
-    }
-    if (rule.denies(parsed)) {
+    const body = await jsonBody(c);
+    if (!body) return c.text("request body is not JSON", 400);
+    if (rule.denies(body.json)) {
       console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
       return c.text("uploads are disabled", 403);
     }
-    c.set("body", body);
     await next();
   };
 }

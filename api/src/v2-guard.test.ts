@@ -61,6 +61,45 @@ describe("v2 uploads disabled: both body shapes", () => {
   });
 });
 
+describe("v2 downloads disabled: file attachments", () => {
+  const off = (features: Record<string, { enabled: boolean }> = {}) => makeApp(cfg({ downloads: { enabled: false }, ...features }));
+  const data = { uri: "data:image/png;base64,AA" };
+  it.each([
+    { uri: "file:///w/opencode.json" },
+    { uri: "FILE:///etc/passwd" },
+    { uri: " file:///etc/passwd" },
+    { uri: "file:///w/src?start=1&end=3" },
+    { uri: "https://example.com/a.png" },
+    { uri: "DATA:text/plain,a" },
+    { uri: 1 },
+    "file:///w/a",
+  ])("rejects %j in files and in prompt.files, for prompt and command", async (file) => {
+    for (const route of ["prompt", "command"]) {
+      await expectRejected(await call(off(), "POST", `/api/session/x/${route}`, { text: "hi", files: [file] }), /^file downloads are disabled$/);
+      await expectRejected(await call(off(), "POST", `/api/session/x/${route}`, { prompt: { text: "hi", files: [file] } }), /^file downloads are disabled$/);
+    }
+  });
+  it("passes text-only prompts, agents and skills, and data: while uploads are enabled", async () => {
+    const body = { text: "look at @src/a.ts", agents: [{ name: "general" }], skills: [{ id: "s" }], files: [] };
+    const res = await call(off(), "POST", "/api/session/x/prompt", body);
+    expect(await res.text()).toBe(`forwarded ${JSON.stringify(body)}`);
+    await expectForwarded(await call(off(), "POST", "/api/session/x/command", { name: "review", text: "@src/a.ts" }));
+    await expectForwarded(await call(off(), "POST", "/api/session/x/prompt", { text: "hi", files: [data] }));
+  });
+  it("with uploads also disabled, refuses every attachment", async () => {
+    const both = () => off({ uploads: { enabled: false } });
+    await expectRejected(await call(both(), "POST", "/api/session/x/prompt", { text: "", files: [data] }), /uploads/);
+    await expectRejected(await call(both(), "POST", "/api/session/x/prompt", { text: "", files: [{ uri: "file:///w/a" }] }), /downloads/);
+    await expectForwarded(await call(both(), "POST", "/api/session/x/prompt", { text: "hi" }));
+  });
+  it("passes file: attachments while enabled", async () => {
+    await expectForwarded(await call(makeApp(), "POST", "/api/session/x/prompt", { text: "", files: [{ uri: "file:///w/a" }] }));
+  });
+  it("rejects a non-JSON prompt", async () => {
+    await expectRejected(await call(off(), "POST", "/api/session/x/prompt", "not json"), /not JSON/);
+  });
+});
+
 describe("v2Guard", () => {
   it("1: forwards allowed routes, case-insensitively", async () => {
     const app = makeApp();
