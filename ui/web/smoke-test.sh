@@ -23,6 +23,7 @@ ASSET=$(curl -s "$B/" | grep -o '/assets/[^"]*\.js' | head -1)
 curl -sI "$B$ASSET" | grep -qi '^cache-control: public, max-age=31536000, immutable' || fail "asset cache-control"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$B/assets/nope.js")" = 404 ] || fail "missing asset should 404"
 # The 2.x build is served under /v2/ with its own index and assets.
+[ "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "$B/v2")" = "301 $B/v2/" ] || fail "/v2 should redirect to /v2/"
 curl -s "$B/v2/" | grep -q '/v2/assets/' || fail "/v2/ is not the 2.x index.html"
 curl -s "$B/v2/s/x/" | grep -q '/v2/assets/' || fail "/v2/s/x/ SPA fallback"
 curl -sI "$B/v2/" | grep -qi '^cache-control: no-cache' || fail "v2 index cache-control"

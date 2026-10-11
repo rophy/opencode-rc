@@ -1,13 +1,13 @@
 FROM oven/bun:1 AS build
 WORKDIR /src
-COPY vendor/opencode-v1/package.json vendor/opencode-v1/bun.lock vendor/opencode-v1/
-COPY vendor/opencode-v1/patches/ vendor/opencode-v1/patches/
-COPY vendor/opencode-v1/packages/ vendor/opencode-v1/packages/
-RUN cd vendor/opencode-v1 && bun install --frozen-lockfile --ignore-scripts
 COPY vendor/opencode-v2/package.json vendor/opencode-v2/bun.lock vendor/opencode-v2/
 COPY vendor/opencode-v2/patches/ vendor/opencode-v2/patches/
 COPY vendor/opencode-v2/packages/ vendor/opencode-v2/packages/
 RUN cd vendor/opencode-v2 && bun install --frozen-lockfile --ignore-scripts
+COPY vendor/opencode-v1/package.json vendor/opencode-v1/bun.lock vendor/opencode-v1/
+COPY vendor/opencode-v1/patches/ vendor/opencode-v1/patches/
+COPY vendor/opencode-v1/packages/ vendor/opencode-v1/packages/
+RUN cd vendor/opencode-v1 && bun install --frozen-lockfile --ignore-scripts
 COPY ui/package.json ui/bun.lock ui/
 RUN cd ui && bun install --frozen-lockfile
 COPY config/ config/
