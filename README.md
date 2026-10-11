@@ -243,6 +243,16 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   model keep working. Config can run code on the machine (`provider.*.npm` installs and imports a
   package) and expose its environment (`{env:…}` values, returned by `GET /config`): disable
   `config` together with `shell` and `downloads`.
+- `features.mcp.enabled: false` stops the browser from connecting, disconnecting or signing in to
+  the MCP servers in the machine's opencode config (connecting starts the server's command or
+  reaches its remote service). The API rejects these with `403`; the UI lists MCP servers and
+  their status without switches. MCP servers enabled in the config still load, and their
+  resources stay available. Adding an MCP server is covered by `config` and `shell`.
+
+The API always rejects some opencode 1.x routes the UI never uses, whatever the toggles: applying
+a patch to the project (`/vcs/apply`), upgrading opencode (`/global/upgrade`), the terminal UI
+control routes (`/tui/*`), `/log`, workspace sync and changes, switching the opencode console
+account, and moving sessions between workspaces.
 
 While `downloads` or `shell` is disabled, the API also rejects requests that set permission
 rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
@@ -276,7 +286,7 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 }
 ```
 
-- `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the
+- `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell`, `export` and `mcp`, with the
   same meaning as above. They are **enabled unless set to `false`**, so a deployment that disables features for
   1.x must disable them here too. `share` and `config` are not 2.x toggles (2.x refuses config changes always).
 - On 2.x, `downloads` also stops chat links to file paths and images loaded from disk. The API
@@ -290,9 +300,13 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
   `permissions`.
 - `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
   in `config/opencode-versions.json`; other 2.x versions are refused.
+- On 2.x, `mcp` also rejects signing in to an MCP server through its integration (`mcp_…`);
+  signing in to providers keeps working.
 - On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
-  writes to opencode's config, pairing, adding or removing MCP servers, plugin updates and
-  persistent terminals (see `api/src/v2-routes.ts`).
+  writes to opencode's config, pairing, adding or removing MCP servers, plugin updates,
+  persistent terminals, listing stored credentials (it returns their secrets), `git init`,
+  `session/:id/generate` and the debug location list; creating a worktree in a chosen directory
+  is rejected too (see `api/src/v2-routes.ts`).
 
 The API picks the 2.x or 1.x rules from the opencode version the dev machine's CLI reports, which it
 cannot verify. Routes both versions serve (such as the terminal under `/api/pty`) follow the reported
