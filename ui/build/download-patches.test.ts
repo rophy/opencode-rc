@@ -53,6 +53,9 @@ describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("download p
     expect(v2).toContain("searchContextFiles: async () => [],")
     expect(v2).not.toContain("searchFilesAndDirectories(")
     expect(v2).not.toMatch(/\.\.\.references\(\),|\.\.\.recent\(\)\.map/)
+    // What @ must still offer: agents and MCP resources.
+    expect(v2).toContain("id: `agent:${agent.name}`,")
+    expect(v2).toContain("    ...resources(),\n")
   })
 
   it("files cannot be dragged from the tree into the composer", () => {
@@ -67,5 +70,9 @@ describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("download p
     expect(code).not.toContain("filePart")
     expect(code).not.toContain("parseCommentMentions(comment)")
     expect(code.match(/file:\/\/\$\{encodeFilePath/g)).toHaveLength(2)
+    // Comment notes and pasted images are still sent.
+    expect(code).toContain("text: formatCommentNote({ path: item.path, selection: item.selection, comment }),")
+    expect(code).toContain("const images = input.images.map((attachment) => {")
+    expect(code).toContain("requestParts.push(...files, ...context, ...agents, ...images)")
   })
 })

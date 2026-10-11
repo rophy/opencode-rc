@@ -78,6 +78,8 @@ describe("2.x feature patches on the pinned opencode", () => {
     expect(model).toContain("searchContextFiles: async () => [],")
     expect(model).not.toContain("searchFilesAndDirectories(")
     expect(model).not.toMatch(/\.\.\.references\(\),|\.\.\.recent\(\)\.map/)
+    // @ still offers agents.
+    expect(model).toContain("id: `agent:${agent.name}`,")
     const drag = patched("downloads", "packages/gui-extensions/src/file/drag.ts")
     expect(drag).not.toContain("setData(")
     expect(drag).toMatch(/export function startFileDrag[^]*?event\.preventDefault\(\)/)
