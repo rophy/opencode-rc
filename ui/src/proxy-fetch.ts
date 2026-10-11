@@ -1,3 +1,5 @@
+import { BASE } from "./build-info"
+
 export interface ProxyOptions {
   pageOrigin: string
   serverOrigin: string
@@ -5,7 +7,8 @@ export interface ProxyOptions {
 }
 
 // opencode-rc's own endpoints: never rewritten to the session proxy.
-const RC_PREFIXES = ["/auth/", "/gateway/", "/assets/"]
+// The 2.x build serves its bundled assets under /v2/assets/.
+const RC_PREFIXES = ["/auth/", "/gateway/", "/assets/", `${BASE}/assets/`]
 const RC_PATHS = ["/healthz", "/api/me"]
 
 // URL.origin is "null" for non-special schemes (e.g. capacitor:) per the WHATWG
@@ -197,8 +200,17 @@ export function installProxyXHR(opts: XHROptions): void {
   }
 
   proto.abort = function (this: XMLHttpRequest) {
-    pending.delete(this)
-    return originalAbort.call(this)
+    const waiting = pending.delete(this)
+    const result = originalAbort.call(this)
+    // Aborting a request that was never really sent fires no events in a browser, but the
+    // caller already called send() and (like opencode 2.x's uploads) settles on abort/loadend.
+    if (waiting) {
+      for (const type of ["abort", "loadend"]) {
+        this.dispatchEvent(new ProgressEvent(type))
+        this.upload.dispatchEvent(new ProgressEvent(type))
+      }
+    }
+    return result
   }
 
   xhrPatch = { open: proto.open }

@@ -18,8 +18,10 @@ export function mismatchRedirect(
 ): string | null {
   const session = sessions.find((s) => s.id === at.id)
   if (!session || isV1Session(session.opencodeVersion) === (at.base === "")) return null
-  const prefix = `${at.base}/s/${encodeURIComponent(at.id)}`
-  const rest = at.pathname.startsWith(prefix) ? at.pathname.slice(prefix.length) : ""
+  // The id is whatever the browser kept in the pathname (it leaves @ : $ raw), so match the
+  // segment rather than re-encoding the id.
+  const prefix = new RegExp(`^${at.base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/s/[^/]+`)
+  const rest = prefix.test(at.pathname) ? at.pathname.replace(prefix, "") : ""
   const tail = rest.startsWith("/") ? rest : "/" + rest
   return sessionPath(session) + tail.slice(1) + at.search + at.hash
 }

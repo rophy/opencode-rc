@@ -44,6 +44,10 @@ describe("mismatchRedirect", () => {
     expect(mismatchRedirect(v2, loc("/v2"))).toBeNull()
     expect(mismatchRedirect([], loc(""))).toBeNull()
   })
+  it("keeps the path tail when the id has characters the browser leaves raw", () => {
+    const at = { base: "", id: "a@b:c$d", pathname: "/s/a@b:c$d/abc/session/d", search: "", hash: "" }
+    expect(mismatchRedirect([{ id: "a@b:c$d", opencodeVersion: "2.0.0" }], at)).toBe("/v2/s/a%40b%3Ac%24d/abc/session/d")
+  })
   it("handles a path with no trailing part", () => {
     expect(mismatchRedirect(v2, { base: "", id: "x", pathname: "/s/x", search: "", hash: "" })).toBe("/v2/s/x/")
   })

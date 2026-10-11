@@ -182,3 +182,18 @@ describe("installProxyWebSocket", () => {
     expect(onForbidden).toHaveBeenCalledTimes(calls)
   })
 })
+
+describe("proxyTarget in the 2.x build", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+  it("does not proxy the build's own /v2/assets", async () => {
+    vi.stubEnv("BASE_URL", "/v2/")
+    vi.resetModules()
+    const mod = await import("./proxy-fetch")
+    expect(mod.proxyTarget("https://localhost/v2/assets/app.js", app)).toBeNull()
+    expect(mod.proxyTarget("https://localhost/assets/app.js", app)).toBeNull()
+    expect(mod.proxyTarget("https://localhost/v2x/assets/app.js", app)).not.toBeNull()
+  })
+})

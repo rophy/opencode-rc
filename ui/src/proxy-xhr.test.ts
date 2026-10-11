@@ -72,6 +72,32 @@ describe("installProxyXHR", () => {
     expect(headers).toEqual([])
   })
 
+  it("fires abort and loadend when aborted during the token wait", async () => {
+    installProxyXHR({ ...opts, getToken: async () => "tok" })
+    const xhr = new XMLHttpRequest()
+    const events: string[] = []
+    for (const t of ["abort", "error", "load", "loadend"]) xhr.addEventListener(t, () => events.push(t))
+    const upload: string[] = []
+    xhr.upload.addEventListener("abort", () => upload.push("abort"))
+    xhr.open("POST", uploadUrl())
+    xhr.send()
+    xhr.abort()
+    await flush()
+    expect(events).toEqual(["abort", "loadend"])
+    expect(upload).toEqual(["abort"])
+    expect(sent).toBe(0)
+  })
+
+  it("fires no events when aborting a request that was not waiting", () => {
+    installProxyXHR({ ...opts, getToken: async () => "tok" })
+    const xhr = new XMLHttpRequest()
+    const events: string[] = []
+    xhr.addEventListener("abort", () => events.push("abort"))
+    xhr.open("POST", uploadUrl())
+    xhr.abort()
+    expect(events).toEqual([])
+  })
+
   it("sends without a header when the token lookup fails", async () => {
     installProxyXHR({
       ...opts,

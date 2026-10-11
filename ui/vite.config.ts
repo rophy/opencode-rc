@@ -219,8 +219,8 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
-    // The 2.x build lands in dist/v2 and must not delete the 1.x output.
+    // The 2.x build lands in dist/v2 and empties only that; `bun run build` runs 1.x first.
     outDir: v2 ? "dist/v2" : "dist",
-    emptyOutDir: !v2,
+    emptyOutDir: true,
   },
 })
