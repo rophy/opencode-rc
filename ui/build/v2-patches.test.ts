@@ -59,6 +59,20 @@ describe("2.x feature patches on the pinned opencode", () => {
     expect(tab).not.toContain("onClick={exportSession}")
   })
 
+  it("downloads: no file opening, no Open menu item or tab, palette without files, links inert", () => {
+    const file = patched("downloads", "packages/gui-extensions/src/file/renderer.tsx")
+    expect(file).not.toContain('keybind: "file.open"')
+    expect(file).not.toContain("layout.open(`file:${OPEN}`")
+    expect(file).not.toContain("return [launcher]")
+    expect(file).toContain("const open = (_session: MountedSession, _path: string, _options?: OpenOptions) => {}")
+    expect(file).not.toContain("match: () => true")
+    // The review panel's file list still gets its FileTree contract.
+    expect(file).toContain("ctx.provide(FileTree, {")
+    const palette = patched("downloads", "packages/app/src/shell/commands/dialog.tsx")
+    expect(palette).not.toContain("searchFiles(")
+    expect(palette).not.toContain("recentFileEntries")
+  })
+
   it("terminal: not among the built-in extensions", () => {
     const code = patched("terminal", "packages/gui-extensions/src/renderer.ts")
     expect(code).not.toMatch(/\bterminal\b/)

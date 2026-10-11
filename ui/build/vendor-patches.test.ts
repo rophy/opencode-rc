@@ -138,7 +138,7 @@ describe("featurePatches", () => {
 
   it("matches the features in the real vendor/patches/v2", () => {
     const real = fileURLToPath(new URL("../../vendor/patches/v2", import.meta.url))
-    expect(fs.readdirSync(real).sort()).toEqual(["export", "shell", "terminal", "uploads"])
+    expect(fs.readdirSync(real).sort()).toEqual(["downloads", "export", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES_V2, [])).not.toThrow()
   })
 })

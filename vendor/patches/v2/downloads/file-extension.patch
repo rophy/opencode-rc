@@ -1,0 +1,72 @@
+diff --git a/packages/gui-extensions/src/file/renderer.tsx b/packages/gui-extensions/src/file/renderer.tsx
+index f8e4401a02..e537781978 100644
+--- a/packages/gui-extensions/src/file/renderer.tsx
++++ b/packages/gui-extensions/src/file/renderer.tsx
+@@ -90,15 +90,8 @@ const setup: Setup<typeof File> = (ctx) => {
+     return state === "active" || state === "visible"
+   }
+ 
+-  // Opens on the session screen, whose file model serves the routed session `session` is.
+-  const open = (session: MountedSession, path: string, options?: OpenOptions) => {
+-    const screen = ctx.screen.current()
+-
+-    if (!screen) return
+-
+-    layout.open(key(screen.file, path), session, options)
+-    void screen.file.sync(path)
+-  }
++  // File contents are not offered: nothing opens a file tab.
++  const open = (_session: MountedSession, _path: string, _options?: OpenOptions) => {}
+ 
+   const shared: FileShared = {
+     changes: ctx.uses.changes,
+@@ -233,7 +226,7 @@ const setup: Setup<typeof File> = (ctx) => {
+     },
+     list(input) {
+       return input.open.flatMap((id) => {
+-        if (id === OPEN) return [launcher]
++        if (id === OPEN) return []
+ 
+         if (!isFileTab(id)) return []
+ 
+@@ -279,31 +272,6 @@ const setup: Setup<typeof File> = (ctx) => {
+     },
+   })
+ 
+-  ctx.add(MenuItem, {
+-    menu: "session.panel",
+-    id: "open",
+-    get title() {
+-      return ctx.t("command.open")
+-    },
+-    icon: "file-tree",
+-    keybind: "file.open",
+-    order: 10,
+-    run() {
+-      const session = sessions.current()
+-
+-      if (!session) return
+-
+-      layout.open(`file:${OPEN}`, session, { tab: "preview" })
+-      queueMicrotask(() => {
+-        const element = shared.filter.element
+-
+-        if (element?.isConnected) return element.focus()
+-
+-        shared.filter.pending = true
+-      })
+-    },
+-  })
+-
+   const OpenInAppButton = lazy(() => import("./open-in-app"))
+ 
+   // How many "Open in" buttons each screen's panel headers show; the tab strip shows its own only while none do.
+@@ -427,7 +395,7 @@ const setup: Setup<typeof File> = (ctx) => {
+   // Opens files the agent references as side panel tabs, inside or outside the workspace, or as
+   // a browser tab for HTML when the desktop can load the file directly.
+   ctx.add(LinkHandler, {
+-    match: () => true,
++    match: () => false,
+     open(link) {
+       const session = sessions.current()
+       const files = ctx.screen.current()?.file
