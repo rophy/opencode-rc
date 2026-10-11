@@ -4,12 +4,13 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { FEATURES } from "../../config/schema"
-import { applyPatches, featurePatches, readPatches } from "./vendor-patches"
+import { applyPatches, featurePatches } from "./vendor-patches"
 
 const opencode = fileURLToPath(new URL("../../vendor/opencode-v1", import.meta.url))
 const patchesRoot = fileURLToPath(new URL("../../vendor/patches/v1", import.meta.url))
+// The patches a build with only this feature disabled applies, shared ones (config+shell) included.
 const patched = (feature: string, file: string) =>
-  applyPatches(fs.readFileSync(path.join(opencode, file), "utf8"), file, readPatches(path.join(patchesRoot, feature)))
+  applyPatches(fs.readFileSync(path.join(opencode, file), "utf8"), file, featurePatches(patchesRoot, FEATURES, [feature]))
 
 describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("feature patches on the pinned opencode", () => {
   // A deployment can disable any set of features, so every combination must apply.

@@ -29,18 +29,25 @@ export function readPatches(dir: string): FilePatch[] {
   return out
 }
 
-// The patches of the disabled features, from vendor/patches/<version>/<feature>/. A directory that
-// names no feature is an error, so a typo cannot silently leave a feature in the app. A
-// feature without a directory has nothing to patch (the API enforces it alone).
+// The patches of the disabled features, from vendor/patches/<version>/<feature>/. A directory named
+// after several features joined by "+" (config+shell) holds changes they share, applied once when
+// any of them is disabled, so their patches apply in every combination. A directory that names no
+// feature is an error, so a typo cannot silently leave a feature in the app. A feature without a
+// directory has nothing to patch (the API enforces it alone). Directories apply in the order of
+// their first disabled feature, a feature's own directory before shared ones, then by name.
 export function featurePatches(patchesRoot: string, features: readonly string[], disabled: readonly string[]): FilePatch[] {
   const dirs = fs.existsSync(patchesRoot)
     ? fs.readdirSync(patchesRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
     : []
-  const unknown = dirs.filter((dir) => !features.includes(dir))
+  const unknown = dirs.filter((dir) => dir.split("+").some((name) => !features.includes(name)))
   if (unknown.length > 0) {
     throw new Error(`${patchesRoot}: ${unknown.join(", ")} is not a feature in config/schema.ts`)
   }
-  return disabled.filter((name) => dirs.includes(name)).flatMap((name) => readPatches(path.join(patchesRoot, name)))
+  const rank = (dir: string) => Math.min(...dir.split("+").map((name) => disabled.indexOf(name)).filter((i) => i >= 0))
+  return dirs
+    .filter((dir) => Number.isFinite(rank(dir)))
+    .sort((a, b) => rank(a) - rank(b) || Number(a.includes("+")) - Number(b.includes("+")) || a.localeCompare(b))
+    .flatMap((dir) => readPatches(path.join(patchesRoot, dir)))
 }
 
 // Applies the patches for one file, in order, with no fuzz: context must match exactly.

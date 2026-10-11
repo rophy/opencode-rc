@@ -32,7 +32,7 @@ const RULES: BodyRule[] = [
   // Run with bash -lc in the new worktree (worktree/index.ts runStartCommand).
   { method: "POST", path: /^\/experimental\/worktree$/i, denies: (body) => nonBlank(body.startCommand) },
   // Stored and run on every worktree create and reset. The UI sends commands.start with each
-  // project edit; blank runs nothing (runStartScript), and the shell patch omits it.
+  // project edit; blank runs nothing (runStartScript), and the config+shell patch omits it.
   { method: "PATCH", path: /^\/project\/[^/]+$/i, denies: (body) => isObject(body.commands) && nonBlank(body.commands.start) },
   { method: "PATCH", path: CONFIG_PATH, denies: (body) => SHELL_CONFIG_KEYS.some((key) => key in body) },
   ...PERMISSION_RULES,

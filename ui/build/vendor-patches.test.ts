@@ -130,9 +130,32 @@ describe("featurePatches", () => {
     expect(() => featurePatches(root, ["uploads"], [])).toThrow(/terminal is not a feature in config\/schema\.ts/)
   })
 
+  // A shared directory (a+b) applies once when any of its features is disabled.
+  function sharedRoot() {
+    const root = patchesRoot()
+    fs.mkdirSync(path.join(root, "terminal+uploads"))
+    fs.writeFileSync(path.join(root, "terminal+uploads", "x.patch"), gitPatch("app/c.ts", "old\n", "new\n"))
+    return root
+  }
+
+  it("applies a shared directory once when any of its features is disabled", () => {
+    const root = sharedRoot()
+    const features = ["uploads", "terminal"]
+    expect(featurePatches(root, features, ["uploads"]).map((p) => p.file)).toEqual(["app/a.ts", "app/c.ts"])
+    expect(featurePatches(root, features, ["terminal"]).map((p) => p.file)).toEqual(["app/b.ts", "app/c.ts"])
+    expect(featurePatches(root, features, ["uploads", "terminal"]).map((p) => p.file)).toEqual(["app/a.ts", "app/c.ts", "app/b.ts"])
+    expect(featurePatches(root, features, [])).toEqual([])
+  })
+
+  it("rejects a shared directory that names an unknown feature", () => {
+    const root = sharedRoot()
+    fs.mkdirSync(path.join(root, "uploads+typo"))
+    expect(() => featurePatches(root, ["uploads", "terminal"], [])).toThrow(/uploads\+typo is not a feature in config\/schema\.ts/)
+  })
+
   it("matches the features in the real vendor/patches/v1", () => {
     const real = fileURLToPath(new URL("../../vendor/patches/v1", import.meta.url))
-    expect(fs.readdirSync(real).sort()).toEqual(["downloads", "export", "share", "shell", "terminal", "uploads"])
+    expect(fs.readdirSync(real).sort()).toEqual(["config", "config+shell", "downloads", "export", "share", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES, [])).not.toThrow()
   })
 

@@ -54,6 +54,9 @@ applies a feature's patches in memory (`ui/build/vendor-patches.ts`) when the de
 config.json disables that feature (e.g. `vendor/patches/v1/uploads/` for `features.uploads`).
 Patches apply with no fuzz; one that no longer applies fails the build. The `composer-v1`/`composer-v2`
 file names refer to opencode 1.x's two prompt composers, not to opencode versions.
+Changes two features share live in a directory named after both, joined by `+`
+(`vendor/patches/v1/config+shell/`): applied once when either is disabled, so the patches apply in
+every combination (`ui/build/feature-patch-sets.test.ts` checks them all).
 
 ```bash
 # Change a patch: apply it, edit the files, write it back, reset the submodule
@@ -90,7 +93,8 @@ Each 1.x feature has up to two parts, found by its name:
    build and the API pick it up, and type-checking fails until step 3 has an entry.
 2. **UI** (optional): `vendor/patches/v1/<name>/*.patch` removes or changes it in opencode's UI.
    Applied by the UI build only while the feature is disabled. A patch directory that names no
-   feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
+   feature fails the build. A change another feature's patch also makes goes in a shared
+   `<a>+<b>/` directory, since the same hunk cannot apply twice. Add a test like `ui/build/upload-patches.test.ts`.
 3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
    the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
    is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions
