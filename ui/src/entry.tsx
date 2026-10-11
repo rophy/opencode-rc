@@ -39,6 +39,7 @@ import { NoAccessScreen } from "./no-access-screen"
 import { accessRecheck } from "./access-recheck"
 import { BASE } from "./build-info"
 import { mismatchRedirect } from "./opencode-version"
+import { bounceTarget, restoredPath } from "./build-route"
 import { SessionView } from "#session-view"
 
 function getSessionIdFromPath(): string | null {
@@ -133,7 +134,13 @@ function App(props: { loginExpired: boolean }) {
   )
 }
 
+// Capacitor's root index.html fallback loads the 1.x build for /v2/ paths (see build-route.ts).
+const bounce = bounceTarget(BASE, location)
+const restored = bounce ? null : restoredPath(BASE, location)
+if (bounce) location.replace(bounce)
+else if (restored) history.replaceState(history.state, "", restored)
+
 const root = document.getElementById("root")
-if (root) {
+if (root && !bounce) {
   completeLogin().then((result) => render(() => <App loginExpired={result === "expired"} />, root))
 }
