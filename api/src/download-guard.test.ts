@@ -194,7 +194,7 @@ describe("downloads disabled (1.x): template-completed references, stored parts,
     await expectBlocked(await post(makeApp(), "/sync/replay", { events: [] }));
   });
 
-  it.each(["/config", "/global/config", "/GLOBAL/config/"])("blocks {file:} substitution and instructions on PATCH %s", async (path) => {
+  it.each(["/config", "/global/config", "/GLOBAL/config/"])("blocks {file:} substitution, instructions and permission rules on PATCH %s", async (path) => {
     const patch = (body: unknown) =>
       makeApp().request(`/proxy/s${path}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await expectBlocked(await patch({ provider: { p: { options: { apiKey: "{file:~/.ssh/id_rsa}" } } } }));
@@ -203,6 +203,7 @@ describe("downloads disabled (1.x): template-completed references, stored parts,
     await expectBlocked(await patch({ disabled_providers: ["{file:/etc/hosts}"] }));
     await expectBlocked(await patch({ instructions: ["notes.md"] }));
     await expectBlocked(await patch({ permission: { read: "allow" } }));
+    await expectBlocked(await patch({ tools: { read: true } }));
     expect(await (await patch({ disabled_providers: ["anthropic"], provider: { p: { options: { apiKey: "{env:KEY}" } } } })).text()).toBe("forwarded");
   });
 
@@ -214,6 +215,12 @@ describe("downloads disabled (1.x): template-completed references, stored parts,
       makeApp().request(`/proxy/s${path}`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await expectBlocked(await req({ permission: [{ permission: "read", pattern: "*", action: "allow" }] }));
     expect(await (await req({ title: "t" })).text()).toBe("forwarded");
+  });
+
+  it.each(["message", "prompt_async"])("blocks tools (session permission rules) on POST /session/:id/%s", async (route) => {
+    const prompt = { parts: [{ type: "text", text: "hello" }] };
+    await expectBlocked(await post(makeApp(), `/session/ses_1/${route}`, { ...prompt, tools: { read: true } }));
+    expect(await (await post(makeApp(), `/session/ses_1/${route}`, prompt)).text()).toBe("forwarded");
   });
 
   it("forwards all of these while downloads are enabled", async () => {

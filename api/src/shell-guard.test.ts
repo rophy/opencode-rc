@@ -125,8 +125,18 @@ describe("shell disabled (1.x): config and MCP", () => {
     }
   });
 
-  it.each(["permission", "agent", "mode"])("refuses config %s (permission rules)", async (key) => {
+  it.each(["permission", "agent", "mode", "tools"])("refuses config %s (permission rules)", async (key) => {
     await expectRefused(await send(makeApp(), "PATCH", "/global/config", { [key]: {} }));
+  });
+
+  it.each(["message", "prompt_async", "Prompt_Async/"])("refuses tools (session permission rules) on POST /session/:id/%s", async (route) => {
+    const prompt = { parts: [{ type: "text", text: "hello" }] };
+    await expectRefused(await send(makeApp(), "POST", `/session/ses_1/${route}`, { ...prompt, tools: { bash: true } }));
+    await expectForwarded(await send(makeApp(), "POST", `/session/ses_1/${route}`, prompt));
+  });
+
+  it("forwards a command (it takes no tools)", async () => {
+    await expectForwarded(await command(makeApp(), { command: "init", arguments: "", tools: { bash: true } }));
   });
 
   it("forwards the provider settings the UI sends", async () => {
@@ -163,5 +173,6 @@ describe("shell enabled (1.x)", () => {
     await expectForwarded(await send(app, "PATCH", "/global/config", { shell: "/bin/zsh", permission: {} }));
     await expectForwarded(await send(app, "POST", "/mcp", { name: "m", config: {} }));
     await expectForwarded(await send(app, "POST", "/session", { permission: [] }));
+    await expectForwarded(await send(app, "POST", "/session/ses_1/message", { parts: [], tools: { bash: true } }));
   });
 });
