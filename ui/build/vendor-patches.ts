@@ -11,7 +11,7 @@ export interface FilePatch {
   source: string
 }
 
-// Reads the .patch files in dir (git diff output, paths relative to vendor/opencode-v1), in
+// Reads the .patch files in dir (git diff output, paths relative to the opencode root, e.g. vendor/opencode-v1), in
 // name order. Only edits of existing files are supported.
 export function readPatches(dir: string): FilePatch[] {
   const out: FilePatch[] = []
@@ -29,7 +29,7 @@ export function readPatches(dir: string): FilePatch[] {
   return out
 }
 
-// The patches of the disabled features, from vendor/patches/<feature>/. A directory that
+// The patches of the disabled features, from vendor/patches/<version>/<feature>/. A directory that
 // names no feature is an error, so a typo cannot silently leave a feature in the app. A
 // feature without a directory has nothing to patch (the API enforces it alone).
 export function featurePatches(patchesRoot: string, features: readonly string[], disabled: readonly string[]): FilePatch[] {
@@ -57,7 +57,7 @@ export function applyPatches(code: string, file: string, patches: FilePatch[]): 
   return out
 }
 
-// Applies vendor/patches to upstream opencode at build time, in memory, so the submodule
+// Applies vendor/patches/<version> to upstream opencode at build time, in memory, so the submodule
 // stays untouched. buildStart checks every patch against the files on disk, so an opencode
 // bump that changes the code fails the build instead of silently bringing a feature back.
 // generateBundle (build only) checks that every patched file actually went through

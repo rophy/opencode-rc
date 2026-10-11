@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import { applyPatches, readPatches } from "./vendor-patches"
 
 const opencode = fileURLToPath(new URL("../../vendor/opencode-v1", import.meta.url))
-const patchDir = fileURLToPath(new URL("../../vendor/patches/terminal", import.meta.url))
+const patchDir = fileURLToPath(new URL("../../vendor/patches/v1/terminal", import.meta.url))
 const patched = (file: string) => applyPatches(fs.readFileSync(path.join(opencode, file), "utf8"), file, readPatches(patchDir))
 
 describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("terminal patches on the pinned opencode", () => {

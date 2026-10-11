@@ -10,7 +10,7 @@ type Guard = MiddlewareHandler<ProxyEnv>;
 
 // The API's runtime guard for each feature, run on /proxy/* while the feature is disabled.
 // This is the enforcement; the UI build only removes the feature from the app
-// (vendor/patches/<name>/). null: the feature only changes the UI and there is nothing for
+// (vendor/patches/v1/<name>/). null: the feature only changes the UI and there is nothing for
 // the API to enforce. Adding a feature to config/schema.ts makes this table incomplete
 // until it has an entry.
 export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {

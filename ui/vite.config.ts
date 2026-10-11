@@ -161,11 +161,11 @@ export default defineConfig({
     __RC_CONFIG__: JSON.stringify(rcConfig),
   },
   plugins: [
-    // vendor/patches/<feature>: our changes to upstream opencode, applied when the feature is disabled.
+    // vendor/patches/v1/<feature>: our changes to opencode 1.x, applied when the feature is disabled.
     vendorPatches(
       opencodeRoot,
       featurePatches(
-        path.resolve(__dirname, "../vendor/patches"),
+        path.resolve(__dirname, "../vendor/patches/v1"),
         FEATURES,
         FEATURES.filter((name) => !rcConfig.features[name].enabled),
       ),

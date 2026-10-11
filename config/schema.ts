@@ -2,7 +2,7 @@
 // API (api/src/rc-config.ts). Keep it free of dependencies: both import it directly.
 
 // Every feature that can be switched off. A disabled feature gets the UI build's patches in
-// vendor/patches/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
+// vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
 export const FEATURES = ["uploads", "terminal", "shell", "export", "share"] as const;
 
 export type FeatureName = (typeof FEATURES)[number];

@@ -104,7 +104,7 @@ describe("vendorPatches plugin", () => {
 })
 
 describe("featurePatches", () => {
-  // vendor/patches with a directory per feature
+  // vendor/patches/<version> with a directory per feature
   function patchesRoot() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "feature-patches-"))
     for (const [name, file] of [["uploads", "app/a.ts"], ["terminal", "app/b.ts"]]) {
@@ -130,8 +130,9 @@ describe("featurePatches", () => {
     expect(() => featurePatches(root, ["uploads"], [])).toThrow(/terminal is not a feature in config\/schema\.ts/)
   })
 
-  it("matches the features in the real vendor/patches", () => {
-    const real = fileURLToPath(new URL("../../vendor/patches", import.meta.url))
+  it("matches the features in the real vendor/patches/v1", () => {
+    const real = fileURLToPath(new URL("../../vendor/patches/v1", import.meta.url))
+    expect(fs.readdirSync(real).sort()).toEqual(["export", "share", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES, [])).not.toThrow()
   })
 })

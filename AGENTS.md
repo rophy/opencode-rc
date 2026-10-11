@@ -17,7 +17,7 @@ config/         # config.json schema shared by the UI build and the API
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
 vendor/opencode-v1 # Git submodule — upstream opencode source (build dependency for ui/)
-vendor/patches  # Our patches to vendor/opencode-v1, applied by the UI build per disabled feature
+vendor/patches  # Our patches to opencode, per opencode version (v1/), applied by the UI build per disabled feature
 docs/           # Design docs
 ```
 
@@ -43,22 +43,23 @@ with `cd ui && bun build/locales-config.ts`; `ui/build/locales-config.test.ts` f
 
 ### Patches (`vendor/patches/`)
 
-Our changes to upstream opencode live in `vendor/patches/<feature>/*.patch`: plain `git diff`
+Our changes to upstream opencode live in `vendor/patches/v1/<feature>/*.patch`: plain `git diff`
 output, paths relative to `vendor/opencode-v1`. The submodule itself is never edited. The UI build
 applies a feature's patches in memory (`ui/build/vendor-patches.ts`) when the deployment's
-config.json disables that feature (e.g. `vendor/patches/uploads/` for `features.uploads`).
-Patches apply with no fuzz; one that no longer applies fails the build.
+config.json disables that feature (e.g. `vendor/patches/v1/uploads/` for `features.uploads`).
+Patches apply with no fuzz; one that no longer applies fails the build. The `composer-v1`/`composer-v2`
+file names refer to opencode 1.x's two prompt composers, not to opencode versions.
 
 ```bash
 # Change a patch: apply it, edit the files, write it back, reset the submodule
 cd vendor/opencode-v1
-git apply ../patches/uploads/composer-v1.patch
+git apply ../patches/v1/uploads/composer-v1.patch
 # ...edit packages/app/src/components/prompt-input.tsx...
-git diff -- packages/app/src/components/prompt-input.tsx packages/app/src/components/prompt-input/attachments.ts > ../patches/uploads/composer-v1.patch
+git diff -- packages/app/src/components/prompt-input.tsx packages/app/src/components/prompt-input/attachments.ts > ../patches/v1/uploads/composer-v1.patch
 git checkout -- .
 
 # After bumping opencode: rebase each patch onto the new tag
-git apply --3way ../patches/uploads/composer-v1.patch   # resolve conflicts, then write it back as above
+git apply --3way ../patches/v1/uploads/composer-v1.patch   # resolve conflicts, then write it back as above
 ```
 
 `ui/build/upload-patches.test.ts` checks what the upload patches remove; it runs against the
@@ -71,7 +72,7 @@ Each feature has up to two parts, found by its name:
 
 1. **Name**: add it to `FEATURES` in `config/schema.ts`. The schema then accepts it, the UI
    build and the API pick it up, and type-checking fails until step 3 has an entry.
-2. **UI** (optional): `vendor/patches/<name>/*.patch` removes or changes it in opencode's UI.
+2. **UI** (optional): `vendor/patches/v1/<name>/*.patch` removes or changes it in opencode's UI.
    Applied by the UI build only while the feature is disabled. A patch directory that names no
    feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
 3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
