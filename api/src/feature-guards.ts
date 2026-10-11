@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
@@ -48,18 +48,23 @@ export function rawPath(url: string): string | null {
 }
 
 // Guards match request paths, so while any guard is active a request that may change
-// something must have a plain path.
-export const plainPath: Guard = async (c, next) => {
-  const method = c.req.method;
-  if (method !== "GET" && method !== "HEAD") {
-    const path = rawPath(c.req.raw.url);
-    if (path === null || !isPlainPath(path)) {
-      console.log(`feature guard: blocked user=${c.get("userId")} ${method} unsupported path characters`);
-      return c.text("unsupported characters in path", 400);
+// something must have a plain path. reject builds the response, so each guard set keeps its
+// own error shape.
+export function plainPathGuard(reject: (c: Context<ProxyEnv>) => Response): Guard {
+  return async (c, next) => {
+    const method = c.req.method;
+    if (method !== "GET" && method !== "HEAD") {
+      const path = rawPath(c.req.raw.url);
+      if (path === null || !isPlainPath(path)) {
+        console.log(`feature guard: blocked user=${c.get("userId")} ${method} unsupported path characters`);
+        return reject(c);
+      }
     }
-  }
-  await next();
-};
+    await next();
+  };
+}
+
+export const plainPath: Guard = plainPathGuard((c) => c.text("unsupported characters in path", 400));
 
 // The guard set for opencode 1.x sessions: the /api route check plus the guards of the
 // features the config disables (FEATURES order). Always active, so writes need plain paths.

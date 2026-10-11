@@ -36,6 +36,12 @@ describe("versionedGuards", () => {
   }
   const call = (app: Hono<ProxyEnv>, method: string, path: string) => app.request(`/proxy/s${path}`, { method });
 
+  it("refuses 2.x-only routes outside /api on a 1.x session", async () => {
+    const app = makeApp({}, "1.18.29");
+    expect((await call(app, "GET", "/auth/connect/abc")).status).toBe(403);
+    expect((await call(app, "GET", "/session")).status).toBe(200);
+  });
+
   it("uses the 1.x set when the session has no version", async () => {
     const app = makeApp({ features: { shell: { enabled: false } } });
     const res = await call(app, "POST", "/session/x/shell");

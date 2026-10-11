@@ -16,13 +16,20 @@ export function proxyRest(path: string, sessionId: string): string {
 
 // How a path is read by the hops after the API, for guards that must match GET requests too,
 // where paths are not required to be plain. The input is the path as the proxy forwards it
-// (proxyRest of Hono's c.req.path, already decoded once with decodeURI). fetch and WebSocket
-// parse it again as a URL without decoding more, and opencode's router decodes once, so the
-// guards decode exactly once too and never drop or resolve more than that parse does:
+// (proxyRest of Hono's c.req.path). The hops are:
+// - Bun resolves dot segments in the request url before Hono sees it;
+// - Hono decodes the path once (decodeURI), giving c.req.path;
+// - the gateway (Go) decodes it once more (r.URL.Path) and forwards it;
+// - the CLI parses it again with new URL before opencode's router, which decodes once.
+// The rule below is what makes the extra hops harmless, so it must not be relaxed. Guards
+// decode exactly once and never drop or resolve more than a later parse does:
 // - a percent-encoded structural character (/ \ ? # ; . %) or control character is rejected
-//   (null): the hops after the API would not decode it the way a second decode here would;
+//   (null): a later hop would decode it differently from the decode here;
 // - after the one decode, ? # ; \ and control characters are rejected (null) as well, since
 //   fetch / WebSocket would split or rewrite the path at them;
+// - whitespace-dot tricks are rejected: new URL trims trailing spaces, so a path ending in
+//   whitespace, or a dot segment with whitespace around it (".. "), reads differently
+//   here than in the forwarded path when a query follows;
 // - then slashes are collapsed, literal dot segments resolved (new URL, which encodes spaces
 //   and the like as fetch does) and the result lower-cased.
 // null also when the path cannot be decoded.
@@ -35,6 +42,7 @@ export function canonicalPath(path: string): string | null {
     return null;
   }
   if (/[?#;\\\x00-\x1f\x7f]/.test(p)) return null;
+  if (/\s$/.test(p) || p.split("/").some((seg) => seg !== seg.trim() && /^\.+$/.test(seg.trim()))) return null;
   p = `/${p}`.replace(/\/{2,}/g, "/");
   return new URL(p, "http://x").pathname.replace(/\/{2,}/g, "/").toLowerCase();
 }

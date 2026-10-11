@@ -111,8 +111,9 @@ helm unittest charts/opencode-rc
 
 ```bash
 # Bump opencode version
-cd vendor/opencode-v1 && git fetch --tags && git checkout <new-1.x-tag>   # or vendor/opencode-v2 with a 2.x tag
-cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-1.x-tag>"
+# <submodule> is vendor/opencode-v1 (1.x tag) or vendor/opencode-v2 (2.x tag)
+cd <submodule> && git fetch --tags && git checkout <new-tag>
+cd ../.. && git add <submodule> && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
 ## Gateway Environment Variables

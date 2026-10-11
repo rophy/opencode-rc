@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { every } from "hono/combine";
 import type { FeatureNameV2, RcConfig } from "../../config/schema.js";
-import { plainPath } from "./feature-guards.js";
+import { plainPathGuard } from "./feature-guards.js";
 import { canonicalPath, proxyRest, upstreamUrl, type ProxyEnv } from "./proxy.js";
 import { templateRegex } from "./route-template.js";
 import { V2_ROUTES } from "./v2-routes.js";
@@ -25,7 +25,7 @@ const isFileUri = (v: unknown) => typeof v === "string" && v.toLowerCase().start
 // 400 with the error shape opencode 2.x's client shows to the user ({_tag, message}); a 401
 // would switch the app to its connect screen and a 403 shows as "UnexpectedStatus: 403".
 function reject(c: Context<ProxyEnv>, message: string, detail: string) {
-  console.log(`v2 guard: blocked user=${c.get("userId")} ${c.req.method} ${detail}`);
+  console.log(`v2 guard: blocked user=${c.get("userId")} ${detail}`);
   return c.json({ _tag: "FeatureDisabled", message }, 400);
 }
 
@@ -97,7 +97,9 @@ async function checkRequest(
   if (uploadsOff && (template === "/api/session/:sessionID/prompt" || template === "/api/session/:sessionID/command")) {
     const body = await readJson(c);
     if (typeof body === "string") return body;
-    if (Array.isArray(body.files) && body.files.some((f) => !isObject(f) || !isFileUri(f.uri))) return MESSAGES.uploads;
+    // 2.x sends top-level files; 1.18's /api prompt nests them in prompt. Check both.
+    const lists = [body.files, isObject(body.prompt) ? body.prompt.files : undefined];
+    if (lists.some((l) => Array.isArray(l) && l.some((f) => !isObject(f) || !isFileUri(f.uri)))) return MESSAGES.uploads;
   }
   return null;
 }
@@ -111,7 +113,7 @@ export function v2Guard(
     const method = c.req.method === "HEAD" ? "GET" : c.req.method;
     if (method === "OPTIONS") return next();
     const path = canonicalPath(proxyRest(c.req.path, c.req.param("sessionId")!));
-    if (path === null) return reject(c, "unsupported characters in path", "undecodable path");
+    if (path === null) return reject(c, "unsupported characters in path", `${method} undecodable path`);
     const trimmed = path.length > 1 ? path.replace(/\/+$/, "") : path;
     const route = ROUTES.find((r) => r.method === method && r.re.test(trimmed));
     if (!route || route.rule === "never") {
@@ -127,5 +129,8 @@ export function v2Guard(
 }
 
 export function v2Guards(config: RcConfig): Guard {
-  return every(plainPath, v2Guard(config.opencodeV2.features));
+  return every(
+    plainPathGuard((c) => c.json({ _tag: "FeatureDisabled", message: "unsupported characters in path" }, 400)),
+    v2Guard(config.opencodeV2.features),
+  );
 }

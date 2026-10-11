@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { canonicalPath, proxyRest, type ProxyEnv } from "./proxy.js";
 import { templateRegex } from "./route-template.js";
+import { V2_ROUTES } from "./v2-routes.js";
 
 // The /api routes opencode 1.x serves (vendor/opencode-v1, packages/protocol). Its legacy
 // routes (/session, /pty, ...) are not listed: those pass through the v1 feature guards as
@@ -67,6 +68,10 @@ export const V1_API_ROUTES: readonly (readonly [string, string])[] = [
 ];
 
 const V1_API = V1_API_ROUTES.map(([method, path]) => ({ method, re: templateRegex(path) }));
+// 2.x routes outside /api (in practice GET /auth/connect/:code, which mints opencode logins).
+// 1.x has no table for non-/api paths, so these are refused on a 1.x session. No legacy 1.x
+// path matches them; v1-routes.test.ts pins the list.
+const V2_ONLY_NON_API = V2_ROUTES.filter(([, path]) => !path.startsWith("/api/")).map(([method, path]) => ({ method, re: templateRegex(path) }));
 
 // A 1.x session may use only the /api routes 1.x has. A session that reports 1.x but runs
 // something else (a modified CLI) then cannot reach routes only 2.x has, such as
@@ -79,8 +84,13 @@ export function v1ApiGuard(): MiddlewareHandler<ProxyEnv> {
       console.log(`v1 guard: blocked user=${c.get("userId")} ${c.req.method} undecodable path`);
       return c.text("unsupported characters in path", 400);
     }
-    if (path !== "/api" && !path.startsWith("/api/")) return next();
     const method = c.req.method === "HEAD" ? "GET" : c.req.method;
+    if (path !== "/api" && !path.startsWith("/api/")) {
+      const bare = path.replace(/\/+$/, "");
+      if (!V2_ONLY_NON_API.some((r) => r.method === method && r.re.test(bare))) return next();
+      console.log(`v1 guard: blocked user=${c.get("userId")} ${c.req.method} ${path}`);
+      return c.text("this opencode route is not available through opencode-rc", 403);
+    }
     if (method === "OPTIONS" || V1_API.some((r) => r.method === method && r.re.test(path.replace(/\/+$/, "")))) {
       return next();
     }

@@ -34,8 +34,9 @@ git clone --recurse-submodules <repo-url>
 git submodule update --init --recursive
 
 # Bump opencode version
-cd vendor/opencode-v1 && git fetch --tags && git checkout <new-1.x-tag>   # or vendor/opencode-v2 with a 2.x tag
-cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-1.x-tag>"
+# <submodule> is vendor/opencode-v1 (1.x tag) or vendor/opencode-v2 (2.x tag)
+cd <submodule> && git fetch --tags && git checkout <new-tag>
+cd ../.. && git add <submodule> && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
 The Android app's language list (`ui/android/app/src/main/res/xml/locales_config.xml`, shown under
@@ -84,8 +85,8 @@ Each 1.x feature has up to two parts, found by its name:
    feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
 3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
    the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
-   is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions always require
-   plain paths on write requests, so guards can match paths safely.
+   is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions always require plain paths on
+   write requests, so guards can match paths safely.
 4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`) and test both
    parts, as the `uploads disabled` tests do.
 5. **Docs**: describe it in the README's "Deployment Config" section.

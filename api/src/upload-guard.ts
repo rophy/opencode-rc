@@ -32,11 +32,12 @@ const RULES: Rule[] = [
   {
     method: "POST",
     path: /^\/api\/session\/[^/]+\/prompt$/i,
+    // 1.18 nests the files in prompt; 2.x sends them at the top level. Check both.
     denies: (body) =>
       isObject(body) &&
-      isObject(body.prompt) &&
-      Array.isArray(body.prompt.files) &&
-      body.prompt.files.some((file) => !isObject(file) || !isFileUri(file.uri)),
+      [body.files, isObject(body.prompt) ? body.prompt.files : undefined].some(
+        (list) => Array.isArray(list) && list.some((file) => !isObject(file) || !isFileUri(file.uri)),
+      ),
   },
   {
     method: "PATCH",

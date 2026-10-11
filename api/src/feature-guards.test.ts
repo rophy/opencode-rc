@@ -60,6 +60,15 @@ describe("v1Guards", () => {
     const res = await app().request(new Request("http://localhost/proxy/s/api/session%3f%5c..%5cexperimental%5cfs%5cwrite"));
     expect(res.status).toBe(400);
   });
+  it("rejects 2.x routes outside /api, and still passes legacy paths", async () => {
+    expect((await req("GET", "/auth/connect/abc")).status).toBe(403);
+    expect((await req("GET", "/session")).status).toBe(200);
+  });
+  it("rejects a trailing-whitespace dot segment followed by a query", async () => {
+    const cfg = parseConfig({ features: { terminal: { enabled: false } } });
+    const res = await makeApp(v1Guards(cfg)).request("/proxy/s/pty/..%20?x=1");
+    expect(res.status).toBe(400);
+  });
   it("rejects routes 1.18 does not have", async () => {
     expect((await req("POST", "/api/experimental/fs/write")).status).toBe(403);
     expect((await req("POST", "/api/shell")).status).toBe(403);
@@ -67,7 +76,7 @@ describe("v1Guards", () => {
   it("canonicalizes case", async () => {
     expect((await req("GET", "/API/Pty")).status).toBe(200);
   });
-  it("rejects undecodable paths", async () => {
+  it("rejects a path with an invalid percent-encoding", async () => {
     expect((await req("GET", "/api/%zz")).status).toBe(400);
   });
   it("still applies the guards of disabled features", async () => {

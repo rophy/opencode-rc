@@ -57,6 +57,10 @@ describe("canonicalPath", () => {
     },
   );
 
+  it.each(["/a/.. ", "/a/ ..", "/a/b ", "/a/. /b", "/a/ . /b"])("%s is null (whitespace around dots or at the end)", (input) => {
+    expect(canonicalPath(input)).toBeNull();
+  });
+
   it("is null for a path that cannot be decoded", () => {
     expect(canonicalPath("/pty%E0%A4%A")).toBeNull();
   });

@@ -45,6 +45,22 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+describe("v2 uploads disabled: both body shapes", () => {
+  const app = () => makeApp(cfg({ uploads: { enabled: false } }));
+  const data = { uri: "data:image/png;base64,AA" };
+  const file = { uri: "file:///w/a.ts" };
+  it("rejects data in files and in prompt.files, for prompt and command", async () => {
+    for (const route of ["prompt", "command"]) {
+      await expectRejected(await call(app(), "POST", `/api/session/x/${route}`, { files: [data] }), /uploads/);
+      await expectRejected(await call(app(), "POST", `/api/session/x/${route}`, { prompt: { files: [data] } }), /uploads/);
+    }
+  });
+  it("passes file: entries in either shape", async () => {
+    await expectForwarded(await call(app(), "POST", "/api/session/x/prompt", { prompt: { files: [file] } }));
+    await expectForwarded(await call(app(), "POST", "/api/session/x/prompt", { files: [file] }));
+  });
+});
+
 describe("v2Guard", () => {
   it("1: forwards allowed routes, case-insensitively", async () => {
     const app = makeApp();
@@ -133,7 +149,7 @@ describe("v2Guard", () => {
     await expectForwarded(await call(slash, "POST", "/api/experimental/fs/write?path=/tmp/oc/uploads/f"));
   });
 
-  it("10: non-plain write paths get plainPath's 400", async () => {
+  it("10: non-plain write paths get the FeatureDisabled 400", async () => {
     const app = new Hono<ProxyEnv>();
     app.use("*", async (c, next) => {
       c.set("userId", "u");
@@ -142,8 +158,7 @@ describe("v2Guard", () => {
     });
     app.all("/proxy/:sessionId/*", v2Guards(cfg()), (c) => c.text("forwarded"));
     const res = await app.request("/proxy/s/api/session/a%2fb/prompt", { method: "POST" });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toBe("unsupported characters in path");
+    await expectRejected(res, /unsupported characters/);
   });
 
   it("11: HEAD acts as GET, OPTIONS passes", async () => {

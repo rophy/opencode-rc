@@ -229,3 +229,17 @@ describe("uploadGuard", () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe("uploads disabled: both /api prompt body shapes on a 1.x session", () => {
+  const url = "/api/session/ses_1/prompt";
+  const data = { uri: "data:image/png;base64,AAAA" };
+  const file = { uri: "file:///project/a.ts" };
+  it("rejects data in prompt.files and in top-level files", async () => {
+    expect((await send("POST", url, JSON.stringify({ prompt: { text: "hi", files: [data] } }))).status).toBe(403);
+    expect((await send("POST", url, JSON.stringify({ text: "hi", files: [data] }))).status).toBe(403);
+  });
+  it("passes file: entries in either shape", async () => {
+    expect((await send("POST", url, JSON.stringify({ prompt: { text: "hi", files: [file] } }))).status).toBe(204);
+    expect((await send("POST", url, JSON.stringify({ files: [file] }))).status).toBe(204);
+  });
+});
