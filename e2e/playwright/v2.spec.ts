@@ -191,10 +191,18 @@ test.describe("opencode 2.x downloads disabled", () => {
     // Positive control: opencode's built-in general subagent is offered.
     const options = page.locator('[data-component="composer-suggestions"] [data-suggestion-id]');
     await page.keyboard.type("@");
-    await expect(options.and(page.locator('[data-suggestion-id="agent:general"]'))).toBeVisible({ timeout: 30_000 });
-    // The project's opencode.json is not offered.
+    const general = options.and(page.locator('[data-suggestion-id="agent:general"]'));
+    await expect(general).toBeVisible({ timeout: 30_000 });
+    // No file search (GET /api/fs/find, workspaces/files/model.tsx) is sent for the text after "@".
+    const searches: string[] = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.endsWith("/api/fs/find")) searches.push(request.url());
+    });
     await page.keyboard.type("opencode");
-    await page.waitForTimeout(1500);
+    // The list starts the search when the query changes and updates only when it answers, so
+    // once "general" is filtered out any search for the query has been sent.
+    await expect(general).toHaveCount(0, { timeout: 10_000 });
+    expect(searches).toEqual([]);
     await expect(options.and(page.locator('[data-suggestion-id^="file:"]'))).toHaveCount(0);
   });
 });

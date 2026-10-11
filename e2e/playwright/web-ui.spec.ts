@@ -270,14 +270,24 @@ test.describe("downloads disabled", () => {
     // Agents are listed once opencode has loaded them.
     await expect(page.getByRole("button", { name: "GPT-4o" })).toBeVisible({ timeout: 30_000 });
 
-    // Positive control: "@" lists opencode's built-in general subagent (the v2 composer's
-    // suggestions are button[data-suggestion-id], "agent:<name>" or "file:<path>").
+    // This exercises only the v2 prompt input (prompt-input-v2.tsx, whose suggestions are
+    // button[data-suggestion-id], "agent:<name>" or "file:<path>"); the v1 composer's patch is
+    // checked by ui/build/download-patches.test.ts.
+    // Positive control: "@" lists opencode's built-in general subagent.
     await composer.click();
     await page.keyboard.type("@");
-    await expect(page.locator('[data-suggestion-id="agent:general"]')).toBeVisible({ timeout: 10_000 });
-    // The project's opencode.json is not offered.
+    const general = page.locator('[data-suggestion-id="agent:general"]');
+    await expect(general).toBeVisible({ timeout: 10_000 });
+    // No file search is sent for the text after "@" (file names: /find/file, /api/fs/find).
+    const searches: string[] = [];
+    page.on("request", (request) => {
+      if (/\/find\/file$|\/api\/fs\/find$/.test(new URL(request.url()).pathname)) searches.push(request.url());
+    });
     await page.keyboard.type("opencode");
-    await page.waitForTimeout(1500);
+    // The list starts the search when the query changes and updates only when it answers, so
+    // once "general" is filtered out any search for the query has been sent.
+    await expect(general).toHaveCount(0, { timeout: 10_000 });
+    expect(searches).toEqual([]);
     await expect(page.locator('[data-suggestion-id^="file:"]')).toHaveCount(0);
   });
 });
