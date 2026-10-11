@@ -252,7 +252,8 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 The API always rejects some opencode 1.x routes the UI never uses, whatever the toggles: applying
 a patch to the project (`/vcs/apply`), upgrading opencode (`/global/upgrade`), the terminal UI
 control routes (`/tui/*`), `/log`, workspace sync and changes, switching the opencode console
-account, and moving sessions between workspaces.
+account, and moving sessions between workspaces. It also removes API keys and other provider
+secrets from opencode 1.x provider responses (the provider list and `/config/providers`).
 
 While `downloads` or `shell` is disabled, the API also rejects requests that set permission
 rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
