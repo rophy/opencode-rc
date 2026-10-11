@@ -5,6 +5,7 @@ import type { ProxyEnv } from "./proxy.js";
 import { blockGuard } from "./block-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
 import { uploadGuard } from "./upload-guard.js";
+import { v1ApiGuard } from "./v1-routes.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
 
@@ -67,4 +68,13 @@ export function featureGuards(config: RcConfig, guards: Record<FeatureName, Guar
     .filter((guard): guard is Guard => guard !== null);
   if (active.length === 0) return (_c, next) => next();
   return every(plainPath, ...active);
+}
+
+// The guard set for opencode 1.x sessions: the /api route check plus the guards of the
+// features the config disables (FEATURES order). Always active, so writes need plain paths.
+export function v1Guards(config: RcConfig, guards: Record<FeatureName, Guard | null> = FEATURE_GUARDS): Guard {
+  const active = FEATURES.filter((name) => !config.features[name].enabled)
+    .map((name) => guards[name])
+    .filter((guard): guard is Guard => guard !== null);
+  return every(plainPath, v1ApiGuard(), ...active);
 }

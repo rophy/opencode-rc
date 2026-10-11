@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono, type MiddlewareHandler } from "hono";
 import { FEATURES, parseConfig, type FeatureName } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
-import { FEATURE_GUARDS, featureGuards, plainPath } from "./feature-guards.js";
+import { FEATURE_GUARDS, featureGuards, plainPath, v1Guards } from "./feature-guards.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
 
@@ -81,5 +81,33 @@ describe("plainPath", () => {
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("unsupported characters in path");
     expect(next).not.toHaveBeenCalled();
+  });
+});
+
+describe("v1Guards", () => {
+  const app = () => makeApp(v1Guards(on));
+  const req = (method: string, path: string) => app().request(`/proxy/s${path}`, { method });
+
+  it("passes legacy 1.x paths", async () => {
+    expect((await req("GET", "/session")).status).toBe(200);
+  });
+  it("passes a route in 1.18's table", async () => {
+    expect((await req("GET", "/api/session/abc/message")).status).toBe(200);
+  });
+  it("rejects routes 1.18 does not have", async () => {
+    expect((await req("POST", "/api/experimental/fs/write")).status).toBe(403);
+    expect((await req("POST", "/api/shell")).status).toBe(403);
+  });
+  it("canonicalizes case", async () => {
+    expect((await req("GET", "/API/Pty")).status).toBe(200);
+  });
+  it("rejects undecodable paths", async () => {
+    expect((await req("GET", "/api/%zz")).status).toBe(403);
+  });
+  it("still applies the guards of disabled features", async () => {
+    const cfg = parseConfig({ features: { terminal: { enabled: false } } });
+    const res = await makeApp(v1Guards(cfg)).request("/proxy/s/api/pty", { method: "POST" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("not available through opencode-rc");
   });
 });
