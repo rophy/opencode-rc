@@ -32,6 +32,11 @@ describe("downloads disabled (1.x)", () => {
     "/FILE/content?path=a.ts",
     "//file//content",
     "/%66ile/content?path=a.ts",
+    "/file/content/",
+    "/file/content//?path=a",
+    "/find?pattern=x",
+    "/find/",
+    "/FIND?pattern=x",
     "/api/fs/read/src/a.ts",
     "/api/fs/read/a%20b.ts",
   ])("blocks GET %s", async (path) => {
@@ -40,7 +45,7 @@ describe("downloads disabled (1.x)", () => {
     expect(await res.text()).toBe("file downloads are disabled");
   });
 
-  it.each(["/api/fs/read/", "/x/%2f", "/api/fs/read/src/%2e%2e%2fa"])("blocks GET %s (guard alone)", async (path) => {
+  it.each(["/api/fs/read/", "/file/content/%2f", "/x/%2f", "/api/fs/read/src/%2e%2e%2fa"])("blocks GET %s (guard alone)", async (path) => {
     expect((await get(makeApp("alone"), path)).status).toBe(403);
   });
 
@@ -49,7 +54,7 @@ describe("downloads disabled (1.x)", () => {
     expect((await get(makeApp(), "/api/fs/read/a", "HEAD")).status).toBe(403);
   });
 
-  it.each(["/file?path=src", "/find/file?query=a", "/api/fs/list", "/api/fs/find?query=a", "/session"])(
+  it.each(["/file?path=src", "/find/file?query=a", "/find/file/", "/find/symbol?query=a", "/finder", "/api/fs/list", "/api/fs/find?query=a", "/session"])(
     "lets GET %s through",
     async (path) => {
       expect(await (await get(makeApp(), path)).text()).toBe("forwarded");

@@ -1,11 +1,15 @@
 import type { MiddlewareHandler } from "hono";
 import { canonicalPath, proxyRest, type ProxyEnv } from "./proxy.js";
 
-// The 1.x requests that return a file's contents: /file/content and the newer /api/fs/read/*.
+// The 1.x requests that return a file's contents: /file/content, the newer /api/fs/read/*, and
+// /find (ripgrep text search, which returns matching lines). /find/file (names) and
+// /find/symbol (LSP symbol names and locations) return no contents and stay allowed.
 // Matched on the canonical path; a path that cannot be decoded counts.
 export function isDownloadPath(rest: string): boolean {
   const path = canonicalPath(rest);
-  return path === null || path === "/file/content" || path.startsWith("/api/fs/read/");
+  if (path === null) return true;
+  const trimmed = path.replace(/\/+$/, "");
+  return trimmed === "/file/content" || trimmed === "/find" || path.startsWith("/api/fs/read/");
 }
 
 // The guard for disabled downloads. Only reads (GET/HEAD) return contents; other methods are
