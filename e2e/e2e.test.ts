@@ -699,3 +699,32 @@ describe("uploads disabled", () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe("downloads disabled", () => {
+  let jar: TokenSession;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+  // mounted into /project on the dev machine (e2e/k8s/dev-machine.yaml)
+  const file = "/project/opencode.json";
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+  });
+
+  it("refuses file contents and text search", async () => {
+    for (const path of [
+      `/file/content?path=${encodeURIComponent(file)}`,
+      `/api/fs/read${file}`,
+      `/find?pattern=model`,
+    ]) {
+      const res = await jar.fetch(proxy(path));
+      expect(res.status, path).toBe(403);
+      expect(await res.text()).toBe("file downloads are disabled");
+    }
+  });
+
+  it("still lists files and finds them by name", async () => {
+    expect((await jar.fetch(proxy(`/file?path=${encodeURIComponent("/project")}`))).status).toBe(200);
+    expect((await jar.fetch(proxy(`/find/file?query=opencode&dirs=false`))).status).toBe(200);
+  });
+});

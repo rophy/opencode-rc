@@ -154,3 +154,24 @@ test("opencode 2.x golden path: send a message and see the mock AI's reply", asy
   await expect(page.locator("body")).toContainText("Hello from aimock", { timeout: 30_000 });
   expect(errors).toEqual([]);
 });
+
+test.describe("opencode 2.x downloads disabled", () => {
+  test("mod+p opens the command palette without files", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.goto(V2_PREFIX);
+    await openV2Composer(page);
+    await page.locator('[data-component="composer-editor"]').click();
+    // Positive control: the palette still opens, and lists commands for a command name.
+    await page.keyboard.press("Control+p");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.type("new session");
+    await expect(dialog.getByText(/new session/i).first()).toBeVisible({ timeout: 10_000 });
+    // The project's opencode.json is not offered as a file.
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("opencode.json");
+    await page.waitForTimeout(1500);
+    await expect(dialog.getByText("opencode.json")).toHaveCount(0);
+  });
+});

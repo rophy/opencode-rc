@@ -2,11 +2,13 @@
   "serverUrl": "http://opencode-rc-api:8080",
   "features": {
     "uploads": { "enabled": false },
+    "downloads": { "enabled": false },
     "terminal": { "enabled": false }
   },
   "opencodeV2": {
     "features": {
       "uploads": { "enabled": false },
+    "downloads": { "enabled": false },
       "terminal": { "enabled": false }
     }
   }

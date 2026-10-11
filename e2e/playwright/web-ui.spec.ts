@@ -224,3 +224,34 @@ test.describe("terminal disabled", () => {
     await expect(page.getByRole("button", { name: /^\/terminal\b/ })).toHaveCount(0);
   });
 });
+
+// The UI image is built from e2e/rc-config.json, which turns downloads off. The 1.x build
+// removes the "open file" command (mod+p, /open).
+test.describe("downloads disabled", () => {
+  test("/open and mod+p offer no file picker", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.locator("a[href*='/s/alice-dev/']").first().click();
+    await page.locator('[data-component="home-project-row"]').first().waitFor({ state: "visible", timeout: 30_000 });
+    const tabs = page.locator('[data-slot="titlebar-tab-item"]');
+    const before = await tabs.count();
+    await page.locator('button[aria-label="New session"]').first().click();
+    await expect(tabs).toHaveCount(before + 1, { timeout: 30_000 });
+    await tabs.last().locator('[data-slot="tab-link"]').click();
+    const composer = page.locator('[data-component="prompt-input"]');
+    await expect(composer).toBeVisible({ timeout: 30_000 });
+
+    await composer.click();
+    await page.keyboard.press("Control+p");
+    await page.waitForTimeout(1000);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // Positive control: the slash popover lists commands, but not /open.
+    await composer.click();
+    await page.keyboard.type("/model");
+    await expect(page.getByRole("button", { name: /^\/model\b/ }).first()).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("/open");
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("button", { name: /^\/open\b/ })).toHaveCount(0);
+  });
+});

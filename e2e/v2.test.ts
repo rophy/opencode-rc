@@ -140,6 +140,21 @@ describe("opencode 2.x dev machine", () => {
     });
   });
 
+  describe("downloads disabled", () => {
+    it("refuses fs/read", async () => {
+      await getInfo();
+      const res = await jar.fetch(`${V2}/api/fs/read/project/opencode.json`);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });
+    });
+
+    it("still lists a directory", async () => {
+      await getInfo();
+      const res = await jar.fetch(`${V2}/api/fs/list?path=${encodeURIComponent("/project")}`);
+      expect(res.status).toBe(200);
+    });
+  });
+
   describe("terminal enabled", () => {
     it("echoes a command through the API, gateway and tunnel", async () => {
       await getInfo();
