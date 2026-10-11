@@ -73,6 +73,18 @@ describe("2.x feature patches on the pinned opencode", () => {
     expect(palette).not.toContain("recentFileEntries")
   })
 
+  it("downloads: @ offers no files or references, tree files do not drag, prompts send only data: files", () => {
+    const model = patched("downloads", "packages/app/src/composer/model.ts")
+    expect(model).toContain("searchContextFiles: async () => [],")
+    expect(model).not.toContain("searchFilesAndDirectories(")
+    expect(model).not.toMatch(/\.\.\.references\(\),|\.\.\.recent\(\)\.map/)
+    const drag = patched("downloads", "packages/gui-extensions/src/file/drag.ts")
+    expect(drag).not.toContain("setData(")
+    expect(drag).toMatch(/export function startFileDrag[^]*?event\.preventDefault\(\)/)
+    const request = patched("downloads", "packages/app/src/composer/request.ts")
+    expect(request).toContain('files: [...files, ...context, ...inline].filter((file) => file.uri.startsWith("data:")),')
+  })
+
   it("terminal: not among the built-in extensions", () => {
     const code = patched("terminal", "packages/gui-extensions/src/renderer.ts")
     expect(code).not.toMatch(/\bterminal\b/)

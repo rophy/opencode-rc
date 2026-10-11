@@ -1,0 +1,75 @@
+diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
+index e19b4a7d62..f4692f8021 100644
+--- a/packages/app/src/composer/model.ts
++++ b/packages/app/src/composer/model.ts
+@@ -188,7 +188,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+   const skills = createMemo(() => data.location.skill.list({ directory: sdk().directory }) ?? [])
+ 
+   const context = createMemo<ComposerSuggestion[]>(() => [
+-    ...references(),
+     ...skills().map((skill) => ({
+       id: `skill:${skill.id}`,
+       kind: "skill" as const,
+@@ -212,14 +211,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+         label: `@${agent.name}`,
+         mention: { type: "agent" as const, name: agent.name, content: `@${agent.name}`, start: 0, end: 0 },
+       })),
+-    ...recent().map((path) => ({
+-      id: `file:${path}`,
+-      kind: "file" as const,
+-      label: path,
+-      path,
+-      recent: true,
+-      mention: { type: "file" as const, path, content: `@${path}`, start: 0, end: 0 },
+-    })),
+   ])
+ 
+   const slashCommands = createMemo(() => [
+@@ -316,14 +307,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+     },
+     commands,
+     context,
+-    searchContextFiles: async (query) =>
+-      (await files.searchFilesAndDirectories(query)).map((path) => ({
+-        id: `file:${path}`,
+-        kind: "file",
+-        label: path,
+-        path,
+-        mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
+-      })),
++    searchContextFiles: async () => [],
+     onContextRemove(item) {
+       if (item.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
+     },
+diff --git a/packages/app/src/composer/request.ts b/packages/app/src/composer/request.ts
+index a928b80e78..975aeb0729 100644
+--- a/packages/app/src/composer/request.ts
++++ b/packages/app/src/composer/request.ts
+@@ -182,7 +182,8 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
+       ...comments.map((comment) => (comment.type === "note" ? formatNoteComment(comment) : formatCommentNote(comment))),
+     ].join("\n"),
+     displayText: input.text,
+-    files: [...files, ...context, ...inline],
++    // The server reads every uri but data: into the session; downloads are disabled.
++    files: [...files, ...context, ...inline].filter((file) => file.uri.startsWith("data:")),
+     agents,
+     skills,
+     comments,
+diff --git a/packages/gui-extensions/src/file/drag.ts b/packages/gui-extensions/src/file/drag.ts
+index 0189a4d824..243eaac259 100644
+--- a/packages/gui-extensions/src/file/drag.ts
++++ b/packages/gui-extensions/src/file/drag.ts
+@@ -26,10 +26,7 @@ const withFileDragImage = (event: DragEvent) => {
+ }
+ 
+ /** Drag data for a workspace file row, so it drops as a file reference. */
+-export function startFileDrag(event: DragEvent, path: string) {
+-  event.dataTransfer?.setData("text/plain", `file:${path}`)
+-  event.dataTransfer?.setData("text/uri-list", pathToFileUrl(path))
+-
+-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy"
+-  withFileDragImage(event)
++export function startFileDrag(event: DragEvent, _path: string) {
++  // File references are not sent while downloads are disabled.
++  event.preventDefault()
+ }
