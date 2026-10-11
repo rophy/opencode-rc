@@ -152,6 +152,16 @@ describe("v2Guard", () => {
     await expectForwarded(await call(app, "OPTIONS", "/api/anything"));
   });
 
+  // The raw path is built with new Request so %3f %3b %5c reach the guard undecoded.
+  it("12: rejects a path whose ? ; or \\ would change what is forwarded", async () => {
+    const raw = (app: Hono<ProxyEnv>, path: string) => app.request(new Request(`http://localhost/proxy/s${path}`));
+    const off = makeApp(cfg({ terminal: { enabled: false }, export: { enabled: false } }));
+    await expectRejected(await raw(off, "/api/session%3f%5c..%5c..%5capi%5cexperimental%5cpersistent-pty%5cp%5cconnect"));
+    await expectRejected(await raw(off, "/api/session%3b%5c..%5cpty%5cp%5cconnect"));
+    await expectRejected(await raw(off, "/api/session%3f%5c..%5cexperimental%5csession%5cx%5cexport"));
+    await expectRejected(await raw(off, "/api/session%23x"));
+  });
+
   it("rejects a non-JSON body on a checked route", async () => {
     await expectRejected(await call(makeApp(), "PATCH", "/api/project/p", "not json"));
   });

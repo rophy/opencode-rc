@@ -16,8 +16,12 @@ export function proxyRest(path: string, sessionId: string): string {
 
 // How a path may be read by the hops after the API (see PLAIN_PATH in feature-guards.ts), for guards that must
 // match GET requests too, where paths are not required to be plain: fully percent-decoded,
-// '\' as '/', spaces and control characters dropped, cut at ';' '?' '#', slashes collapsed,
-// dot segments resolved, lower case. null when it cannot be decoded.
+// spaces dropped, slashes collapsed, dot segments resolved, lower case.
+// The raw path is what gets forwarded, and fetch / WebSocket parse it again as a URL: there
+// '\' becomes '/', ';' '?' '#' end or split the path, control characters are dropped. Any
+// character that changes how that parse splits or resolves the path would make the guards
+// match a different path than the one forwarded, so such a path is rejected (null), not
+// normalized. null also when it cannot be decoded.
 export function canonicalPath(path: string): string | null {
   let p = path;
   for (let i = 0; i < 5 && /%[0-9a-f]{2}/i.test(p); i++) {
@@ -28,7 +32,8 @@ export function canonicalPath(path: string): string | null {
     }
   }
   if (/%[0-9a-f]{2}/i.test(p)) return null;
-  p = p.replace(/\\/g, "/").replace(/[\x00-\x20\x7f]/g, "").split(/[;?#]/)[0];
+  if (/[?#;\\\x00-\x1f\x7f]/.test(p)) return null;
+  p = p.replace(/ /g, "");
   p = `/${p}`.replace(/\/{2,}/g, "/");
   return new URL(p, "http://x").pathname.replace(/\/{2,}/g, "/").toLowerCase();
 }

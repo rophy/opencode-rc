@@ -4,7 +4,7 @@ import type { ProxyEnv } from "./proxy.js";
 import { canonicalPath } from "./proxy.js";
 import { featureGuards } from "./feature-guards.js";
 import { parseConfig } from "../../config/schema.js";
-import { isTerminalPath } from "./terminal-guard.js";
+import { isTerminalPath, terminalGuard } from "./terminal-guard.js";
 
 const terminalOff = parseConfig({ features: { terminal: { enabled: false } } });
 const terminalOn = parseConfig({});
@@ -38,19 +38,34 @@ describe("canonicalPath", () => {
     ["/PTY", "/pty"],
     ["/pty%2F1", "/pty/1"],
     ["/pty%252F1", "/pty/1"],
-    ["/pty%5C1", "/pty/1"],
     ["//pty//1", "/pty/1"],
     ["/x/..%2Fpty", "/pty"],
     ["/%70ty", "/pty"],
-    ["/pty%09/1", "/pty/1"],
-    ["/pty;x/1", "/pty"],
-    ["/pty%3Fx", "/pty"],
+    ["/api/session/abc", "/api/session/abc"],
+    ["/api/fs/read/a%20b.ts", "/api/fs/read/ab.ts"],
   ])("%s -> %s", (input, expected) => {
     expect(canonicalPath(input)).toBe(expected);
   });
 
+  // The forwarded raw path is parsed again by fetch / WebSocket, where these change the path.
+  it.each(["/pty%3fx", "/pty%3bx", "/pty%23x", "/pty%5c1", "/pty;x/1", "/pty\\1", "/pty%09/1", "/pty\t/1", "/pty%00", "/pty%7f", "/pty%0a"])(
+    "%s is null",
+    (input) => {
+      expect(canonicalPath(input)).toBeNull();
+    },
+  );
+
   it("is null for a path that cannot be decoded", () => {
     expect(canonicalPath("/pty%E0%A4%A")).toBeNull();
+  });
+});
+
+describe("terminalGuard with ?, ; and \\ in the path", () => {
+  const app = new Hono<ProxyEnv>();
+  app.all("/proxy/:sessionId/*", terminalGuard(), (c) => c.text("forwarded"));
+  it.each(["/proxy/s/session%3b%5c..%5cpty%5cp%5cconnect", "/proxy/s/api/session%3f%5c..%5cpty%5cp%5cconnect"])("%s is refused", async (path) => {
+    const res = await app.request(new Request(`http://localhost${path}`));
+    expect(res.status).toBe(403);
   });
 });
 

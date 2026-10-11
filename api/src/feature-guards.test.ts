@@ -94,6 +94,10 @@ describe("v1Guards", () => {
   it("passes a route in 1.18's table", async () => {
     expect((await req("GET", "/api/session/abc/message")).status).toBe(200);
   });
+  it("rejects a 2.x-only route hidden behind an encoded ? and backslashes", async () => {
+    const res = await app().request(new Request("http://localhost/proxy/s/api/session%3f%5c..%5cexperimental%5cfs%5cwrite"));
+    expect(res.status).toBe(400);
+  });
   it("rejects routes 1.18 does not have", async () => {
     expect((await req("POST", "/api/experimental/fs/write")).status).toBe(403);
     expect((await req("POST", "/api/shell")).status).toBe(403);
