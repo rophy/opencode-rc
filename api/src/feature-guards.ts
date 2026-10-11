@@ -3,8 +3,10 @@ import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
 import { blockGuard } from "./block-guard.js";
+import { bodyRuleGuard } from "./body-guard.js";
 import { configGuard } from "./config-guard.js";
 import { downloadGuard } from "./download-guard.js";
+import { CONFIG_PATH } from "./permission-rules.js";
 import { providerSecretsGuard } from "./provider-secrets.js";
 import { shellGuard } from "./shell-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
@@ -32,8 +34,15 @@ export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   shell: shellGuard(),
   // Built in the browser from data the UI already loads, so there is nothing to enforce.
   export: null,
-  // Publishing a session through opencode's share service. Unsharing stays allowed.
-  share: blockGuard("share", "sharing is disabled", [{ method: "POST", path: /^\/session\/[^/]+\/share$/i }]),
+  // Publishing a session through opencode's share service, and the config fields that publish
+  // every new session (share: "auto", autoshare) or choose the share server (enterprise.url),
+  // so they are refused even while config changes are enabled. Unsharing stays allowed.
+  share: bodyRuleGuard(
+    "share",
+    "sharing is disabled",
+    [{ method: "PATCH", path: CONFIG_PATH, denies: (body) => ["share", "autoshare", "enterprise"].some((key) => key in body) }],
+    [{ method: "POST", path: /^\/session\/[^/]+\/share$/i }],
+  ),
   // Changing opencode's config: the project and global config, adding MCP servers, project
   // commands. Independent of shell and downloads, which refuse parts of the same requests.
   config: configGuard(),

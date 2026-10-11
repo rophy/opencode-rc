@@ -15,8 +15,8 @@ function makeApp(features: Record<string, { enabled: boolean }>) {
   return app;
 }
 
-const send = (app: Hono<ProxyEnv>, method: string, path: string) =>
-  app.request(`/proxy/alice-dev${path}`, { method, headers: { "content-type": "application/json" }, body: method === "GET" ? undefined : "{}" });
+const send = (app: Hono<ProxyEnv>, method: string, path: string, body: unknown = {}) =>
+  app.request(`/proxy/alice-dev${path}`, { method, headers: { "content-type": "application/json" }, body: method === "GET" ? undefined : JSON.stringify(body) });
 
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -60,6 +60,19 @@ describe("share guard", () => {
 
   it("still lets a session be unshared", async () => {
     expect(await (await send(app, "DELETE", "/session/ses_1/share")).text()).toBe("forwarded");
+  });
+
+  it.each(["/config", "/global/config", "/Global/Config/"])("refuses config fields that share sessions on PATCH %s", async (path) => {
+    for (const body of [{ share: "auto" }, { autoshare: true }, { enterprise: { url: "https://share.example.test" } }]) {
+      const res = await send(app, "PATCH", path, body);
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe("sharing is disabled");
+    }
+    expect(await (await send(app, "PATCH", path, { disabled_providers: ["anthropic"] })).text()).toBe("forwarded");
+  });
+
+  it("forwards the share config fields while sharing is enabled", async () => {
+    expect(await (await send(makeApp({}), "PATCH", "/config", { share: "auto" })).text()).toBe("forwarded");
   });
 });
 
