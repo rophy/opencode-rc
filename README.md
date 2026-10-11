@@ -220,6 +220,32 @@ must stick to those characters (the default `<hostname>-<id>` does).
   the build needs BuildKit (the default in current Docker).
 - **API**: set the chart value `config` to the same content (the API ignores `serverUrl`).
 
+#### opencode 2.x
+
+The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own settings under `opencodeV2`, independent of `features`:
+
+```json
+{
+  "opencodeV2": {
+    "features": { "terminal": { "enabled": false } },
+    "versions": { "min": "2.0.26", "max": "2.0.27" }
+  }
+}
+```
+
+- `opencodeV2.features` has `uploads`, `terminal`, `shell` and `export`, with the same meaning as
+  above. They are **enabled unless set to `false`**, so a deployment that disables features for
+  1.x must disable them here too. `share` is not a 2.x toggle.
+- `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
+  in `config/opencode-versions.json`; other 2.x versions are refused.
+- On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
+  writes to opencode's config, pairing, adding or removing MCP servers, plugin updates and
+  persistent terminals (see `api/src/v2-routes.ts`).
+
+Known 2.x limitations: files whose names contain `#`, `%`, `?` or `;` cannot be opened remotely,
+and the 2.x UI includes opencode's Office preview, which makes the build (notably the mobile
+apps) larger.
+
 ### Air-Gapped Environments
 
 Override the image registry to pull from an internal registry:
@@ -266,6 +292,10 @@ opencode-rc
 The CLI authenticates via OIDC (opens browser), starts `opencode serve`, and maintains a tunnel to the gateway. Press `Ctrl+C` to disconnect.
 
 Environment variables override the config file — see the [CLI README](cli/README.md) for details.
+
+Supported opencode versions: 1.x, and 2.x within the range in `config/opencode-versions.json`
+(currently 2.0.26 up to, not including, 2.0.27). A machine running 2.x also needs an opencode-rc
+CLI with 2.x support.
 
 ### CLI Environment Variables
 

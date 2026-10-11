@@ -17,7 +17,7 @@ config/            # config.json schema shared by the UI build and the API
 e2e/               # Kind + Skaffold e2e test environment
 charts/            # Helm chart for Kubernetes deployment
 vendor/opencode-v1 # Git submodule — upstream opencode source (build dependency for ui/)
-vendor/opencode-v2 # Git submodule — upstream opencode 2.x source (route tables; UI build in a later step)
+vendor/opencode-v2 # Git submodule — upstream opencode 2.x source (route tables, 2.x UI build)
 vendor/patches     # Our patches to opencode, per opencode version (v1/), applied by the UI build per disabled feature
 docs/              # Design docs
 ```
@@ -79,7 +79,7 @@ for opencode 1.x, `{"opencodeV2": {"features": ...}}` for 2.x). The two sets are
 API picks the guard set per session from the opencode version in the gateway's record
 (`api/src/guards.ts`; no version means 1.x). The steps below add a 1.x feature. A 2.x feature is
 named in `FEATURES_V2`, enforced by `api/src/v2-routes.ts` and `api/src/v2-guard.ts`, and its UI
-patches come later.
+patches are in `vendor/patches/v2/`.
 
 Each 1.x feature has up to two parts, found by its name:
 
@@ -90,8 +90,8 @@ Each 1.x feature has up to two parts, found by its name:
    feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
 3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
    the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
-   is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions always require plain paths on
-   write requests, so guards can match paths safely.
+   is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions
+   always require plain paths on write requests, so guards can match paths safely.
 4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`) and test both
    parts, as the `uploads disabled` tests do.
 5. **Docs**: describe it in the README's "Deployment Config" section.
@@ -112,12 +112,16 @@ The UI uses a custom Vite resolve plugin to compile against opencode source in t
 ```bash
 # Install deps in submodule (one-time after clone)
 cd vendor/opencode-v1 && bun install
+cd ../opencode-v2 && bun install --frozen-lockfile --ignore-scripts
 
-# Build the UI
+# Build the UI (1.x at /, 2.x at /v2/)
 cd ui && bun install && bun run build
 ```
 
-Output: `ui/dist/` — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
+`bun run build` builds both; `build:v1` and `build:v2` build one. `--ignore-scripts` matters for
+`vendor/opencode-v2`: its `prepare` script runs husky, which rewrites the shared git hooks path.
+
+Output: `ui/dist/` (1.x) and `ui/dist/v2/` (2.x) — consumed by the UI image (`ui/web/`), the iOS project and the Android project.
 
 Type-check with `bun run typecheck` (in `api/` and `ui/`; CI and `make unit-test` run both). The UI's
 maps `@opencode-ai/app` to the submodule's source, so it needs the submodule's deps installed;
@@ -131,7 +135,7 @@ The iOS/Android apps sign in through the system browser (local `SystemAuth` plug
 or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
 (schema: `config/schema.ts`; see `docs/ios-app.md`).
 
-Override opencode location: `OPENCODE_ROOT=../path/to/opencode bun run build`
+Override the opencode locations: `OPENCODE_ROOT=../path/to/opencode-1.x` and `OPENCODE_V2_ROOT=../path/to/opencode-2.x`
 
 ### API Server
 
@@ -149,7 +153,8 @@ cd gateway && go build -o opencode-rc .
 ### Dev server (UI)
 
 ```bash
-cd ui && bun run dev
+cd ui && bun run dev      # 1.x
+cd ui && bun run dev:v2   # 2.x
 ```
 
 Proxies `/api`, `/auth`, `/gateway`, `/proxy`, `/healthz` to `localhost:12029`.
