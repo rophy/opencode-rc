@@ -8,7 +8,7 @@ export function parseOpencodeVersion(output: string): string | null {
 
 export type OpencodeCheck =
   | { kind: "supported"; version: string }
-  | { kind: "needs-newer-cli"; version: string }
+  | { kind: "v2"; version: string }
   | { kind: "unsupported"; version: string }
   | { kind: "unknown" };
 
@@ -20,7 +20,7 @@ export function classifyOpencodeVersion(output: string): OpencodeCheck {
   const major = Number(version.split(".")[0]);
   if (major === 0) return { kind: "unknown" };
   if (major === 1) return { kind: "supported", version };
-  if (major === 2) return { kind: "needs-newer-cli", version };
+  if (major === 2) return { kind: "v2", version };
   return { kind: "unsupported", version };
 }
 

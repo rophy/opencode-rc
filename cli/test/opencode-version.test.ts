@@ -19,7 +19,7 @@ describe("classifyOpencodeVersion", () => {
     expect(classifyOpencodeVersion("1.18.29\n")).toEqual({ kind: "supported", version: "1.18.29" });
   });
   it("asks for a newer opencode-rc on 2.x", () => {
-    expect(classifyOpencodeVersion("opencode v2.0.26\n")).toEqual({ kind: "needs-newer-cli", version: "2.0.26" });
+    expect(classifyOpencodeVersion("opencode v2.0.26\n")).toEqual({ kind: "v2", version: "2.0.26" });
   });
   it("rejects 3.x", () => {
     expect(classifyOpencodeVersion("3.1.0")).toEqual({ kind: "unsupported", version: "3.1.0" });

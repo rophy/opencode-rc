@@ -37,7 +37,7 @@ async function main() {
     );
   } else {
     opencodeVersion = check.version;
-    major = check.kind === "needs-newer-cli" ? 2 : 1;
+    major = check.kind === "v2" ? 2 : 1;
     console.log(`opencode ${opencodeVersion}`);
   }
 
@@ -53,8 +53,16 @@ async function main() {
   }
 
   let tunnel: { close(): void } | undefined;
+  // Ctrl+C signals the whole process group, so the child can exit before our handler runs.
+  let shuttingDown = false;
+  const onSignal = () => {
+    shuttingDown = true;
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
   const server = await startServer(major, {
     onExit: () => {
+      if (shuttingDown) return;
       console.error("opencode stopped unexpectedly. Stopping.");
       tunnel?.close();
       process.exit(1);

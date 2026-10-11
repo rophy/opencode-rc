@@ -63,6 +63,7 @@ function startServerV2(opts: StartV2Options): Promise<LocalServer> {
     let started = false;
     let settled = false;
     let exited = false;
+    let closing = false;
     let stdoutBuf = "";
     let stderrBuf = "";
     const stderrTail: string[] = [];
@@ -99,6 +100,7 @@ function startServerV2(opts: StartV2Options): Promise<LocalServer> {
               url: msg.url,
               authorization,
               close() {
+                closing = true;
                 child.stdin.end();
                 setTimeout(() => {
                   if (!exited) child.kill("SIGTERM");
@@ -118,15 +120,17 @@ function startServerV2(opts: StartV2Options): Promise<LocalServer> {
       if (stderrTail.length > 20) stderrTail.shift();
       console.error(line);
     };
-    const splitLines = (chunk: Buffer, buf: string, onLine: (l: string) => void) => {
-      const lines = (buf + chunk.toString()).split(/\r?\n/);
+    const splitLines = (chunk: string, buf: string, onLine: (l: string) => void) => {
+      const lines = (buf + chunk).split(/\r?\n/);
       const rest = lines.pop() ?? "";
       for (const l of lines) if (l) onLine(l);
       return rest;
     };
 
-    child.stdout.on("data", (c: Buffer) => (stdoutBuf = splitLines(c, stdoutBuf, onStdoutLine)));
-    child.stderr.on("data", (c: Buffer) => (stderrBuf = splitLines(c, stderrBuf, onStderrLine)));
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (c: string) => (stdoutBuf = splitLines(c, stdoutBuf, onStdoutLine)));
+    child.stderr.on("data", (c: string) => (stderrBuf = splitLines(c, stderrBuf, onStderrLine)));
     child.stdin.on("error", () => {}); // EPIPE when the child is already gone
 
     child.on("error", (err) => fail(new Error(`could not start ${command}: ${err.message}`)));
@@ -135,7 +139,7 @@ function startServerV2(opts: StartV2Options): Promise<LocalServer> {
       if (stdoutBuf) onStdoutLine(stdoutBuf);
       if (stderrBuf) onStderrLine(stderrBuf);
       if (started) {
-        opts.onExit?.(code, signal);
+        if (!closing) opts.onExit?.(code, signal);
       } else {
         const tail = stderrTail.join("\n");
         fail(

@@ -73,4 +73,13 @@ describe("startServer(2)", () => {
     await start({ onExit });
     await vi.waitFor(() => expect(onExit).toHaveBeenCalledWith(0, null), { timeout: 3000 });
   });
+
+  it("does not call onExit after an intentional close()", async () => {
+    const onExit = vi.fn();
+    const s = await start({ onExit });
+    s.close();
+    await new Promise((r) => setTimeout(r, 1500));
+    await expect(fetch(s.url)).rejects.toThrow();
+    expect(onExit).not.toHaveBeenCalled();
+  });
 });
