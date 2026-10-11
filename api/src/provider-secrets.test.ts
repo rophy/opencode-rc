@@ -115,6 +115,35 @@ describe("providerSecretsStrip", () => {
     }
   });
 
+  it("removes agent options, LSP and formatter environments from GET /config and GET /global/config", () => {
+    const agent = { model: "openai/m1", prompt: "p", permission: { bash: "deny" }, options: { apiKey: "test-key-value" }, apiKey: "test-key-value" };
+    const json = {
+      agent: { build: agent, odd: null },
+      mode: { plan: agent },
+      lsp: { custom: { command: ["srv"], extensions: [".x"], env: { TOKEN: "test-token" } }, off: { disabled: true } },
+      formatter: { fmt: { command: ["fmt"], environment: { TOKEN: "test-token" } } },
+    };
+    const cleanAgent = { model: "openai/m1", prompt: "p", permission: { bash: "deny" } };
+    for (const path of ["/config", "/global/config"]) {
+      expect(strip(path, json)).toEqual({
+        agent: { build: cleanAgent, odd: null },
+        mode: { plan: cleanAgent },
+        lsp: { custom: { command: ["srv"], extensions: [".x"] }, off: { disabled: true } },
+        formatter: { fmt: { command: ["fmt"] } },
+      });
+      expect(strip(path, { lsp: false, formatter: true })).toEqual({ lsp: false, formatter: true });
+    }
+  });
+
+  it("cleans the PATCH /global/config response, not PATCH /config (it echoes the request) or other methods", () => {
+    const json = { provider: { openai: { options: { apiKey: "test-key-value" } } } };
+    expect(providerSecretsStrip("/global/config", "PATCH")!(json)).toEqual({ provider: { openai: {} } });
+    expect(providerSecretsStrip("/Global/Config/", "PATCH")).not.toBeNull();
+    for (const [path, method] of [["/config", "PATCH"], ["/provider", "PATCH"], ["/global/config", "POST"], ["/provider", "HEAD"]]) {
+      expect(providerSecretsStrip(path, method)).toBeNull();
+    }
+  });
+
   it("leaves MCP entries alone on the provider routes", () => {
     const json = { all: [], mcp: { s: { environment: { A: "b" } } } };
     expect(strip("/provider", json)).toEqual(json);
@@ -179,7 +208,8 @@ describe("provider responses through the proxy", () => {
     expect(res.headers.get("x-opencode")).toBe("1");
     expect(res.headers.get("content-encoding")).toBeNull();
     const text = await res.text();
-    expect(res.headers.get("content-length")).not.toBe("9999");
+    const length = res.headers.get("content-length");
+    expect(length === null || length === String(new TextEncoder().encode(text).byteLength)).toBe(true);
     expect(text).not.toContain("test-key-value");
     expect(JSON.parse(text)).toEqual({ all: [cleanLegacy("openai")], default: { openai: "m1" }, connected: ["openai"] });
   });
@@ -216,6 +246,17 @@ describe("provider responses through the proxy", () => {
   it("removes provider options from GET /config", async () => {
     upstream(JSON.stringify({ provider: { openai: { options: { apiKey: "test-key-value" } } } }), { status: 200, headers: { "content-type": "application/json" } });
     expect(await (await makeApp("1.18.29").request("/proxy/s/config")).json()).toEqual({ provider: { openai: {} } });
+  });
+
+  it("removes secrets from the PATCH /global/config response and leaves PATCH /config alone", async () => {
+    const json = JSON.stringify({ provider: { openai: { options: { apiKey: "test-key-value" } } } });
+    const patch = (path: string) => makeApp("1.18.29").request(path, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+    let spy = upstream(json, { status: 200, headers: { "content-type": "application/json" } });
+    expect(await (await patch("/proxy/s/global/config")).json()).toEqual({ provider: { openai: {} } });
+    expect(sentHeaders(spy).get("accept-encoding")).toBe("identity");
+    vi.restoreAllMocks();
+    spy = upstream(json, { status: 200, headers: { "content-type": "application/json" } });
+    expect(await (await patch("/proxy/s/config")).text()).toBe(json);
   });
 
   it("streams other routes untouched", async () => {

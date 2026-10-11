@@ -58,43 +58,66 @@ function mcpServer(server: unknown): unknown {
   });
 }
 
+// An agent (or deprecated mode) entry of the config (packages/core/src/v1/config/agent.ts): its
+// options, which opencode passes to the provider, and the unknown keys it copies into them. The
+// 1.x UI reads agents from GET /agent, not from the config.
+const AGENT_KEYS = ["name", "model", "variant", "prompt", "description", "temperature", "top_p", "mode", "hidden", "color", "steps", "maxSteps", "permission", "disable", "tools"];
+const agentEntry = (agent: unknown) => patch(agent, (a) => Object.fromEntries(Object.entries(a).filter(([name]) => AGENT_KEYS.includes(name))));
+
+// LSP and formatter entries (lsp.ts, formatter.ts): the environment their commands run with.
+// Either field may also be a boolean. The 1.x UI reads neither from the config.
+const lspEntry = (entry: unknown) => patch(entry, (e) => omit(e, ["env"]));
+const formatterEntry = (entry: unknown) => patch(entry, (e) => omit(e, ["environment"]));
+
 const field = (name: string, fn: (value: unknown) => unknown) => (json: unknown) =>
   patch(json, (j) => (name in j ? { ...j, [name]: fn(j[name]) } : j));
+
+const CONFIG_FIELDS: [string, (item: unknown) => unknown][] = [
+  ["provider", legacyProvider],
+  ["mcp", mcpServer],
+  ["agent", agentEntry],
+  ["mode", agentEntry],
+  ["lsp", lspEntry],
+  ["formatter", formatterEntry],
+];
+const stripConfig = (json: unknown) => CONFIG_FIELDS.reduce((out, [name, fn]) => field(name, (entries) => mapRecord(entries, fn))(out), json);
 
 // The 1.x GET routes that return providers, relative to the session (canonical path without a
 // trailing slash), and how each response is cleaned. /provider and /config/providers are the
 // legacy routes (Provider.ListResult and ConfigProvidersResult); 1.18's /api routes wrap their
 // data in { location, data }. /config and /global/config return the config, whose provider
 // entries hold the same options (the UI reads only a provider's npm and model names there),
-// and whose MCP entries hold credentials too.
+// and whose MCP, agent, LSP and formatter entries hold credentials too.
 const ROUTES: { path: RegExp; strip: (json: unknown) => unknown }[] = [
   { path: /^\/provider$/, strip: field("all", (all) => mapArray(all, legacyProvider)) },
   { path: /^\/config\/providers$/, strip: field("providers", (list) => mapArray(list, legacyProvider)) },
-  {
-    path: /^\/(global\/)?config$/,
-    strip: (json) => field("mcp", (servers) => mapRecord(servers, mcpServer))(field("provider", (providers) => mapRecord(providers, legacyProvider))(json)),
-  },
+  { path: /^\/(global\/)?config$/, strip: stripConfig },
   { path: /^\/api\/provider$/, strip: field("data", (data) => mapArray(data, apiItem)) },
   { path: /^\/api\/provider\/[^/]+$/, strip: field("data", apiItem) },
   { path: /^\/api\/model$/, strip: field("data", (data) => mapArray(data, apiItem)) },
 ];
 
-export function providerSecretsStrip(rest: string): ((json: unknown) => unknown) | null {
+// PATCH /global/config returns the whole global config file after the change (global.ts
+// configUpdate), so it is cleaned like the GET. PATCH /config returns the request body as sent.
+const GLOBAL_CONFIG = /^\/global\/config$/;
+
+export function providerSecretsStrip(rest: string, method = "GET"): ((json: unknown) => unknown) | null {
   const path = canonicalPath(rest);
   if (path === null) return null;
   const bare = path.replace(/\/+$/, "");
+  if (method === "PATCH") return GLOBAL_CONFIG.test(bare) ? stripConfig : null;
+  if (method !== "GET") return null;
   return ROUTES.find((r) => r.path.test(bare))?.strip ?? null;
 }
 
-// Removes provider keys, options and headers (and MCP credentials from the config) from the 1.x
-// provider and config responses, for every 1.x session whatever the toggles. The proxy buffers and rewrites only these GET
-// responses (proxyHttp, rewriteJson); everything else streams through untouched.
+// Removes provider keys, options and headers (and the credentials of other config entries)
+// from the 1.x provider and config responses, for every 1.x session whatever the toggles. The
+// proxy buffers and rewrites only these responses (proxyHttp, rewriteJson); everything else
+// streams through untouched.
 export function providerSecretsGuard(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
-    if (c.req.method === "GET") {
-      const strip = providerSecretsStrip(proxyRest(c.req.path, c.req.param("sessionId")!));
-      if (strip) c.set("rewriteJson", strip);
-    }
+    const strip = providerSecretsStrip(proxyRest(c.req.path, c.req.param("sessionId")!), c.req.method);
+    if (strip) c.set("rewriteJson", strip);
     await next();
   };
 }
