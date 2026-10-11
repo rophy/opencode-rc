@@ -859,3 +859,29 @@ describe("1.x routes refused whatever the toggles", () => {
     expect(await res.text()).toBe("this opencode route is not available through opencode-rc");
   });
 });
+
+describe("1.x provider responses have no API keys", () => {
+  let jar: TokenSession;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+  });
+
+  // alice-dev runs with OPENAI_API_KEY=mock, which opencode returns as the openai provider's key.
+  it.each([
+    ["/provider", "all"],
+    ["/config/providers", "providers"],
+  ])("GET %s lists openai without its key", async (path, field) => {
+    const res = await jar.fetch(proxy(path));
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('"mock"');
+    const providers = (JSON.parse(text) as Record<string, { id: string; key?: string; models: Record<string, unknown> }[]>)[field];
+    expect(providers.some((p) => "key" in p)).toBe(false);
+    const openai = providers.find((p) => p.id === "openai");
+    expect(openai).toBeDefined();
+    expect(Object.keys(openai!.models).length).toBeGreaterThan(0);
+  });
+});
