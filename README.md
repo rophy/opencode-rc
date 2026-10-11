@@ -194,14 +194,25 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 
 - `features.uploads.enabled: false` removes image and file attachments from the UI (pasted,
   dropped or picked files and project icons) and makes the API reject them with `403`. `@`
-  references to workspace files keep working; pasting into the terminal is not covered.
-- `features.downloads.enabled: false` stops file contents from leaving the dev machine through
-  opencode-rc: the UI loses the file viewer, opening files (`mod+p`, `/open`), file results in
-  the command palette and the diff's "view file", and the API rejects reading a file or text
-  search (`/find`) with `403`. Chat, diffs, `@` mentions, file listing and name search keep
-  working. Diffs stay available and include the full contents of every changed file, and the
-  AI can still print a file into the chat. With `uploads` also disabled, those two are the
-  only file contents that cross opencode-rc.
+  references to workspace files keep working (unless `downloads` is disabled); pasting into the
+  terminal is not covered.
+- `features.downloads.enabled: false` stops users from reading files through opencode-rc: the UI
+  loses the file viewer, opening files (`mod+p`, `/open`), file results in the command palette,
+  the diff's "view file", files and directories after `@`, and dragging files from the file
+  tree into the prompt. The API rejects with `403` reading a file, text search (`/find`), and
+  prompts that reference files: file attachments by path, `@path` in a command's arguments and
+  in a subtask's prompt (opencode reads those files into the session). An `@agent` in a
+  command's arguments is rejected too: the API cannot tell it from a path. Chat, diffs,
+  comments on diffs (sent without the file), `@` agents and MCP resources, file listing and
+  name search keep working.
+  This does not keep file contents on the machine: the AI can still read any file with its
+  tools, and what it reads shows in the session and in its replies; diffs include the full
+  contents of every changed file.
+
+  `shell` and `terminal` run commands on the machine, so they can read any file too: disable
+  them as well to stop users from getting file contents through opencode-rc. Keeping code on
+  the machine fully needs opencode's own permission config there (which files its tools may
+  read).
 - `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
@@ -243,8 +254,11 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 - `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the
   same meaning as above. They are **enabled unless set to `false`**, so a deployment that disables features for
   1.x must disable them here too. `share` is not a 2.x toggle.
-- On 2.x, `downloads` also stops chat links to file paths and images loaded from disk, and the
-  API rejects reading a file with `400`; the directory picker still works.
+- On 2.x, `downloads` also stops chat links to file paths and images loaded from disk. The API
+  rejects with `400` reading a file and prompts or commands with any attachment that is not
+  inline (`data:`), so with `uploads` also disabled no attachment gets through. `@` references
+  in text are not expanded by 2.x. `mod+p` and `/open` (the "Open file" command) still open the
+  command palette, which lists only commands and sessions. The directory picker still works.
 - `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
   in `config/opencode-versions.json`; other 2.x versions are refused.
 - On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
