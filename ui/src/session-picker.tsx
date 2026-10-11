@@ -33,8 +33,12 @@ function SessionCard(props: { session: DevSession }) {
           <span class="text-14-medium text-v2-text-text-base truncate">
             {directoryName(props.session.directory)}
           </span>
-          <span class="shrink-0 rounded-[3px] border border-v2-border-border-base px-1.5 py-0.5 text-[10px] leading-none text-v2-text-text-faint">
-            {props.session.id.slice(0, 8)}
+          {/* The whole ID: default IDs are "<hostname>-<8 hex>", so any prefix hides the part that differs. */}
+          <span
+            title={props.session.id}
+            class="min-w-0 truncate rounded-[3px] border border-v2-border-border-base px-1.5 py-0.5 text-[10px] leading-none text-v2-text-text-faint"
+          >
+            {props.session.id}
           </span>
         </div>
         <div class="mt-1 text-12-regular text-v2-text-text-faint truncate">

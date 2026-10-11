@@ -47,7 +47,21 @@ describe("SessionPicker", () => {
       expect(screen.getByText("project")).toBeTruthy()
     })
     expect(screen.getByText("/home/alice/project")).toBeTruthy()
-    expect(screen.getByText("alice-de")).toBeTruthy()
+    expect(screen.getByText("alice-dev")).toBeTruthy()
+  })
+
+  // Default IDs are "<hostname>-<8 hex>", so a prefix would hide the part that differs.
+  it("shows each session's full ID, so sessions with a common prefix stay distinguishable", async () => {
+    const sessions = [session("alice-dev", "/project"), session("alice-dev-v2", "/project")]
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(sessions), { status: 200, headers: { "content-type": "application/json" } })
+    )
+    render(() => <SessionPicker user={user} />)
+    await vi.waitFor(() => {
+      expect(screen.getByText("alice-dev-v2")).toBeTruthy()
+    })
+    expect(screen.getByText("alice-dev")).toBeTruthy()
+    expect(screen.getByText("alice-dev-v2").getAttribute("title")).toBe("alice-dev-v2")
   })
 
   it("shows the opencode version when the session reports one", async () => {
