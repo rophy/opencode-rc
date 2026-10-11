@@ -1,0 +1,132 @@
+diff --git a/packages/app/src/components/dialog-select-mcp.tsx b/packages/app/src/components/dialog-select-mcp.tsx
+index 4f1a3cd239..09d76bdfa5 100644
+--- a/packages/app/src/components/dialog-select-mcp.tsx
++++ b/packages/app/src/components/dialog-select-mcp.tsx
+@@ -2,9 +2,7 @@ import { Component, createMemo, Show } from "solid-js"
+ import { useSync } from "@/context/sync"
+ import { Dialog } from "@opencode-ai/ui/dialog"
+ import { List } from "@opencode-ai/ui/list"
+-import { Switch } from "@opencode-ai/ui/switch"
+ import { useLanguage } from "@/context/language"
+-import { useMcpToggle } from "@/context/mcp"
+ 
+ const statusLabels = {
+   connected: "mcp.status.connected",
+@@ -24,8 +22,6 @@ export const DialogSelectMcp: Component = () => {
+       .sort((a, b) => a.name.localeCompare(b.name)),
+   )
+ 
+-  const toggle = useMcpToggle()
+-
+   const enabledCount = createMemo(() => items().filter((i) => i.status === "connected").length)
+   const totalCount = createMemo(() => items().length)
+ 
+@@ -42,10 +38,7 @@ export const DialogSelectMcp: Component = () => {
+         items={items}
+         filterKeys={["name", "status"]}
+         sortBy={(a, b) => a.name.localeCompare(b.name)}
+-        onSelect={(x) => {
+-          if (!x || x.status === "pending" || toggle.isPending) return
+-          toggle.mutate(x.name)
+-        }}
++        onSelect={() => {}}
+       >
+         {(i) => {
+           const mcpStatus = () => sync().data.mcp[i.name]
+@@ -59,7 +52,6 @@ export const DialogSelectMcp: Component = () => {
+             const s = mcpStatus()
+             if (s?.status === "failed" || s?.status === "needs_client_registration") return s.error
+           }
+-          const enabled = () => status() === "connected"
+           return (
+             <div class="w-full flex items-center justify-between gap-x-3">
+               <div class="flex flex-col gap-0.5 min-w-0">
+@@ -73,16 +65,6 @@ export const DialogSelectMcp: Component = () => {
+                   <span class="text-11-regular text-text-weaker truncate">{error()}</span>
+                 </Show>
+               </div>
+-              <div onClick={(e) => e.stopPropagation()}>
+-                <Switch
+-                  checked={enabled()}
+-                  disabled={status() === "pending" || (toggle.isPending && toggle.variables === i.name)}
+-                  onChange={() => {
+-                    if (toggle.isPending) return
+-                    toggle.mutate(i.name)
+-                  }}
+-                />
+-              </div>
+             </div>
+           )
+         }}
+diff --git a/packages/app/src/components/status-popover-body.tsx b/packages/app/src/components/status-popover-body.tsx
+index 97982fa21f..9bae079378 100644
+--- a/packages/app/src/components/status-popover-body.tsx
++++ b/packages/app/src/components/status-popover-body.tsx
+@@ -1,7 +1,6 @@
+ import { Button } from "@opencode-ai/ui/button"
+ import { useDialog } from "@opencode-ai/ui/context/dialog"
+ import { Icon } from "@opencode-ai/ui/icon"
+-import { Switch } from "@opencode-ai/ui/switch"
+ import { Tabs } from "@opencode-ai/ui/tabs"
+ import { showToast } from "@/utils/toast"
+ import { useNavigate } from "@solidjs/router"
+@@ -15,7 +14,6 @@ import { useSync } from "@/context/sync"
+ import { type ServerHealth } from "@/utils/server-health"
+ import { useGlobal } from "@/context/global"
+ import { useSettings } from "@/context/settings"
+-import { useMcpToggle } from "@/context/mcp"
+ import { useServerProtocol } from "@/context/server-sdk"
+ 
+ const pluginEmptyMessage = (value: string, file: string): JSXElement => {
+@@ -284,7 +282,6 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
+       : global.servers.list().filter((x) => global.ensureServerCtx(x).sdk.protocolKind() !== "v2")
+     return listServersByHealth(list, server.key, global.servers.health)
+   })
+-  const toggleMcp = useMcpToggle()
+   const defaultServer = useDefaultServerKey(platform.getDefaultServer)
+   const mcpNames = createMemo(() => Object.keys(sync().data.mcp ?? {}).sort((a, b) => a.localeCompare(b)))
+   const mcpStatus = (name: string) => sync().data.mcp?.[name]?.status
+@@ -409,17 +406,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
+                 <For each={mcpNames()}>
+                   {(name) => {
+                     const status = () => mcpStatus(name)
+-                    const enabled = () => status() === "connected"
+                     return (
+-                      <button
+-                        type="button"
+-                        class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
+-                        onClick={() => {
+-                          if (toggleMcp.isPending) return
+-                          toggleMcp.mutate(name)
+-                        }}
+-                        disabled={toggleMcp.isPending && toggleMcp.variables === name}
+-                      >
++                      <div class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md text-left">
+                         <div
+                           classList={{
+                             "size-1.5 rounded-full shrink-0": true,
+@@ -434,23 +422,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
+                           <span class="flex items-center gap-2 min-w-0">
+                             <span class="text-14-regular text-text-base truncate">{name}</span>
+                           </span>
+-                          <Show when={status() === "needs_auth"}>
+-                            <span class="text-11-regular text-text-weaker truncate">
+-                              {language.t("mcp.auth.clickToAuthenticate")}
+-                            </span>
+-                          </Show>
+                         </span>
+-                        <div onClick={(event) => event.stopPropagation()}>
+-                          <Switch
+-                            checked={enabled()}
+-                            disabled={toggleMcp.isPending && toggleMcp.variables === name}
+-                            onChange={() => {
+-                              if (toggleMcp.isPending) return
+-                              toggleMcp.mutate(name)
+-                            }}
+-                          />
+-                        </div>
+-                      </button>
++                      </div>
+                     )
+                   }}
+                 </For>

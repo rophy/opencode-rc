@@ -1,0 +1,73 @@
+diff --git a/packages/app/src/providers/connect/mcp-dialog.tsx b/packages/app/src/providers/connect/mcp-dialog.tsx
+index 6be62f2fa2..2a505ba18e 100644
+--- a/packages/app/src/providers/connect/mcp-dialog.tsx
++++ b/packages/app/src/providers/connect/mcp-dialog.tsx
+@@ -47,10 +47,7 @@ export const DialogSelectMcp: Component = () => {
+           items={items}
+           filterKeys={["name", "status"]}
+           sortBy={(a, b) => a.name.localeCompare(b.name)}
+-          onSelect={(x) => {
+-            if (!x || x.status === "pending" || toggle.isPending) return
+-            toggle.mutate(x.name)
+-          }}
++          onSelect={() => {}}
+         >
+           {(i) => {
+             const mcpStatus = () =>
+@@ -88,17 +85,6 @@ export const DialogSelectMcp: Component = () => {
+                     <span class="text-11-regular text-text-weaker truncate">{error()}</span>
+                   </Show>
+                 </div>
+-                <div onClick={(e) => e.stopPropagation()}>
+-                  <Switch
+-                    appearance="standard"
+-                    checked={enabled()}
+-                    disabled={status() === "pending" || (toggle.isPending && toggle.variables === i.name)}
+-                    onChange={() => {
+-                      if (toggle.isPending) return
+-                      toggle.mutate(i.name)
+-                    }}
+-                  />
+-                </div>
+               </div>
+             )
+           }}
+diff --git a/packages/app/src/settings/providers/extensions.tsx b/packages/app/src/settings/providers/extensions.tsx
+index d9f7c6e653..a8d0b80b3a 100644
+--- a/packages/app/src/settings/providers/extensions.tsx
++++ b/packages/app/src/settings/providers/extensions.tsx
+@@ -107,9 +107,6 @@ export const SettingsExtensions: Component<{
+                         <Icon name="mcp" class="text-v2-icon-icon-muted shrink-0" />
+                         <span class="settings-extension-name truncate">{item.name}</span>
+                       </div>
+-                      <Switch checked={item.enabled} onChange={(checked) => handleMcpToggle(item, checked)} hideLabel>
+-                        {item.name}
+-                      </Switch>
+                     </div>
+                   )}
+                 </For>
+diff --git a/packages/app/src/settings/workspaces/project-extensions.tsx b/packages/app/src/settings/workspaces/project-extensions.tsx
+index 6abd9c6013..ff513058df 100644
+--- a/packages/app/src/settings/workspaces/project-extensions.tsx
++++ b/packages/app/src/settings/workspaces/project-extensions.tsx
+@@ -281,19 +281,7 @@ export const ProjectSettingsExtensions: Component<{
+   const mcpRows = (items: string[]) => (
+     <For each={items}>
+       {(name) => (
+-        <ExtensionRow icon="mcp" name={name}>
+-          <Switch
+-            checked={mcpEnabled(name)}
+-            disabled={toggleMcp.isPending && toggleMcp.variables === name}
+-            hideLabel
+-            onChange={() => {
+-              if (toggleMcp.isPending) return
+-              toggleMcp.mutate(name)
+-            }}
+-          >
+-            {name}
+-          </Switch>
+-        </ExtensionRow>
++        <ExtensionRow icon="mcp" name={name} />
+       )}
+     </For>
+   )

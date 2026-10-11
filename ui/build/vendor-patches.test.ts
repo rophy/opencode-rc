@@ -155,13 +155,13 @@ describe("featurePatches", () => {
 
   it("matches the features in the real vendor/patches/v1", () => {
     const real = fileURLToPath(new URL("../../vendor/patches/v1", import.meta.url))
-    expect(fs.readdirSync(real).sort()).toEqual(["config", "config+shell", "downloads", "export", "share", "shell", "terminal", "uploads"])
+    expect(fs.readdirSync(real).sort()).toEqual(["config", "config+shell", "downloads", "export", "mcp", "share", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES, [])).not.toThrow()
   })
 
   it("matches the features in the real vendor/patches/v2", () => {
     const real = fileURLToPath(new URL("../../vendor/patches/v2", import.meta.url))
-    expect(fs.readdirSync(real).sort()).toEqual(["downloads", "export", "shell", "terminal", "uploads"])
+    expect(fs.readdirSync(real).sort()).toEqual(["downloads", "export", "mcp", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES_V2, [])).not.toThrow()
   })
 })
