@@ -1,11 +1,8 @@
 import type { MiddlewareHandler } from "hono";
-import { proxyRest, type ProxyEnv } from "./proxy.js";
-import { bodyError, jsonBody } from "./request-body.js";
+import { bodyRuleGuard, isObject, type BodyRule } from "./body-guard.js";
+import type { ProxyEnv } from "./proxy.js";
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isFileUri = (value: unknown) => typeof value === "string" && value.toLowerCase().startsWith("file:");
+export const isFileUri = (value: unknown) => typeof value === "string" && value.toLowerCase().startsWith("file:");
 
 // A file part carries uploaded bytes (data:) or a remote attachment (http(s):), unless it
 // names a workspace file (file:, an @mention) or an MCP resource, which opencode reads by
@@ -16,26 +13,19 @@ export function isUploadPart(part: unknown): boolean {
   return !isFileUri(part.url);
 }
 
-interface Rule {
-  method: string;
-  path: RegExp;
-  denies: (body: unknown) => boolean;
-}
-
 // Paths are relative to /proxy/:sessionId, matched without a trailing slash and ignoring
 // case so a variant opencode would also route cannot slip past.
-const RULES: Rule[] = [
+const RULES: BodyRule[] = [
   {
     method: "POST",
     path: /^\/session\/[^/]+\/(message|prompt_async|command)$/i,
-    denies: (body) => isObject(body) && Array.isArray(body.parts) && body.parts.some(isUploadPart),
+    denies: (body) => Array.isArray(body.parts) && body.parts.some(isUploadPart),
   },
   {
     method: "POST",
     path: /^\/api\/session\/[^/]+\/prompt$/i,
     // 1.18 nests the files in prompt; 2.x sends them at the top level. Check both.
     denies: (body) =>
-      isObject(body) &&
       [body.files, isObject(body.prompt) ? body.prompt.files : undefined].some(
         (list) => Array.isArray(list) && list.some((file) => !isObject(file) || !isFileUri(file.uri)),
       ),
@@ -44,7 +34,6 @@ const RULES: Rule[] = [
     method: "PATCH",
     path: /^\/project\/[^/]+$/i,
     denies: (body) =>
-      isObject(body) &&
       isObject(body.icon) &&
       typeof body.icon.override === "string" &&
       body.icon.override.toLowerCase().startsWith("data:"),
@@ -68,24 +57,5 @@ export const RAW_PART_ROUTES: { method: string; path: RegExp }[] = [
 // buffered and checked, and the proxy forwards those same bytes; other requests stream
 // through untouched.
 export function uploadGuard(): MiddlewareHandler<ProxyEnv> {
-  return async (c, next) => {
-    const method = c.req.method;
-    const rest = proxyRest(c.req.path, c.req.param("sessionId")!).replace(/\/+$/, "");
-
-    if (RAW_PART_ROUTES.some((b) => b.method === method && b.path.test(rest))) {
-      console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
-      return c.text("uploads are disabled", 403);
-    }
-
-    const rule = RULES.find((r) => r.method === c.req.method && r.path.test(rest));
-    if (!rule) return next();
-
-    const body = await jsonBody(c);
-    if (typeof body === "string") return bodyError(c, body);
-    if (rule.denies(body.json)) {
-      console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
-      return c.text("uploads are disabled", 403);
-    }
-    await next();
-  };
+  return bodyRuleGuard("upload", "uploads are disabled", RULES, RAW_PART_ROUTES);
 }

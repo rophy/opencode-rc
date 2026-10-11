@@ -28,6 +28,7 @@ const NEVER: { method: string | null; path: RegExp }[] = [
 export function v1NeverGuard(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
     const path = canonicalPath(proxyRest(c.req.path, c.req.param("sessionId")!));
+    // Defensive: v1ApiGuard, earlier in v1Guards, already answers 400 for such a path.
     if (path === null) return c.text("unsupported characters in path", 400);
     const bare = path.replace(/\/+$/, "");
     const method = c.req.method === "HEAD" ? "GET" : c.req.method;

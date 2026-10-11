@@ -1,11 +1,13 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { every } from "hono/combine";
 import type { FeatureNameV2, RcConfig } from "../../config/schema.js";
+import { isObject } from "./body-guard.js";
 import { plainPathGuard } from "./feature-guards.js";
 import { canonicalPath, proxyRest, upstreamUrl, type ProxyEnv } from "./proxy.js";
 import { jsonBody } from "./request-body.js";
 import { mayRunShell } from "./shell-guard.js";
 import { templateRegex } from "./route-template.js";
+import { isFileUri } from "./upload-guard.js";
 import { V2_ROUTES } from "./v2-routes.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
@@ -28,9 +30,6 @@ const MESSAGES: Record<FeatureNameV2, string> = {
 // routes. With mcp disabled those integrations cannot be connected; provider sign-in stays.
 const MCP_INTEGRATION = /^\/api\/integration\/mcp_[^/]*\/connect\//;
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const isFileUri = (v: unknown) => typeof v === "string" && v.toLowerCase().startsWith("file:");
-
 // 400 with the error shape opencode 2.x's client shows to the user ({_tag, message}); a 401
 // would switch the app to its connect screen and a 403 shows as "UnexpectedStatus: 403".
 function reject(c: Context<ProxyEnv>, message: string, detail: string) {
@@ -47,7 +46,6 @@ async function defaultFetchServerInfo(c: Context<ProxyEnv>): Promise<ServerInfo>
   if (!res.ok) throw new Error(`GET /api/info: ${res.status}`);
   return (await res.json()) as ServerInfo;
 }
-
 
 // Reads and parses a JSON object body (empty: no fields); the proxy forwards exactly the bytes
 // checked.

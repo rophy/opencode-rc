@@ -1,8 +1,10 @@
 import type { Context } from "hono";
 import type { ProxyEnv } from "./proxy.js";
 
-// The largest body a guard reads: above opencode's 20 MB attachment limit (2.x core
-// session/prompt.ts MAX_ATTACHMENT_BYTES) once base64 and JSON are added.
+// The largest body a guard reads, for the whole request: one attachment at opencode's 20 MB
+// limit (2.x core session/prompt.ts MAX_ATTACHMENT_BYTES, per attachment) fits once base64 and
+// JSON are added, but a checked request with several large attachments can exceed it and gets
+// 413 where opencode would accept it.
 export const MAX_BODY_BYTES = 32 * 1024 * 1024;
 
 export type JsonBody = { json: unknown } | "not-json" | "too-large";
