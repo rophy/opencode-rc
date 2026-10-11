@@ -199,8 +199,9 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   opencode-rc: the UI loses the file viewer, opening files (`mod+p`, `/open`), file results in
   the command palette and the diff's "view file", and the API rejects reading a file or text
   search (`/find`) with `403`. Chat, diffs, `@` mentions, file listing and name search keep
-  working. It cannot stop the AI from printing a file into the chat. With `uploads` also
-  disabled, nothing but chat text and diff hunks is transferred to or from the machine.
+  working. Diffs stay available and include the full contents of every changed file, and the
+  AI can still print a file into the chat. With `uploads` also disabled, those two are the
+  only file contents that cross opencode-rc.
 - `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
@@ -239,8 +240,8 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 }
 ```
 
-- `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the same meaning as
-  above. They are **enabled unless set to `false`**, so a deployment that disables features for
+- `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the
+  same meaning as above. They are **enabled unless set to `false`**, so a deployment that disables features for
   1.x must disable them here too. `share` is not a 2.x toggle.
 - On 2.x, `downloads` also stops chat links to file paths and images loaded from disk, and the
   API rejects reading a file with `400`; the directory picker still works.
