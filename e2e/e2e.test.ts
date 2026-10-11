@@ -712,6 +712,10 @@ describe("downloads disabled", () => {
   });
 
   it("refuses file contents and text search", async () => {
+    // The file exists: the allowed listing shows it, so the 403 is the toggle, not a missing file.
+    const listing = await jar.fetch(proxy(`/file?path=${encodeURIComponent("/project")}`));
+    expect(listing.status).toBe(200);
+    expect(JSON.stringify(await listing.json())).toContain("opencode.json");
     for (const path of [
       `/file/content?path=${encodeURIComponent(file)}`,
       `/api/fs/read${file}`,

@@ -143,6 +143,10 @@ describe("opencode 2.x dev machine", () => {
   describe("downloads disabled", () => {
     it("refuses fs/read", async () => {
       await getInfo();
+      // The file exists: the allowed listing shows it, so the 400 is the toggle, not a missing file.
+      const listing = await jar.fetch(`${V2}/api/fs/list?path=${encodeURIComponent("/project")}`);
+      expect(listing.status).toBe(200);
+      expect(JSON.stringify(await listing.json())).toContain("opencode.json");
       const res = await jar.fetch(`${V2}/api/fs/read/project/opencode.json`);
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });

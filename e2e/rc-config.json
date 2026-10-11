@@ -8,7 +8,7 @@
   "opencodeV2": {
     "features": {
       "uploads": { "enabled": false },
-    "downloads": { "enabled": false },
+      "downloads": { "enabled": false },
       "terminal": { "enabled": false }
     }
   }
