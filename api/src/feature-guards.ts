@@ -18,7 +18,8 @@ type Guard = MiddlewareHandler<ProxyEnv>;
 // until it has an entry.
 export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   uploads: uploadGuard(),
-  // Reading a file's contents. Listing and finding files stay allowed.
+  // Reading a file's contents, directly or through a prompt that references it. Listing and
+  // finding files stay allowed.
   downloads: downloadGuard(),
   terminal: terminalGuard(),
   // Shell mode: one command at a time, run on the dev machine and kept in the session.

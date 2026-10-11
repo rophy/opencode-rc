@@ -4,7 +4,8 @@
 
 // Every feature that can be switched off. A disabled feature gets the UI build's patches in
 // vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
-// downloads blocks reading a file's contents (not listing or finding files by name).
+// downloads blocks reading a file's contents, directly or by referencing it in a prompt (not listing
+// or finding files by name).
 export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share"] as const;
 
 export type FeatureName = (typeof FEATURES)[number];
