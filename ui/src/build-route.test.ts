@@ -11,6 +11,7 @@ describe("bounceTarget", () => {
     expect(bounceTarget("", { pathname: "/s/a/", search: "", hash: "" })).toBeNull()
     expect(bounceTarget("", { pathname: "/v2", search: "", hash: "" })).toBeNull()
     expect(bounceTarget("", { pathname: "/", search: "", hash: "" })).toBeNull()
+    expect(bounceTarget("", { pathname: "/v2/index.html", search: "?rc_path=%2Fv2%2Fs%2Fa%2F", hash: "" })).toBeNull()
     expect(bounceTarget("/v2", { pathname: "/v2/s/a/", search: "", hash: "" })).toBeNull()
   })
 })

@@ -7,7 +7,9 @@ const V2 = "/v2/"
 const INDEX = "/v2/index.html"
 
 export function bounceTarget(base: string, loc: { pathname: string; search: string; hash: string }): string | null {
-  if (base !== "" || !loc.pathname.startsWith(V2)) return null
+  // /v2/index.html is the target itself: reached on the 1.x build (dev server fallback, or a
+  // bundle without dist/v2), bouncing again would reload forever.
+  if (base !== "" || !loc.pathname.startsWith(V2) || loc.pathname === INDEX) return null
   return `${INDEX}?rc_path=${encodeURIComponent(loc.pathname + loc.search + loc.hash)}`
 }
 
