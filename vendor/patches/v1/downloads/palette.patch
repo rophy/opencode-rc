@@ -1,0 +1,78 @@
+diff --git a/packages/app/src/components/command-palette.ts b/packages/app/src/components/command-palette.ts
+index 8014ea1c43..ec273255c1 100644
+--- a/packages/app/src/components/command-palette.ts
++++ b/packages/app/src/components/command-palette.ts
+@@ -63,19 +63,7 @@ export function createCommandPaletteFileEntry(path: string, category: string): C
+ }
+ 
+ export function createCommandPaletteFileOpener(onOpenFile?: (path: string) => void) {
+-  const file = useFile()
+-  const layout = useLayout()
+-  const { tabs, view } = useSessionLayout()
+-
+-  return (path: string) => {
+-    const value = file.tab(path)
+-    void tabs().open(value)
+-    void file.load(path)
+-    if (!view().reviewPanel.opened()) view().reviewPanel.open()
+-    layout.fileTree.setTab("all")
+-    onOpenFile?.(path)
+-    tabs().setActive(value)
+-  }
++  return (_path: string) => {}
+ }
+ 
+ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; onOpenFile?: (path: string) => void }) {
+@@ -115,7 +103,8 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+     pathFromTab: file.pathFromTab,
+     normalizeTab: (tab) => (tab.startsWith("file://") ? file.tab(tab) : tab),
+   })
+-  const recentFileEntries = createMemo(() => {
++  const recentFileEntries = createMemo((): CommandPaletteEntry[] => {
++    if (true as boolean) return []
+     const all = tabState.openedTabs()
+     const active = tabState.activeFileTab()
+     const order = active ? [active, ...all.filter((item) => item !== active)] : all
+@@ -131,7 +120,8 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+       .slice(0, ENTRY_LIMIT)
+       .map((path) => createCommandPaletteFileEntry(path, category))
+   })
+-  const rootFileEntries = createMemo(() => {
++  const rootFileEntries = createMemo((): CommandPaletteEntry[] => {
++    if (true as boolean) return []
+     const category = language.t("palette.group.files")
+     return file.tree
+       .children("")
+diff --git a/packages/app/src/components/dialog-command-palette-v2.tsx b/packages/app/src/components/dialog-command-palette-v2.tsx
+index e996fd0be7..94d31426a1 100644
+--- a/packages/app/src/components/dialog-command-palette-v2.tsx
++++ b/packages/app/src/components/dialog-command-palette-v2.tsx
+@@ -41,7 +41,7 @@ export function DialogCommandPaletteV2(props: { onOpenFile?: (path: string) => v
+     const q = text.trim()
+     if (!q) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
+ 
+-    const [files, nextSessions] = await Promise.all([palette.file.searchFiles(q), Promise.resolve(palette.sessions(q))])
++    const [files, nextSessions] = await Promise.all([Promise.resolve([] as string[]), Promise.resolve(palette.sessions(q))])
+     const category = palette.language.t("palette.group.files")
+     return [
+       ...palette.commandEntries().filter((entry) => matchesEntry(entry, q)),
+diff --git a/packages/app/src/components/dialog-select-file.tsx b/packages/app/src/components/dialog-select-file.tsx
+index 905abe1e2d..cc4b9ec039 100644
+--- a/packages/app/src/components/dialog-select-file.tsx
++++ b/packages/app/src/components/dialog-select-file.tsx
+@@ -89,13 +89,13 @@ function DialogSelectFileLegacy(props: { filesOnly: () => boolean; onOpenFile?:
+     if (!query) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
+ 
+     if (props.filesOnly()) {
+-      const files = await palette.file.searchFiles(query)
++      const files: string[] = []
+       const category = palette.language.t("palette.group.files")
+       return files.map((path) => createCommandPaletteFileEntry(path, category))
+     }
+ 
+     const [files, nextSessions] = await Promise.all([
+-      palette.file.searchFiles(query),
++      Promise.resolve([] as string[]),
+       Promise.resolve(palette.sessions(query)),
+     ])
+     const category = palette.language.t("palette.group.files")

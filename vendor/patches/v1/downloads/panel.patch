@@ -1,0 +1,115 @@
+diff --git a/packages/app/src/pages/session/helpers.ts b/packages/app/src/pages/session/helpers.ts
+index c43f6bc6a3..78387e2f2e 100644
+--- a/packages/app/src/pages/session/helpers.ts
++++ b/packages/app/src/pages/session/helpers.ts
+@@ -146,17 +146,7 @@ export const createOpenSessionFileTab = (input: {
+   openReviewPanel: () => void
+   setActive: (tab: string) => void
+ }) => {
+-  return (value: string) => {
+-    const next = input.normalizeTab(value)
+-    input.openTab(next)
+-
+-    const path = input.pathFromTab(next)
+-    if (!path) return
+-
+-    input.loadFile(path)
+-    input.openReviewPanel()
+-    input.setActive(next)
+-  }
++  return (_value: string) => {}
+ }
+ 
+ export const getTabReorderIndex = (tabs: readonly string[], from: string, to: string) => {
+diff --git a/packages/app/src/pages/session/session-side-panel.tsx b/packages/app/src/pages/session/session-side-panel.tsx
+index 6f074fa203..20bcc50bba 100644
+--- a/packages/app/src/pages/session/session-side-panel.tsx
++++ b/packages/app/src/pages/session/session-side-panel.tsx
+@@ -203,18 +203,7 @@ export function SessionSidePanel(props: {
+   let fileFilter: HTMLInputElement | undefined
+   let tabList: HTMLDivElement | undefined
+   const temporaryTab = tabs().preview
+-  const previewTab = (value: string) => {
+-    const next = normalizeTab(value)
+-    tabs().previewTab(next)
+-    const path = file.pathFromTab(next)
+-    if (path) void file.load(path)
+-    openReviewPanel()
+-    queueMicrotask(() => tabs().setActive(next))
+-  }
+-  const openFileBrowser = () => {
+-    previewTab(SESSION_OPEN_FILE_TAB)
+-    queueMicrotask(() => fileFilter?.focus())
+-  }
++  const previewTab = (_value: string) => {}
+   const activateTab = (value: string) => {
+     const next = normalizeTab(value)
+     const path = file.pathFromTab(next)
+@@ -435,32 +424,6 @@ export function SessionSidePanel(props: {
+                                   )}
+                                 </For>
+                               </SortableProvider>
+-                              <div
+-                                class="h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3"
+-                                classList={{
+-                                  "bg-v2-background-bg-base": settings.general.newLayoutDesigns(),
+-                                  "bg-background-stronger": !settings.general.newLayoutDesigns(),
+-                                }}
+-                              >
+-                                <TooltipKeybind
+-                                  title={language.t("command.file.open")}
+-                                  keybind={command.keybind("file.open")}
+-                                  class="flex items-center"
+-                                >
+-                                  <IconButton
+-                                    icon="plus-small"
+-                                    variant="ghost"
+-                                    iconSize="large"
+-                                    class="!rounded-md"
+-                                    onClick={() => {
+-                                      void import("@/components/dialog-select-file").then((x) => {
+-                                        dialog.show(() => <x.DialogSelectFile mode="files" onOpenFile={showAllFiles} />)
+-                                      })
+-                                    }}
+-                                    aria-label={language.t("command.file.open")}
+-                                  />
+-                                </TooltipKeybind>
+-                              </div>
+                             </Tabs.List>
+                           </div>
+ 
+@@ -654,34 +617,6 @@ export function SessionSidePanel(props: {
+                                 </Show>
+                               )}
+                             </For>
+-                            <div
+-                              class="h-full shrink-0 sticky right-0 z-10 flex items-center justify-center"
+-                              classList={{
+-                                "bg-v2-background-bg-base": settings.general.newLayoutDesigns(),
+-                                "bg-background-stronger": !settings.general.newLayoutDesigns(),
+-                              }}
+-                            >
+-                              <TooltipV2
+-                                value={
+-                                  <>
+-                                    {language.t("command.file.open")}
+-                                    <Show when={openFileKeybind().length > 0}>
+-                                      <KeybindV2 keys={openFileKeybind()} variant="neutral" />
+-                                    </Show>
+-                                  </>
+-                                }
+-                                placement="bottom"
+-                                class="flex items-center"
+-                              >
+-                                <IconButtonV2
+-                                  icon={<Icon name="plus-small" />}
+-                                  variant="ghost-muted"
+-                                  size="large"
+-                                  onClick={() => openFileBrowser()}
+-                                  aria-label={language.t("command.file.open")}
+-                                />
+-                              </TooltipV2>
+-                            </div>
+                           </Tabs.List>
+                           <div
+                             class="session-review-v2-open-in-app-slot shrink-0 flex items-center pr-3"

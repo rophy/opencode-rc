@@ -1,0 +1,40 @@
+diff --git a/packages/app/src/components/session/session-header.tsx b/packages/app/src/components/session/session-header.tsx
+index dc6cdaa6f3..3a9d04dda2 100644
+--- a/packages/app/src/components/session/session-header.tsx
++++ b/packages/app/src/components/session/session-header.tsx
+@@ -162,7 +162,7 @@ export function SessionHeader() {
+   const hotkey = createMemo(() => command.keybind("file.open"))
+   const os = createMemo(() => detectOS(platform))
+   const isV2 = settings.general.newLayoutDesigns
+-  const search = settings.visibility.search
++  const search = () => false
+   const status = settings.visibility.status
+   const isDesktop = createMediaQuery("(min-width: 768px)")
+ 
+diff --git a/packages/app/src/pages/session.tsx b/packages/app/src/pages/session.tsx
+index 2e647e0f47..376d57ecc2 100644
+--- a/packages/app/src/pages/session.tsx
++++ b/packages/app/src/pages/session.tsx
+@@ -1286,7 +1286,6 @@ export default function Page() {
+         comments={comments.all()}
+         focusedComment={comments.focus()}
+         onFocusedCommentChange={comments.setFocus}
+-        onViewFile={openReviewFile}
+         classes={input.classes}
+       />
+     </Show>
+diff --git a/packages/app/src/pages/session/use-session-commands.tsx b/packages/app/src/pages/session/use-session-commands.tsx
+index 18d5b172ff..1bf958efb5 100644
+--- a/packages/app/src/pages/session/use-session-commands.tsx
++++ b/packages/app/src/pages/session/use-session-commands.tsx
+@@ -518,8 +518,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
+         id: "file.open",
+         title: language.t("command.file.open"),
+         description: language.t("palette.search.placeholder"),
+-        keybind: "mod+p",
+-        slash: "open",
++        disabled: true,
++        hidden: true,
+         onSelect: openFile,
+       }),
+       tab &&
