@@ -691,12 +691,16 @@ describe("uploads disabled", () => {
     expect(res.status).toBe(403);
   });
 
-  it("still accepts a text prompt and an @mention", async () => {
+  it("still accepts a text prompt, and lets an @mention through to the downloads guard", async () => {
     const text = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json("POST", { parts: [{ type: "text", text: "hi" }] }));
     expect(text.status).toBe(204);
+    // e2e also disables downloads, which refuses file: parts. The uploads guard runs first, so
+    // the downloads message shows the uploads guard let the part through (also covered by the
+    // API unit tests, upload-guard.test.ts).
     const mention = { type: "file", mime: "text/plain", filename: "a.txt", url: "file:///project/a.txt" };
     const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json("POST", { parts: [mention] }));
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("file downloads are disabled");
   });
 });
 
@@ -706,9 +710,19 @@ describe("downloads disabled", () => {
   // mounted into /project on the dev machine (e2e/k8s/dev-machine.yaml)
   const file = "/project/opencode.json";
 
+  let sessionID: string;
+  const json = (body: unknown): RequestInit => ({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
   beforeAll(async () => {
     await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
+    const res = await jar.fetch(proxy("/session"), json({}));
+    expect(res.status).toBe(200);
+    sessionID = (await res.json()).id;
   });
 
   it("refuses file contents and text search", async () => {
@@ -730,5 +744,23 @@ describe("downloads disabled", () => {
   it("still lists files and finds them by name", async () => {
     expect((await jar.fetch(proxy(`/file?path=${encodeURIComponent("/project")}`))).status).toBe(200);
     expect((await jar.fetch(proxy(`/find/file?query=opencode&dirs=false`))).status).toBe(200);
+  });
+
+  it("refuses a prompt that references a file", async () => {
+    const part = { type: "file", mime: "text/plain", filename: "opencode.json", url: `file://${file}` };
+    const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json({ parts: [part] }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("file downloads are disabled");
+  });
+
+  it("refuses a command whose arguments reference a file", async () => {
+    const res = await jar.fetch(proxy(`/session/${sessionID}/command`), json({ command: "init", arguments: "@opencode.json", parts: [] }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("file downloads are disabled");
+  });
+
+  it("still accepts a text prompt", async () => {
+    const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json({ parts: [{ type: "text", text: "hi user@example.com" }] }));
+    expect(res.status).toBe(204);
   });
 });

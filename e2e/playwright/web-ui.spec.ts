@@ -226,7 +226,7 @@ test.describe("terminal disabled", () => {
 });
 
 // The UI image is built from e2e/rc-config.json, which turns downloads off. The 1.x build
-// removes the "open file" command (mod+p, /open).
+// removes the "open file" command (mod+p, /open) and file suggestions after @.
 test.describe("downloads disabled", () => {
   test("/open and mod+p offer no file picker", async ({ page }) => {
     test.setTimeout(90_000);
@@ -253,5 +253,31 @@ test.describe("downloads disabled", () => {
     await page.keyboard.type("/open");
     await page.waitForTimeout(500);
     await expect(page.getByRole("button", { name: /^\/open\b/ })).toHaveCount(0);
+  });
+
+  test("@ offers agents but no files", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.locator("a[href*='/s/alice-dev/']").first().click();
+    await page.locator('[data-component="home-project-row"]').first().waitFor({ state: "visible", timeout: 30_000 });
+    const tabs = page.locator('[data-slot="titlebar-tab-item"]');
+    const before = await tabs.count();
+    await page.locator('button[aria-label="New session"]').first().click();
+    await expect(tabs).toHaveCount(before + 1, { timeout: 30_000 });
+    await tabs.last().locator('[data-slot="tab-link"]').click();
+    const composer = page.locator('[data-component="prompt-input"]');
+    await expect(composer).toBeVisible({ timeout: 30_000 });
+    // Agents are listed once opencode has loaded them.
+    await expect(page.getByRole("button", { name: "GPT-4o" })).toBeVisible({ timeout: 30_000 });
+
+    // Positive control: "@" lists opencode's built-in general subagent (the v2 composer's
+    // suggestions are button[data-suggestion-id], "agent:<name>" or "file:<path>").
+    await composer.click();
+    await page.keyboard.type("@");
+    await expect(page.locator('[data-suggestion-id="agent:general"]')).toBeVisible({ timeout: 10_000 });
+    // The project's opencode.json is not offered.
+    await page.keyboard.type("opencode");
+    await page.waitForTimeout(1500);
+    await expect(page.locator('[data-suggestion-id^="file:"]')).toHaveCount(0);
   });
 });

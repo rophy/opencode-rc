@@ -180,4 +180,21 @@ test.describe("opencode 2.x downloads disabled", () => {
     await page.waitForTimeout(1500);
     await expect(rows.filter({ hasText: "opencode.json" })).toHaveCount(0);
   });
+
+  test("@ in the composer offers agents but no files", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.goto(V2_PREFIX);
+    await openV2Composer(page);
+    await page.locator('[data-component="composer-editor"]').click();
+    // Suggestions are button[data-suggestion-id] in the popover ("agent:<name>", "file:<path>").
+    // Positive control: opencode's built-in general subagent is offered.
+    const options = page.locator('[data-component="composer-suggestions"] [data-suggestion-id]');
+    await page.keyboard.type("@");
+    await expect(options.and(page.locator('[data-suggestion-id="agent:general"]'))).toBeVisible({ timeout: 30_000 });
+    // The project's opencode.json is not offered.
+    await page.keyboard.type("opencode");
+    await page.waitForTimeout(1500);
+    await expect(options.and(page.locator('[data-suggestion-id^="file:"]'))).toHaveCount(0);
+  });
 });

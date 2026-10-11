@@ -157,6 +157,21 @@ describe("opencode 2.x dev machine", () => {
       const res = await jar.fetch(`${V2}/api/fs/list?path=${encodeURIComponent("/project")}`);
       expect(res.status).toBe(200);
     });
+
+    it("refuses a prompt with a file: attachment", async () => {
+      await getInfo();
+      const created = await jar.fetch(`${V2}/api/session`, { method: "POST", headers: JSON_HEADERS, body: "{}" });
+      expect(created.status).toBe(200);
+      const sessionId = (await created.json()).data.id;
+      // file: passes the uploads check (also disabled here); the downloads check refuses it.
+      const res = await jar.fetch(`${V2}/api/session/${sessionId}/prompt`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ text: "look", files: [{ uri: "file:///project/opencode.json" }], resume: false }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });
+    });
   });
 
   describe("terminal enabled", () => {
