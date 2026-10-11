@@ -185,6 +185,16 @@ describe("v2Guard", () => {
     await expectRejected(await raw(makeApp(), "/api/integration/i/connect/command/a/x%2f..%2f..%2f../.."));
   });
 
+  it("downloads toggle: only fs/read is refused", async () => {
+    const off = makeApp(cfg({ downloads: { enabled: false } }));
+    await expectRejected(await call(off, "GET", "/api/fs/read/src/a.ts"), /^file downloads are disabled$/);
+    await expectForwarded(await call(off, "GET", "/api/fs/list"));
+    await expectForwarded(await call(off, "GET", "/api/fs/find"));
+    const on = makeApp();
+    await expectForwarded(await call(on, "GET", "/api/fs/read/src/a.ts"));
+    await expectForwarded(await call(on, "GET", "/api/fs/list"));
+  });
+
   it("rejects a non-JSON body on a checked route", async () => {
     await expectRejected(await call(makeApp(), "PATCH", "/api/project/p", "not json"));
   });

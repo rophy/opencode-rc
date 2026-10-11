@@ -3,6 +3,7 @@ import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
 import { blockGuard } from "./block-guard.js";
+import { downloadGuard } from "./download-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
 import { uploadGuard } from "./upload-guard.js";
 import { v1ApiGuard } from "./v1-routes.js";
@@ -17,6 +18,8 @@ type Guard = MiddlewareHandler<ProxyEnv>;
 // until it has an entry.
 export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   uploads: uploadGuard(),
+  // Reading a file's contents. Listing and finding files stay allowed.
+  downloads: downloadGuard(),
   terminal: terminalGuard(),
   // Shell mode: one command at a time, run on the dev machine and kept in the session.
   shell: blockGuard("shell", "shell commands are disabled", [{ method: "POST", path: /^\/session\/[^/]+\/shell$/i }]),

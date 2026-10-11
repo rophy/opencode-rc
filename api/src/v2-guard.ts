@@ -14,6 +14,7 @@ const ROUTES = V2_ROUTES.map(([method, template, rule]) => ({ method, template, 
 
 const MESSAGES: Record<FeatureNameV2, string> = {
   uploads: "uploads are disabled",
+  downloads: "file downloads are disabled",
   terminal: "the terminal is disabled",
   shell: "shell commands are disabled",
   export: "export is disabled",

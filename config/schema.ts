@@ -2,15 +2,16 @@
 // API (api/src/rc-config.ts). Keep it free of dependencies: both import it directly.
 // Feature toggles for opencode 1.x live under `features`, those for 2.x under `opencodeV2.features`.
 
+// downloads blocks reading a file's contents (not listing or finding files).
 // Every feature that can be switched off. A disabled feature gets the UI build's patches in
 // vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
-export const FEATURES = ["uploads", "terminal", "shell", "export", "share"] as const;
+export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share"] as const;
 
 export type FeatureName = (typeof FEATURES)[number];
 
 // The 2.x feature toggles. A disabled feature gets the 2.x UI patches in
 // vendor/patches/v2/<name>/ (step 4) and the API's v2 rules in api/src/v2-guard.ts.
-export const FEATURES_V2 = ["uploads", "terminal", "shell", "export"] as const;
+export const FEATURES_V2 = ["uploads", "downloads", "terminal", "shell", "export"] as const;
 
 export type FeatureNameV2 = (typeof FEATURES_V2)[number];
 

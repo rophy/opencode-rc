@@ -55,7 +55,7 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["GET", "/api/form", "allow"], // form.list
   ["GET", "/api/fs/find", "allow"], // fs.find
   ["GET", "/api/fs/list", "allow"], // fs.list
-  ["GET", "/api/fs/read/*", "allow"], // fs.read
+  ["GET", "/api/fs/read/*", "downloads"], // fs.read
   ["GET", "/api/info", "allow"], // server.info
   ["GET", "/api/integration", "allow"], // integration.list
   ["GET", "/api/integration/:integrationID", "allow"], // integration.get

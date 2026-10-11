@@ -38,8 +38,17 @@ describe("parseConfig", () => {
   });
 
   it("enables every 2.x feature by default", () => {
-    expect(Object.keys(parseConfig({}).opencodeV2.features)).toEqual(["uploads", "terminal", "shell", "export"]);
+    expect(Object.keys(parseConfig({}).opencodeV2.features)).toEqual(["uploads", "downloads", "terminal", "shell", "export"]);
     expect(Object.values(parseConfig({}).opencodeV2.features).every((f) => f.enabled)).toBe(true);
+  });
+
+  it("enables downloads by default in both versions and parses it disabled", () => {
+    expect(parseConfig({}).features.downloads.enabled).toBe(true);
+    expect(parseConfig({}).opencodeV2.features.downloads.enabled).toBe(true);
+    expect(parseConfig({ features: { downloads: { enabled: false } } }).features.downloads.enabled).toBe(false);
+    const v2 = parseConfig({ opencodeV2: { features: { downloads: { enabled: false } } } });
+    expect(v2.opencodeV2.features.downloads.enabled).toBe(false);
+    expect(v2.features.downloads.enabled).toBe(true);
   });
 
   it("disables only the named 2.x feature", () => {
