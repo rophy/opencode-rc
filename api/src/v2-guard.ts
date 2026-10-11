@@ -4,6 +4,7 @@ import type { FeatureNameV2, RcConfig } from "../../config/schema.js";
 import { plainPathGuard } from "./feature-guards.js";
 import { canonicalPath, proxyRest, upstreamUrl, type ProxyEnv } from "./proxy.js";
 import { jsonBody } from "./request-body.js";
+import { hasShellInterpolation } from "./shell-guard.js";
 import { templateRegex } from "./route-template.js";
 import { V2_ROUTES } from "./v2-routes.js";
 
@@ -88,6 +89,12 @@ async function checkRequest(
       return MESSAGES.uploads;
     }
     return null;
+  }
+  // The command's text holds its arguments, which go into the template before !`cmd` runs.
+  if (!features.shell.enabled && template === "/api/session/:sessionID/command") {
+    const body = await readJson(c);
+    if (typeof body === "string") return body;
+    if (hasShellInterpolation(body.text)) return MESSAGES.shell;
   }
   const downloadsOff = !features.downloads.enabled;
   if ((uploadsOff || downloadsOff) && (template === "/api/session/:sessionID/prompt" || template === "/api/session/:sessionID/command")) {

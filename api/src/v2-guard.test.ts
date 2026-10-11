@@ -100,6 +100,35 @@ describe("v2 downloads disabled: file attachments", () => {
   });
 });
 
+describe("v2 shell disabled: command text", () => {
+  const off = (features: Record<string, { enabled: boolean }> = {}) => makeApp(cfg({ shell: { enabled: false }, ...features }));
+  it.each(["!`echo pwned`", "review !`id", 'HEAD "!`id`"'])("rejects a command whose text is %j", async (text) => {
+    await expectRejected(await call(off(), "POST", "/api/session/x/command", { name: "review", text }), /^shell commands are disabled$/);
+  });
+  it.each(["HEAD~1", "wow!", "`code` here", "! `id`", ""])("forwards a command whose text is %j", async (text) => {
+    const body = { name: "review", text };
+    expect(await (await call(off(), "POST", "/api/session/x/command", body)).text()).toBe(`forwarded ${JSON.stringify(body)}`);
+  });
+  it("leaves prompts alone (their text is not interpolated)", async () => {
+    await expectForwarded(await call(off(), "POST", "/api/session/x/prompt", { text: "!`id`" }));
+  });
+  it("with uploads, downloads and shell off, each rejects its own case and a clean command passes intact", async () => {
+    const all = () => off({ uploads: { enabled: false }, downloads: { enabled: false } });
+    const route = "/api/session/x/command";
+    await expectRejected(await call(all(), "POST", route, { name: "r", text: "!`id`" }), /shell/);
+    await expectRejected(await call(all(), "POST", route, { name: "r", text: "", files: [{ uri: "data:text/plain,a" }] }), /uploads/);
+    await expectRejected(await call(all(), "POST", route, { name: "r", text: "", files: [{ uri: "file:///w/a" }] }), /downloads/);
+    const body = { name: "r", text: "HEAD wow! `code`", agents: [{ name: "general" }] };
+    expect(await (await call(all(), "POST", route, body)).text()).toBe(`forwarded ${JSON.stringify(body)}`);
+  });
+  it("forwards !`cmd` while shell is enabled", async () => {
+    await expectForwarded(await call(makeApp(), "POST", "/api/session/x/command", { name: "review", text: "!`id`" }));
+  });
+  it("rejects a non-JSON command body", async () => {
+    await expectRejected(await call(off(), "POST", "/api/session/x/command", "not json"), /not JSON/);
+  });
+});
+
 describe("v2Guard", () => {
   it("1: forwards allowed routes, case-insensitively", async () => {
     const app = makeApp();

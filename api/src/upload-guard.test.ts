@@ -15,14 +15,14 @@ const meta: SessionMeta = {
 };
 const store = { get: async (id: string) => (id === meta.id ? meta : null) } as unknown as SessionStore;
 
-function makeApp(enabled = false, downloads = true) {
+function makeApp(enabled = false, downloads = true, shell = true) {
   const app = new Hono<ProxyEnv>();
   app.use("*", async (c, next) => {
     c.set("userId", meta.userId);
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), v1Guards(parseConfig({ features: { uploads: { enabled }, downloads: { enabled: downloads } } })), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), v1Guards(parseConfig({ features: { uploads: { enabled }, downloads: { enabled: downloads }, shell: { enabled: shell } } })), proxyHttp());
   return app;
 }
 
@@ -276,6 +276,36 @@ describe("uploads and downloads disabled together", () => {
 
   it("returns 400 for a body that is not JSON", async () => {
     expect((await both("POST", "/session/ses_1/message", "{not json")).status).toBe(400);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+});
+
+// A command request passes the uploads, downloads and shell guards, all reading one buffered body.
+describe("uploads, downloads and shell disabled together", () => {
+  const all = (body: unknown) =>
+    makeApp(false, false, false).request("/proxy/alice-dev/session/ses_1/command", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    });
+
+  it("forwards a clean command with the exact bytes", async () => {
+    const raw = ` ${JSON.stringify({ command: "review", arguments: "HEAD wow! `code`", parts: [mcp] }, null, 1)}\n`;
+    const res = await all(raw);
+    expect(res.status).toBe(204);
+    const init = upstream.mock.calls[0][1] as RequestInit;
+    expect(new TextDecoder().decode(init.body as ArrayBuffer)).toBe(raw);
+  });
+
+  it.each([
+    ["uploads are disabled", { command: "review", arguments: "", parts: [dataPart] }],
+    ["file downloads are disabled", { command: "review", arguments: "@a.ts", parts: [] }],
+    ["file downloads are disabled", { command: "review", arguments: "", parts: [mention] }],
+    ["shell commands are disabled", { command: "review", arguments: "!`id`", parts: [] }],
+  ])("rejects with %j", async (message, body) => {
+    const res = await all(body);
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(message);
     expect(upstream).not.toHaveBeenCalled();
   });
 });
