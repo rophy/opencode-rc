@@ -1,3 +1,6 @@
 [submodule "vendor/opencode"]
 	path = vendor/opencode-v1
 	url = https://github.com/anomalyco/opencode.git
+[submodule "vendor/opencode-v2"]
+	path = vendor/opencode-v2
+	url = https://github.com/anomalyco/opencode.git

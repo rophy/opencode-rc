@@ -8,22 +8,23 @@ This file is gitignored — if it doesn't exist, there is no local-specific conf
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, proxy to gateway (serves no UI)
-gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
-ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
-ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf)
-config/         # config.json schema shared by the UI build and the API
-e2e/            # Kind + Skaffold e2e test environment
-charts/         # Helm chart for Kubernetes deployment
+api/               # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, proxy to gateway (serves no UI)
+gateway/           # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
+cli/               # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
+ui/                # SolidJS SPA — session picker + OpenCode web UI wrapper
+ui/web/            # nginx image packaging for ui/dist (Dockerfile, nginx.conf)
+config/            # config.json schema shared by the UI build and the API
+e2e/               # Kind + Skaffold e2e test environment
+charts/            # Helm chart for Kubernetes deployment
 vendor/opencode-v1 # Git submodule — upstream opencode source (build dependency for ui/)
-vendor/patches  # Our patches to opencode, per opencode version (v1/), applied by the UI build per disabled feature
-docs/           # Design docs
+vendor/opencode-v2 # Git submodule — upstream opencode 2.x source (route tables; UI build in a later step)
+vendor/patches     # Our patches to opencode, per opencode version (v1/), applied by the UI build per disabled feature
+docs/              # Design docs
 ```
 
 ## Git Submodule
 
-`vendor/opencode-v1` is a git submodule tracking upstream opencode 1.x, pinned to a release tag; 2.x support (a second submodule) is in progress.
+There are two git submodules tracking upstream opencode: `vendor/opencode-v1`, pinned to a 1.x release tag, and `vendor/opencode-v2`, pinned to a 2.x release tag.
 
 ```bash
 # Clone with submodule
@@ -33,8 +34,8 @@ git clone --recurse-submodules <repo-url>
 git submodule update --init --recursive
 
 # Bump opencode version
-cd vendor/opencode-v1 && git fetch --tags && git checkout <new-tag>
-cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-tag>"
+cd vendor/opencode-v1 && git fetch --tags && git checkout <new-1.x-tag>   # or vendor/opencode-v2 with a 2.x tag
+cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-1.x-tag>"
 ```
 
 The Android app's language list (`ui/android/app/src/main/res/xml/locales_config.xml`, shown under

@@ -3,14 +3,15 @@
 ## Project Structure
 
 ```
-api/            # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, proxy to gateway (serves no UI)
-gateway/        # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
-cli/            # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
-ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
-ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf, runtime config)
-e2e/            # Kind + Skaffold e2e test environment
-charts/         # Helm chart for Kubernetes deployment
+api/               # TypeScript (Hono + Bun) — API server: OIDC auth, tokens, proxy to gateway (serves no UI)
+gateway/           # Go — tunnel gateway (WebSocket tunnel, mux, Redis session registration)
+cli/               # Node CLI — OIDC login, starts opencode serve, tunnels to gateway
+ui/                # SolidJS SPA — session picker + OpenCode web UI wrapper
+ui/web/            # nginx image packaging for ui/dist (Dockerfile, nginx.conf, runtime config)
+e2e/               # Kind + Skaffold e2e test environment
+charts/            # Helm chart for Kubernetes deployment
 vendor/opencode-v1 # Git submodule — upstream OpenCode source (build dependency for ui/)
+vendor/opencode-v2 # Git submodule — upstream opencode 2.x source (route tables; UI build in a later step)
 ```
 
 ## Prerequisites
@@ -106,12 +107,12 @@ helm unittest charts/opencode-rc
 
 ## Git Submodule
 
-`vendor/opencode-v1` tracks upstream OpenCode, pinned to a release tag.
+`vendor/opencode-v1` and `vendor/opencode-v2` track upstream OpenCode, each pinned to a release tag (1.x and 2.x).
 
 ```bash
 # Bump opencode version
-cd vendor/opencode-v1 && git fetch --tags && git checkout <new-tag>
-cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-tag>"
+cd vendor/opencode-v1 && git fetch --tags && git checkout <new-1.x-tag>   # or vendor/opencode-v2 with a 2.x tag
+cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-1.x-tag>"
 ```
 
 ## Gateway Environment Variables
