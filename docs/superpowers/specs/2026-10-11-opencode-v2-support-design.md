@@ -149,10 +149,16 @@ per-user registry for the picker.
   - `POST /api/pair`, `GET /auth/connect/*` (would mint opencode's own 30-day sessions)
   - `PATCH /api/project/:id` with `commands.start` (startup script, runs `bash -lc` when a
     workspace is created)
-  - `PATCH /api/experimental/config` setting `shell` (any executable as the default shell)
-  - `PUT /api/experimental/mcp/:server`, `POST /api/integration/:id/connect/command`,
-    `POST /api/plugin/update`, `POST /api/rpc/*` unless the app needs them (to verify per route)
-  - `PUT /api/session/:id/environment`
+  - `PATCH /api/experimental/config`, entirely: besides `shell` (any executable as the default
+    shell), the config can define MCP servers and plugins, which run local commands. 2.x
+    Settings changes that write the config fail with our message.
+  - `PUT/DELETE /api/experimental/mcp/:server`, integration `connect/command` and
+    `connect/external` (until verified), `POST /api/plugin/update` and `/check`,
+    `POST /api/rpc/*`, credential create/update, persistent PTYs
+  - `PUT /api/session/:id/environment`, and routes that inject input into a session
+  - Allowed although outside any toggle: workspace create/remove/refresh, `vcs/init`, provider
+    sign-in, MCP connect/disconnect of configured servers. The full classification is
+    `api/src/v2-routes.ts`, checked against the submodule by a test.
 - **Feature rules (v2)**, driven by the v2 toggles:
 
   | Feature | Rejected when disabled |
