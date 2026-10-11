@@ -253,7 +253,8 @@ The API always rejects some opencode 1.x routes the UI never uses, whatever the 
 a patch to the project (`/vcs/apply`), upgrading opencode (`/global/upgrade`), the terminal UI
 control routes (`/tui/*`), `/log`, workspace sync and changes, switching the opencode console
 account, and moving sessions between workspaces. It also removes provider keys, options and
-headers (where API keys and auth headers live) from opencode 1.x provider and config responses.
+headers (where API keys and auth headers live) from opencode 1.x provider and config responses,
+and MCP servers' environment, headers and OAuth client secret from the config.
 
 While `downloads` or `shell` is disabled, the API also rejects requests that set permission
 rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
