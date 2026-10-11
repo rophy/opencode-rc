@@ -130,3 +130,41 @@ export function installProxyWebSocket(
   }
   globalThis.WebSocket = ProxiedWebSocket as typeof WebSocket
 }
+
+// opencode 2.x uploads attachments with XMLHttpRequest (for progress events) to a root-relative
+// /api/experimental/fs/write URL, which the fetch patch never sees. Rewrite proxied requests
+// the same way and add the bearer token. send() waits for the token, so a request aborted in
+// the meantime (readyState back to UNSENT) is not sent. No 401 retry: getToken already
+// refreshes an expired token before it resolves.
+export function installProxyXHR(
+  opts: ProxyOptions & { getToken: () => Promise<string | null>; onForbidden?: () => void },
+): void {
+  const proto = XMLHttpRequest.prototype
+  const originalOpen = proto.open
+  const originalSend = proto.send
+  const proxied = new WeakSet<XMLHttpRequest>()
+
+  proto.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+    const target = proxyTarget(String(url), opts)
+    if (target) {
+      proxied.add(this)
+      this.addEventListener("loadend", () => {
+        if (this.status === 403) opts.onForbidden?.()
+      })
+    }
+    return (originalOpen as (...args: unknown[]) => void).call(this, method, target ?? url, ...rest)
+  } as typeof proto.open
+
+  proto.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+    if (!proxied.has(this)) return originalSend.call(this, body)
+    opts
+      .getToken()
+      .catch(() => null)
+      .then((token) => {
+        if (this.readyState !== XMLHttpRequest.OPENED) return
+        if (token) this.setRequestHeader("authorization", `Bearer ${token}`)
+        originalSend.call(this, body)
+      })
+      .catch(() => {})
+  }
+}

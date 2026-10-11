@@ -4,7 +4,7 @@ import { useGlobal } from "@opencode/app/desktop"
 import "@opencode/app/index.css"
 import { getBaseUrl, type UserInfo } from "./api"
 import { getAccessToken, getCachedAccessToken, invalidateAccessToken } from "./auth"
-import { installProxyFetch, installProxyWebSocket } from "./proxy-fetch"
+import { installProxyFetch, installProxyWebSocket, installProxyXHR } from "./proxy-fetch"
 import { UserBar } from "./user-bar"
 import { BASE } from "./build-info"
 import { createSessionRouter } from "./session-router"
@@ -50,6 +50,7 @@ export function SessionView(props: {
     invalidate: invalidateAccessToken,
     onForbidden: props.onForbidden,
   })
+  installProxyXHR({ ...proxyOpts, getToken: getAccessToken, onForbidden: props.onForbidden })
   installProxyWebSocket({
     ...proxyOpts,
     getCachedToken: getCachedAccessToken,
