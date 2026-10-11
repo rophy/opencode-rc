@@ -230,15 +230,16 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 - `features.export.enabled: false` removes exporting a session as JSON from the UI. The export is
   built in the browser from what the UI already shows, so there is nothing for the API to reject.
 - `features.share.enabled: false` removes sharing from the UI and makes the API reject publishing
-  a session through opencode's share service with `403` (unsharing still works). A dev machine
-  whose opencode config has `"share": "auto"` still shares on its own; set `"share": "disabled"`
-  there too.
+  a session through opencode's share service with `403` (unsharing still works). It also rejects
+  config changes that share every new session or choose the share server (`share`, `autoshare`,
+  `enterprise`), even while `config` is enabled. A dev machine whose opencode config has
+  `"share": "auto"` still shares on its own; set `"share": "disabled"` there too.
 
 - `features.config.enabled: false` (1.x only; 2.x never allows these) stops the browser from
   changing opencode's config. The API rejects with `403` updating the project or global config,
-  adding an MCP server, setting a project's commands, and signing in with a `wellknown`
-  credential (it makes opencode load a remote config). The UI hides the custom provider entry,
-  disconnecting providers set in the config, the terminal shell setting and the project's start
+  adding an MCP server, setting a project's commands, and signing in with a `wellknown` credential
+  (it makes opencode load a remote config). The UI hides the custom provider entry, disconnecting
+  custom providers defined in the config, the terminal shell setting and the project's start
   command. Reading the config, signing in to a provider with an API key or OAuth, and choosing a
   model keep working. Config can run code on the machine (`provider.*.npm` installs and imports a
   package) and expose its environment (`{env:…}` values, returned by `GET /config`): disable
@@ -253,20 +254,21 @@ The API always rejects some opencode 1.x routes the UI never uses, whatever the 
 a patch to the project (`/vcs/apply`), upgrading opencode (`/global/upgrade`), the terminal UI
 control routes (`/tui/*`), `/log`, workspace sync and changes, switching the opencode console
 account, and moving sessions between workspaces. It also removes provider keys, options and
-headers (where API keys and auth headers live) from opencode 1.x provider and config responses,
-and MCP servers' environment, headers and OAuth client secret from the config.
+headers (where API keys and auth headers live) from opencode 1.x provider and config responses
+(including the response to a global config update), and from the config also MCP servers'
+environment, headers and OAuth client secret, agents' options, and LSP and formatter
+environments.
 
-While `downloads` or `shell` is disabled, the API also rejects requests that set permission
-rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
-owner's opencode permission config holds; neither UI sends them. A custom command template that
-itself builds ``!`…` `` or `@…` around its placeholders (such as `!$1`, `@$1`, or a placeholder
-inside its own ``!`…` ``) still runs commands or reads files from plain arguments: review the
-custom commands on those machines.
+While `downloads` or `shell` is disabled, the API also rejects requests that set permission rules
+(a session's rules, a prompt's `tools`, and the config's `permission`, `agent`, `mode` and
+`tools`), so the machine owner's opencode permission config holds; neither UI sends them. A custom
+command template that itself builds ``!`…` `` or `@…` around its placeholders (such as `!$1`,
+`@$1`, or a placeholder inside its own ``!`…` ``) still runs commands or reads files from plain
+arguments: review the custom commands on those machines.
 
-While any feature is disabled the API also rejects (`400`) write requests whose path contains
-characters other than letters, digits and `/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID`
-must stick to those characters (the default `<hostname>-<id>` does). Request bodies the API
-inspects are limited to 32 MiB.
+The API rejects (`400`) write requests whose path contains characters other than letters, digits
+and `/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID` must stick to those characters (the default
+`<hostname>-<id>` does). Request bodies the API inspects are limited to 32 MiB.
 
 - **UI**: the published `ui` image is generic and asks users for the server. Build your own
   with `docker build -f ui/web/Dockerfile --build-arg RC_CONFIG=path/to/config.json .` and set
@@ -302,8 +304,9 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
   `permissions`.
 - `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
   in `config/opencode-versions.json`; other 2.x versions are refused.
-- On 2.x, `mcp` also rejects signing in to an MCP server through its integration (`mcp_…`);
-  signing in to providers keeps working.
+- On 2.x, `mcp` also rejects signing in to an MCP server through its integration (`mcp_…`),
+  and the UI leaves those integrations out of the Connect provider list; signing in to providers
+  keeps working.
 - On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
   writes to opencode's config, pairing, adding or removing MCP servers, plugin updates,
   persistent terminals, listing stored credentials (it returns their secrets), `git init`,
