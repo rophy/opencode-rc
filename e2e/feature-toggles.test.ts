@@ -214,8 +214,21 @@ describe("opencode 2.x uploads enabled", () => {
     const tmp: string | undefined = (info?.data ?? info)?.paths?.tmp;
     expect(tmp).toBeTruthy();
 
-    const ok = await write(`${tmp!.replace(/\/$/, "")}/uploads/${randomUUID()}/e2e.txt`);
-    expect(ok.status).toBe(200);
+    // redeployApi's probe answers 200 under the old and the new config, so the old API pod (uploads
+    // disabled) may still serve the first writes: wait for several consecutive 200s.
+    const deadline = Date.now() + 60_000;
+    let streak = 0;
+    let last = "no response";
+    while (streak < 3) {
+      if (Date.now() > deadline) throw new Error(`uploads write never settled on 200, last: ${last}`);
+      const res = await write(`${tmp!.replace(/\/$/, "")}/uploads/${randomUUID()}/e2e.txt`).catch(() => undefined);
+      if (res?.status === 200) streak++;
+      else {
+        streak = 0;
+        last = res ? `${res.status} ${await res.text()}` : "request failed";
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
 
     const outside = await write("/tmp/e2e-outside.txt");
     expect(outside.status).toBe(400);
