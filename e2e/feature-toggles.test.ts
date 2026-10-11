@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { API_URL, SESSION_ID, SESSION_ID_V2, waitFor, loginAs, upgradeStatus, type TokenSession } from "./helpers.js";
 
@@ -170,5 +171,56 @@ describe("terminal, shell commands and sharing disabled", () => {
 
   it("still serves the rest of the session", async () => {
     expect((await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`)).status).toBe(200);
+  });
+});
+
+describe("opencode 2.x uploads enabled", () => {
+  let jar: TokenSession;
+  let original: string;
+  const V2 = `${API_URL}/proxy/${SESSION_ID_V2}`;
+  const write = (path: string) =>
+    jar.fetch(`${V2}/api/experimental/fs/write?path=${encodeURIComponent(path)}`, {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream" },
+      body: "e2e upload",
+    });
+
+  beforeAll(async () => {
+    jar = await loginAs("user1");
+    original = kubectl(["get", "configmap", CONFIG_MAP, "-o", "jsonpath={.data.config\\.json}"]);
+    const config = JSON.parse(original);
+    const opencodeV2 = {
+      ...config.opencodeV2,
+      features: { ...config.opencodeV2?.features, uploads: { enabled: true } },
+    };
+    // The terminal is still enabled here, so GET /pty/shells answers 200 on the 1.x machine.
+    await redeployApi(JSON.stringify({ ...config, opencodeV2 }), jar, 200);
+  }, 300_000);
+
+  afterAll(async () => {
+    if (original) await redeployApi(original, jar, 200);
+  }, 300_000);
+
+  it("writes inside the server's uploads folder and refuses other paths", async () => {
+    let info: any;
+    for (let i = 0; i < 30; i++) {
+      const res = await jar.fetch(`${V2}/api/info`).catch(() => undefined);
+      if (res?.status === 200) {
+        info = await res.json();
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    const tmp: string | undefined = (info?.data ?? info)?.paths?.tmp;
+    expect(tmp).toBeTruthy();
+
+    const ok = await write(`${tmp!.replace(/\/$/, "")}/uploads/${randomUUID()}/e2e.txt`);
+    expect(ok.status).toBe(200);
+
+    const outside = await write("/tmp/e2e-outside.txt");
+    expect(outside.status).toBe(400);
+    const body = await outside.json();
+    expect(body._tag).toBe("FeatureDisabled");
+    expect(body.message).toContain("only be written");
   });
 });

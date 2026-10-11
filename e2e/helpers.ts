@@ -12,6 +12,9 @@ export const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 // The second dev machine, running opencode 2.x.
 export const SESSION_ID_V2 = process.env.OPENCODE_RC_SESSION_ID_V2 ?? "alice-dev-v2";
 
+// The opencode 2.x release on the second dev machine (set from the image build arg).
+export const OPENCODE_V2_VERSION = process.env.OPENCODE_V2_VERSION ?? "2.0.26";
+
 export const PROTOCOL = { "OpenCode-RC-Protocol": "1" };
 
 export async function waitFor(

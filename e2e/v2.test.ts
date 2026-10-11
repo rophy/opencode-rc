@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
-import { API_URL, SESSION_ID, SESSION_ID_V2, waitFor, loginAs, type TokenSession } from "./helpers.js";
+import { API_URL, OPENCODE_V2_VERSION, SESSION_ID, SESSION_ID_V2, waitFor, loginAs, type TokenSession } from "./helpers.js";
 
 // API and tunnel tests against the second dev machine, which runs opencode 2.x. The API
 // config disables 2.x uploads and leaves the terminal on (e2e/values.yaml); the 2.x terminal
@@ -15,7 +15,16 @@ describe("opencode 2.x dev machine", () => {
   beforeAll(async () => {
     await waitFor("api", `${API_URL}/healthz`, 30);
     jar = await loginAs("user1");
-  });
+    // Both dev machines register after the API is up; wait until the gateway lists them.
+    const deadline = Date.now() + 120_000;
+    for (;;) {
+      const res = await jar.fetch(`${API_URL}/gateway/sessions`).catch(() => undefined);
+      const sessions: any[] = res?.status === 200 ? await res.json().catch(() => []) : [];
+      if ([SESSION_ID, SESSION_ID_V2].every((id) => sessions.some((s) => s.id === id))) break;
+      if (Date.now() > deadline) throw new Error("dev machines not both registered after 120s");
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }, 150_000);
 
   async function featureDisabled(res: Response): Promise<void> {
     expect(res.status).toBe(400);
@@ -39,14 +48,14 @@ describe("opencode 2.x dev machine", () => {
     const sessions: any[] = await res.json();
     const v2 = sessions.find((s) => s.id === SESSION_ID_V2);
     const v1 = sessions.find((s) => s.id === SESSION_ID);
-    expect(v2?.opencodeVersion).toBe("2.0.26");
+    expect(v2?.opencodeVersion).toBe(OPENCODE_V2_VERSION);
     expect(v1?.opencodeVersion).toMatch(/^1\./);
   });
 
   it("proxies GET /api/info with the CLI's Basic auth", async () => {
     const res = await getInfo();
     expect(res.status).toBe(200);
-    expect((await res.json()).version).toBe("2.0.26");
+    expect((await res.json()).version).toBe(OPENCODE_V2_VERSION);
   });
 
   it("streams events through the tunnel", async () => {
@@ -68,9 +77,15 @@ describe("opencode 2.x dev machine", () => {
   });
 
   describe("guards", () => {
-    it("refuses routes outside the allowlist", async () => {
+    it("refuses a route outside the allowlist: shell", async () => {
       await featureDisabled(await jar.fetch(`${V2}/api/shell`, { method: "POST", headers: JSON_HEADERS, body: "{}" }));
+    });
+
+    it("refuses a route outside the allowlist: the 1.x session API", async () => {
       await featureDisabled(await jar.fetch(`${V2}/session`));
+    });
+
+    it("refuses a route outside the allowlist: auth connect", async () => {
       await featureDisabled(await jar.fetch(`${V2}/auth/connect/x`));
     });
 
@@ -91,7 +106,7 @@ describe("opencode 2.x dev machine", () => {
       expect(sessionId).toBeTruthy();
     });
 
-    it("refuses writes outside the uploads folder", async () => {
+    it("refuses fs/write while uploads are disabled", async () => {
       await featureDisabled(
         await jar.fetch(`${V2}/api/experimental/fs/write?path=${encodeURIComponent("/tmp/x")}`, {
           method: "POST",

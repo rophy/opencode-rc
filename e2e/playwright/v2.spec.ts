@@ -7,6 +7,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Same defaults as helpers.ts (not imported: it pulls in vitest).
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 const SESSION_ID_V2 = process.env.OPENCODE_RC_SESSION_ID_V2 ?? "alice-dev-v2";
+const OPENCODE_V2_VERSION = process.env.OPENCODE_V2_VERSION ?? "2.0.26";
 
 const V2_PREFIX = `/v2/s/${SESSION_ID_V2}/`;
 const V2_URL = new RegExp(`/v2/s/${SESSION_ID_V2}/`);
@@ -51,7 +52,7 @@ test.describe("opencode 2.x picker", () => {
     const v2 = page.locator(`a[href='${V2_PREFIX}']`);
     await expect(v1).toBeVisible({ timeout: 30_000 });
     await expect(v2).toBeVisible({ timeout: 30_000 });
-    await expect(v2).toContainText("opencode 2.0.26");
+    await expect(v2).toContainText(`opencode ${OPENCODE_V2_VERSION}`);
     await expect(v1).toContainText(/opencode 1\./);
   });
 
