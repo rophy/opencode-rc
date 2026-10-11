@@ -234,6 +234,16 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   whose opencode config has `"share": "auto"` still shares on its own; set `"share": "disabled"`
   there too.
 
+- `features.config.enabled: false` (1.x only; 2.x never allows these) stops the browser from
+  changing opencode's config. The API rejects with `403` updating the project or global config,
+  adding an MCP server, setting a project's commands, and signing in with a `wellknown`
+  credential (it makes opencode load a remote config). The UI hides the custom provider entry,
+  disconnecting providers set in the config, the terminal shell setting and the project's start
+  command. Reading the config, signing in to a provider with an API key or OAuth, and choosing a
+  model keep working. Config can run code on the machine (`provider.*.npm` installs and imports a
+  package) and expose its environment (`{env:…}` values, returned by `GET /config`): disable
+  `config` together with `shell` and `downloads`.
+
 While `downloads` or `shell` is disabled, the API also rejects requests that set permission
 rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
 owner's opencode permission config holds; neither UI sends them. A custom command template that
@@ -268,7 +278,7 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 
 - `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the
   same meaning as above. They are **enabled unless set to `false`**, so a deployment that disables features for
-  1.x must disable them here too. `share` is not a 2.x toggle.
+  1.x must disable them here too. `share` and `config` are not 2.x toggles (2.x refuses config changes always).
 - On 2.x, `downloads` also stops chat links to file paths and images loaded from disk. The API
   rejects with `400` reading a file and prompts or commands with any attachment that is not
   inline (`data:`), so with `uploads` also disabled no attachment gets through. `@` references
