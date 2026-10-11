@@ -5,7 +5,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { createTwoFilesPatch } from "diff"
-import { FEATURES } from "../../config/schema"
+import { FEATURES, FEATURES_V2 } from "../../config/schema"
 import { applyPatches, featurePatches, readPatches, vendorPatches } from "./vendor-patches"
 
 const A = "const on = true\nattach()\nend\n"
@@ -134,5 +134,11 @@ describe("featurePatches", () => {
     const real = fileURLToPath(new URL("../../vendor/patches/v1", import.meta.url))
     expect(fs.readdirSync(real).sort()).toEqual(["export", "share", "shell", "terminal", "uploads"])
     expect(() => featurePatches(real, FEATURES, [])).not.toThrow()
+  })
+
+  it("matches the features in the real vendor/patches/v2", () => {
+    const real = fileURLToPath(new URL("../../vendor/patches/v2", import.meta.url))
+    expect(fs.readdirSync(real).sort()).toEqual(["export", "shell", "terminal", "uploads"])
+    expect(() => featurePatches(real, FEATURES_V2, [])).not.toThrow()
   })
 })

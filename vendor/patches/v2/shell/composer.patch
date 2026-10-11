@@ -1,0 +1,50 @@
+diff --git a/packages/app/src/composer/editor/editor.tsx b/packages/app/src/composer/editor/editor.tsx
+index defbf666d0..684d103616 100644
+--- a/packages/app/src/composer/editor/editor.tsx
++++ b/packages/app/src/composer/editor/editor.tsx
+@@ -802,9 +802,6 @@ export function ComposerEditorAddMenu(props: {
+             <Menu.Item onSelect={props.onContext} shortcut="@">
+               {props.contextLabel}
+             </Menu.Item>
+-            <Menu.Item onSelect={props.onShell} shortcut="!">
+-              {props.shellLabel}
+-            </Menu.Item>
+           </Menu.Content>
+         </Menu.Portal>
+       </Menu>
+diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
+index e19b4a7d62..dd5d1f89c8 100644
+--- a/packages/app/src/composer/model.ts
++++ b/packages/app/src/composer/model.ts
+@@ -450,7 +450,8 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+       title: language.t("command.prompt.mode.shell"),
+       category: language.t("command.category.session"),
+       keybind: "mod+shift+x",
+-      disabled: controller.state.mode === "shell",
++      disabled: true,
++      hidden: true,
+       onSelect: () => void controller.dispatch({ type: "mode.shell" }),
+     },
+     {
+diff --git a/packages/app/src/composer/suggestions/machine.ts b/packages/app/src/composer/suggestions/machine.ts
+index c2d4758c3c..6ec57d7846 100644
+--- a/packages/app/src/composer/suggestions/machine.ts
++++ b/packages/app/src/composer/suggestions/machine.ts
+@@ -81,7 +81,7 @@ export function transitionComposer(
+ 
+   if (event.type === "key.down") return keyDown(state, event)
+ 
+-  if (event.type === "mode.shell") return changed({ ...state, mode: "shell", popover: { type: "closed" } })
++  if (event.type === "mode.shell") return changed({ ...state, mode: "normal", popover: { type: "closed" } })
+ 
+   if (event.type === "mode.normal") return changed({ ...state, mode: "normal" })
+ 
+@@ -106,7 +106,7 @@ function inputChanged(
+ ): ComposerEditorTransition {
+   const setText: ComposerInteractionCommand[] = persist ? [{ type: "draft.setText", value }] : []
+ 
+-  if (state.mode === "normal" && value === "!") {
++  if (false) {
+     return changed({ ...state, mode: "shell", popover: { type: "closed" }, focus: "editor" }, [
+       { type: "draft.setText", value: "" },
+     ])

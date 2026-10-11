@@ -1,0 +1,48 @@
+diff --git a/packages/app/src/home/sessions/view.tsx b/packages/app/src/home/sessions/view.tsx
+index f83940f13f..68be98168f 100644
+--- a/packages/app/src/home/sessions/view.tsx
++++ b/packages/app/src/home/sessions/view.tsx
+@@ -780,9 +780,6 @@ function HomeSessionRow(
+             }}
+           >
+             <Menu.Item onSelect={openEditor}>{props.language.t("common.rename")}</Menu.Item>
+-            <Menu.Item onSelect={() => void props.onExportSession(props.server, props.record.session)}>
+-              {props.language.t("common.export")}…
+-            </Menu.Item>
+             <Menu.Separator />
+             <Menu.Item onSelect={() => props.onDeleteSession(props.server, props.record.session)}>
+               {props.language.t("common.delete")}…
+diff --git a/packages/app/src/session/timeline/message-timeline.tsx b/packages/app/src/session/timeline/message-timeline.tsx
+index 3656cad3b2..ea418cf8c8 100644
+--- a/packages/app/src/session/timeline/message-timeline.tsx
++++ b/packages/app/src/session/timeline/message-timeline.tsx
+@@ -556,9 +556,6 @@ function MessageTimelineView(
+                               >
+                                 {language.t("common.rename")}
+                               </Menu.Item>
+-                              <Menu.Item onSelect={() => void props.action.export(id)}>
+-                                {language.t("common.export")}…
+-                              </Menu.Item>
+                             </Show>
+                             <Show when={!parentID()}>
+                               {/* TODO: Need a session archive API. */}
+diff --git a/packages/gui-extensions/src/context/tab.tsx b/packages/gui-extensions/src/context/tab.tsx
+index 4c0a32babd..dd7e3f1249 100644
+--- a/packages/gui-extensions/src/context/tab.tsx
++++ b/packages/gui-extensions/src/context/tab.tsx
+@@ -308,15 +308,6 @@ export default function SessionContextTab(props: { session: MountedSession }) {
+         <div class="flex flex-col gap-2">
+           <div class="flex items-center justify-between">
+             <div class="text-12-regular text-text-weak">{ctx.t("rawMessages.title")}</div>
+-            <Button
+-              size="small"
+-              variant="ghost"
+-              class="gap-1.5 px-2 text-text-weak hover:text-text-base"
+-              onClick={exportSession}
+-            >
+-              <Icon name="download" size="small" />
+-              <span>{ctx.t("export.session")}</span>
+-            </Button>
+           </div>
+           <Accordion multiple>
+             <For each={messages()}>

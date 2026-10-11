@@ -64,6 +64,11 @@ git checkout -- .
 git apply --3way ../patches/v1/uploads/composer-v1.patch   # resolve conflicts, then write it back as above
 ```
 
+The 2.x UI's patches live in `vendor/patches/v2/<feature>/`, relative to `vendor/opencode-v2`, and
+are applied for the features disabled in `opencodeV2.features`. Edit them the same way, with
+`cd vendor/opencode-v2` and `../patches/v2/<feature>/<file>.patch`; `ui/build/v2-patches.test.ts`
+checks what they remove.
+
 `ui/build/upload-patches.test.ts` checks what the upload patches remove; it runs against the
 pinned submodule (CI checks it out for the UI tests).
 

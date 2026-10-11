@@ -1,0 +1,21 @@
+diff --git a/packages/gui-extensions/src/renderer.ts b/packages/gui-extensions/src/renderer.ts
+index f5f1754f89..9d52eed9b2 100644
+--- a/packages/gui-extensions/src/renderer.ts
++++ b/packages/gui-extensions/src/renderer.ts
+@@ -5,8 +5,6 @@ import btw from "./btw"
+ import btwRenderer from "./btw/renderer"
+ import debug from "./debug"
+ import debugRenderer from "./debug/renderer"
+-import terminal from "./terminal"
+-import terminalRenderer from "./terminal/renderer"
+ import file from "./file"
+ import fileRenderer from "./file/renderer"
+ import review from "./review"
+@@ -39,7 +37,6 @@ export const builtins = Extension.compose(
+   { ...context, renderer: eager(contextRenderer) },
+   { ...btw, renderer: eager(btwRenderer) },
+   { ...debug, renderer: eager(debugRenderer) },
+-  { ...terminal, renderer: eager(terminalRenderer) },
+   { ...file, renderer: eager(fileRenderer) },
+   { ...review, renderer: eager(reviewRenderer) },
+   { ...details, renderer: eager(detailsRenderer) },

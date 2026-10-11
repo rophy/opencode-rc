@@ -1,0 +1,65 @@
+diff --git a/packages/app/src/composer/editor/editor.tsx b/packages/app/src/composer/editor/editor.tsx
+index defbf666d0..e238e643ad 100644
+--- a/packages/app/src/composer/editor/editor.tsx
++++ b/packages/app/src/composer/editor/editor.tsx
+@@ -792,10 +792,6 @@ export function ComposerEditorAddMenu(props: {
+             class="[&_[data-slot=menu-v2-item-shortcut]]:w-5 [&_[data-slot=menu-v2-item-shortcut]]:justify-center"
+             style={{ "min-width": "180px" }}
+           >
+-            <Menu.Item onSelect={props.onAttach} shortcut={props.attachShortcut}>
+-              {props.attachLabel}
+-            </Menu.Item>
+-            <Menu.Separator />
+             <Menu.Item onSelect={props.onCommands} shortcut="/">
+               {props.commandsLabel}
+             </Menu.Item>
+diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
+index e19b4a7d62..af0bc4cdcf 100644
+--- a/packages/app/src/composer/model.ts
++++ b/packages/app/src/composer/model.ts
+@@ -363,29 +363,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+ 
+       return () => command.trigger(selected.id, "slash")
+     },
+-    attachments: {
+-      picker: platform.openAttachmentPickerDialog,
+-      directory: () => sdk().directory,
+-      destination: useAttachmentDestination(adapter.controls),
+-      isDialogActive: () => !!dialog.active,
+-      duplicate: () => showToast({ title: language.t("prompt.toast.attachmentDuplicate.title") }),
+-      onUploadError: (error) =>
+-        showToast({
+-          variant: "error",
+-          title: language.t("prompt.toast.uploadFailed.title"),
+-          description: composerErrorMessage(language, error),
+-        }),
+-      onError: (error) =>
+-        showToast({
+-          variant: "error",
+-          title: language.t("common.requestFailed"),
+-          description: error instanceof Error ? error.message : String(error),
+-        }),
+-      readClipboardImage: platform.readClipboardImage,
+-      getPathForFile: platform.getPathForFile,
+-      onDragCancel: platform.onDragCancel,
+-      store: platform.draftStore?.putBlob,
+-    },
+     view: {
+       placeholder,
+       get agent() {
+@@ -436,15 +413,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+   Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
+ 
+   command.register("composer-editor", () => [
+-    {
+-      id: "file.attach",
+-      title: language.t("prompt.action.attachFile"),
+-      category: language.t("command.category.file"),
+-      keybind: "mod+u",
+-      editable: true,
+-      disabled: controller.state.mode !== "normal",
+-      onSelect: () => controller.attach(),
+-    },
+     {
+       id: "prompt.mode.shell",
+       title: language.t("command.prompt.mode.shell"),

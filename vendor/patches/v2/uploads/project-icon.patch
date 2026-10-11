@@ -1,0 +1,22 @@
+diff --git a/packages/app/src/settings/workspaces/project-model.ts b/packages/app/src/settings/workspaces/project-model.ts
+index 5b1ad4d72f..5ba2f6724e 100644
+--- a/packages/app/src/settings/workspaces/project-model.ts
++++ b/packages/app/src/settings/workspaces/project-model.ts
+@@ -89,7 +89,7 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+   }
+ 
+   function selectFile(file: File) {
+-    if (!file.type.startsWith("image/")) return
++    return
+     const reader = new FileReader()
+     reader.onload = (event) => {
+       const result = event.target?.result
+@@ -140,8 +140,6 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+ 
+         return
+       }
+-
+-      iconInput?.click()
+     },
+     setIconInput(input: HTMLInputElement) {
+       iconInput = input
