@@ -71,7 +71,7 @@ per-user registry for the picker.
 | CLI | Detect the opencode version; launch v1 or v2 mode; report the version to the gateway |
 | Gateway | Store the version in the session record; return it in the session list |
 | API | Pick the v1 or v2 guard set from the session's version; new v2 allowlist |
-| UI | Two opencode wrapper builds (`/v1/`, `/v2/`); shared login and picker route by version |
+| UI | Two builds: 1.x at `/` (unchanged), 2.x at `/v2/`; the picker routes by version |
 | Mobile | Bundle both builds |
 | Repo | Two submodules, patches split per version |
 
@@ -81,11 +81,13 @@ per-user registry for the picker.
   `vendor/opencode`.
 - `vendor/patches/v1/<feature>/` and `vendor/patches/v2/<feature>/`. Each version has its own
   feature list in `config/schema.ts` (v2 has no `share`, and may add features 1.x lacks).
-- The UI build runs once per submodule and writes `dist/v1/` and `dist/v2/` next to the shared
-  shell (login, picker, config screens).
+- Two separate Vite builds from the same `ui/src`: the 1.x build writes `dist/` as today, the
+  2.x build writes `dist/v2/`. Each contains its own copy of login, picker and config screens
+  (one bundle cannot hold both opencode apps: global CSS and the `@/` alias clash). 1.x stays at
+  the root so 1.x users, links, nginx and the mobile start page are unchanged.
 - Dropping v1 later: delete its submodule, patches, guard set and build.
 - One development stream: the work merges to `main` in steps, each leaving 1.x working (CI
-  publishes only on version bumps). Order: (1) two submodules, patches split, 1.x UI under `/v1/`;
+  publishes only on version bumps). Order: (1) submodule renamed to `vendor/opencode-v1`, patches moved to `vendor/patches/v1/`, Vite 8;
   (2) CLI reports the version, gateway stores it and checks the range, picker routes by it;
   (3) API guard sets per version; (4) v2 UI build and patches; (5) CLI v2 mode; (6) mobile and
   e2e. The release (version bump) follows step 6.
@@ -180,12 +182,14 @@ unchanged. 2.x gets its own block:
 
 ### UI
 
-- **Routing.** The picker reads `opencodeVersion` per machine and links to `/v1/s/<id>/` or
-  `/v2/s/<id>/` (missing version → v1, since every CLI that omits it predates 2.x support). Each
+- **Routing.** The picker reads `opencodeVersion` per machine and links to `/s/<id>/` or
+  `/v2/s/<id>/` (missing version → 1.x, since every CLI that omits it predates 2.x support). Each
   build checks the session's version on load and redirects to the other build on mismatch, so
   stale links keep working. Bump the UI ↔ API protocol for the new session field.
-- **Base paths.** Both builds currently assume the root; each needs a Vite `base` and router base,
-  and the font/asset URL rewrite must follow it. To verify for v1.
+- **Base path.** The 2.x build needs Vite `base: "/v2/"`, a router base, nginx serving `/v2/`
+  with its own SPA fallback, and the font/asset URL rewrite following it. On mobile, verify that
+  Capacitor's local server serves `/v2/index.html` for `/v2/*` (it falls back to the root
+  `index.html` for unknown paths).
 - **v2 build** (spike: builds with Vite 6 and Vite 8, type-checks, loads to the login screen;
   no session tested):
   - Rename `@opencode-ai/` → `@opencode/` in the resolver, imports and tsconfig paths.
