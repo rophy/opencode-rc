@@ -196,15 +196,17 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   dropped or picked files and project icons) and makes the API reject them with `403`. `@`
   references to workspace files keep working (unless `downloads` is disabled); pasting into the
   terminal is not covered.
-- `features.downloads.enabled: false` stops users from reading files through opencode-rc: the UI
-  loses the file viewer, opening files (`mod+p`, `/open`), file results in the command palette,
-  the diff's "view file", files and directories after `@`, and dragging files from the file
-  tree into the prompt. The API rejects with `403` reading a file, text search (`/find`), and
-  prompts that reference files: file attachments by path, `@path` in a command's arguments and
+- `features.downloads.enabled: false` stops direct file reads through opencode-rc (the file
+  viewer, file search, and prompts that reference files): the UI loses the file viewer, opening
+  files (`mod+p`, `/open`), file results in the command palette, the diff's "view file", files
+  and directories after `@`, and dragging files from the file tree into the prompt. The API
+  rejects with `403` reading a file, text search (`/find`), and prompts that reference files:
+  file attachments by path, `@path` in a command's arguments (also arguments ending in `@`) and
   in a subtask's prompt (opencode reads those files into the session). An `@agent` in a
-  command's arguments is rejected too: the API cannot tell it from a path. Chat, diffs,
-  comments on diffs (sent without the file), `@` agents and MCP resources, file listing and
-  name search keep working.
+  command's arguments is rejected too: the API cannot tell it from a path. It also rejects
+  editing stored message parts, and config changes that load files (`instructions`, or any
+  `{file:…}` value). Chat, diffs, comments on diffs (sent without the file), `@` agents and MCP
+  resources, file listing and name search keep working.
   This does not keep file contents on the machine: the AI can still read any file with its
   tools, and what it reads shows in the session and in its replies; diffs include the full
   contents of every changed file.
@@ -212,16 +214,17 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   `shell` and `terminal` run commands on the machine, so they can read any file too: disable
   them as well to stop users from getting file contents through opencode-rc. Keeping code on
   the machine fully needs opencode's own permission config there (which files its tools may
-  read).
+  read); the browser cannot override it while `downloads` or `shell` is disabled (below).
 - `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
 - `features.shell.enabled: false` removes shell mode (`!`: one command run on the developer's
   machine, kept in the session) from the UI and makes the API reject it with `403`. The API
-  also rejects commands whose arguments contain shell interpolation (``!`…` ``), which
-  opencode would run on the machine. A custom command whose own template runs its arguments
-  in a shell (such as ``!`git log $ARGUMENTS` ``) still runs what the user types; avoid such
-  templates on machines where shell is disabled. The terminal and shell mode are separate: to
+  also rejects what opencode would run on the machine: command arguments with shell
+  interpolation (``!`…` ``, or ending in `!`), a start command for a new worktree or a project,
+  adding an MCP server, and config changes that set custom commands, MCP servers, the shell,
+  plugins, formatters or LSP servers. The UI hides the terminal shell setting and the
+  project's start command. The terminal and shell mode are separate: to
   stop users from running commands themselves, disable both. The AI's own tools are not
   affected.
 - `features.export.enabled: false` removes exporting a session as JSON from the UI. The export is
@@ -231,9 +234,17 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   whose opencode config has `"share": "auto"` still shares on its own; set `"share": "disabled"`
   there too.
 
+While `downloads` or `shell` is disabled, the API also rejects requests that set permission
+rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
+owner's opencode permission config holds; neither UI sends them. A custom command template that
+itself builds ``!`…` `` or `@…` around its placeholders (such as `!$1`, `@$1`, or a placeholder
+inside its own ``!`…` ``) still runs commands or reads files from plain arguments: review the
+custom commands on those machines.
+
 While any feature is disabled the API also rejects (`400`) write requests whose path contains
 characters other than letters, digits and `/ . _ ~ -`, so a custom `OPENCODE_RC_SESSION_ID`
-must stick to those characters (the default `<hostname>-<id>` does).
+must stick to those characters (the default `<hostname>-<id>` does). Request bodies the API
+inspects are limited to 32 MiB.
 
 - **UI**: the published `ui` image is generic and asks users for the server. Build your own
   with `docker build -f ui/web/Dockerfile --build-arg RC_CONFIG=path/to/config.json .` and set
@@ -261,8 +272,12 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 - On 2.x, `downloads` also stops chat links to file paths and images loaded from disk. The API
   rejects with `400` reading a file and prompts or commands with any attachment that is not
   inline (`data:`), so with `uploads` also disabled no attachment gets through. `@` references
-  in text are not expanded by 2.x. `mod+p` and `/open` (the "Open file" command) still open the
-  command palette, which lists only commands and sessions. The directory picker still works.
+  in text are not expanded by 2.x, so the `@agent` limitation above is 1.x only. `mod+p` and
+  `/open` (the "Open file" command) still open the command palette, which lists only commands
+  and sessions. The directory picker still works.
+- On 2.x, `shell` rejects a command's text by the same rule as 1.x arguments. While `downloads`
+  or `shell` is disabled, the API rejects (`400`) creating or updating a session with
+  `permissions`.
 - `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
   in `config/opencode-versions.json`; other 2.x versions are refused.
 - On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
