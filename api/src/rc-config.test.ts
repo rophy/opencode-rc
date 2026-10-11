@@ -2,10 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConfigError, FEATURES, parseConfig, parseConfigText } from "../../config/schema.js";
+import { ConfigError, FEATURES, FEATURES_V2, parseConfig, parseConfigText } from "../../config/schema.js";
 import { loadRcConfig } from "./rc-config.js";
 
-const ALL_ON = { features: Object.fromEntries(FEATURES.map((name) => [name, { enabled: true }])) };
+const ALL_ON = {
+  features: Object.fromEntries(FEATURES.map((name) => [name, { enabled: true }])),
+  opencodeV2: { features: Object.fromEntries(FEATURES_V2.map((name) => [name, { enabled: true }])) },
+};
 
 describe("parseConfig", () => {
   it("enables every feature for an empty object", () => {
@@ -29,8 +32,26 @@ describe("parseConfig", () => {
 
   it("disables uploads", () => {
     expect(parseConfig({ features: { uploads: { enabled: false } } })).toEqual({
+      ...ALL_ON,
       features: { ...ALL_ON.features, uploads: { enabled: false } },
     });
+  });
+
+  it("enables every 2.x feature by default", () => {
+    expect(Object.keys(parseConfig({}).opencodeV2.features)).toEqual(["uploads", "terminal", "shell", "export"]);
+    expect(Object.values(parseConfig({}).opencodeV2.features).every((f) => f.enabled)).toBe(true);
+  });
+
+  it("disables only the named 2.x feature", () => {
+    const { opencodeV2, features } = parseConfig({ opencodeV2: { features: { terminal: { enabled: false } } } });
+    expect(opencodeV2.features).toEqual({ ...ALL_ON.opencodeV2.features, terminal: { enabled: false } });
+    expect(features).toEqual(ALL_ON.features);
+  });
+
+  it("keeps 1.x and 2.x toggles independent", () => {
+    const cfg = parseConfig({ features: { uploads: { enabled: false } } });
+    expect(cfg.features.uploads.enabled).toBe(false);
+    expect(cfg.opencodeV2.features.uploads.enabled).toBe(true);
   });
 
   it("treats a feature object without enabled as enabled", () => {
@@ -44,6 +65,11 @@ describe("parseConfig", () => {
     [{ features: { uploads: false } }, "features.uploads must be an object"],
     [{ features: { uploads: { enabled: "no" } } }, "features.uploads.enabled must be true or false"],
     [{ features: [] }, "features must be an object"],
+    [{ opencodeV2: { features: { share: { enabled: false } } } }, 'unknown key "opencodeV2.features.share"'],
+    [{ opencodeV2: { other: 1 } }, 'unknown key "opencodeV2.other"'],
+    [{ opencodeV2: [] }, "opencodeV2 must be an object"],
+    [{ opencodeV2: { features: [] } }, "opencodeV2.features must be an object"],
+    [{ opencodeV2: { features: { shell: { enabled: "no" } } } }, "opencodeV2.features.shell.enabled must be true or false"],
     [{ serverUrl: 42 }, "serverUrl must be a string"],
     [{ serverUrl: "not a url" }, "serverUrl is not a valid URL"],
     [{ serverUrl: "ftp://x.example.com" }, "serverUrl must start with http:// or https://"],

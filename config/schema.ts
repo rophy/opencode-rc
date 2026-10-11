@@ -1,5 +1,6 @@
 // The deployment config (config.json), shared by the UI build (ui/vite.config.ts) and the
 // API (api/src/rc-config.ts). Keep it free of dependencies: both import it directly.
+// Feature toggles for opencode 1.x live under `features`, those for 2.x under `opencodeV2.features`.
 
 // Every feature that can be switched off. A disabled feature gets the UI build's patches in
 // vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
@@ -7,10 +8,17 @@ export const FEATURES = ["uploads", "terminal", "shell", "export", "share"] as c
 
 export type FeatureName = (typeof FEATURES)[number];
 
+// The 2.x feature toggles. A disabled feature gets the 2.x UI patches in
+// vendor/patches/v2/<name>/ (step 4) and the API's v2 rules in api/src/v2-guard.ts.
+export const FEATURES_V2 = ["uploads", "terminal", "shell", "export"] as const;
+
+export type FeatureNameV2 = (typeof FEATURES_V2)[number];
+
 export interface RcConfig {
   /** API URL compiled into the UI. The API ignores it. */
   serverUrl?: string;
   features: Record<FeatureName, { enabled: boolean }>;
+  opencodeV2: { features: Record<FeatureNameV2, { enabled: boolean }> };
 }
 
 export class ConfigError extends Error {}
@@ -39,7 +47,7 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
   };
 
   if (!isObject(raw)) return fail("must be a JSON object");
-  only(raw, ["serverUrl", "features"], "");
+  only(raw, ["serverUrl", "features", "opencodeV2"], "");
 
   let serverUrl: string | undefined;
   if (raw.serverUrl !== undefined) {
@@ -59,9 +67,21 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
   if (!isObject(features)) return fail("features must be an object");
   only(features, [...FEATURES], "features.");
 
+  const v2 = raw.opencodeV2 ?? {};
+  if (!isObject(v2)) return fail("opencodeV2 must be an object");
+  only(v2, ["features"], "opencodeV2.");
+  const v2Features = v2.features ?? {};
+  if (!isObject(v2Features)) return fail("opencodeV2.features must be an object");
+  only(v2Features, [...FEATURES_V2], "opencodeV2.features.");
+
   return {
     ...(serverUrl ? { serverUrl } : {}),
     features: Object.fromEntries(FEATURES.map((name) => [name, feature(features[name], `features.${name}`)])) as RcConfig["features"],
+    opencodeV2: {
+      features: Object.fromEntries(
+        FEATURES_V2.map((name) => [name, feature(v2Features[name], `opencodeV2.features.${name}`)]),
+      ) as RcConfig["opencodeV2"]["features"],
+    },
   };
 }
 
