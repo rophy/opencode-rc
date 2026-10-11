@@ -190,6 +190,8 @@ unchanged. 2.x gets its own block:
 ```
 
 `opencodeV2.versions` may only narrow the build's default range (see "Version policy").
+The 2.x toggles are independent of the 1.x ones and default to enabled when absent: a
+deployment states which 2.x features it disables (the README must say so).
 
 ### UI
 
