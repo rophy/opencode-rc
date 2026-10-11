@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono } from "hono";
 import { parseConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
-import { featureGuards } from "./feature-guards.js";
+import { v1Guards } from "./feature-guards.js";
 
-// The shell and share guards, as featureGuards runs them in front of the proxy.
+// The shell and share guards, as v1Guards runs them in front of the proxy.
 function makeApp(features: Record<string, { enabled: boolean }>) {
   const app = new Hono<ProxyEnv>();
   app.use("*", async (c, next) => {
     c.set("userId", "alice@example.com");
     await next();
   });
-  app.all("/proxy/:sessionId/*", featureGuards(parseConfig({ features })), (c) => c.text("forwarded"));
+  app.all("/proxy/:sessionId/*", v1Guards(parseConfig({ features })), (c) => c.text("forwarded"));
   return app;
 }
 
@@ -67,6 +67,5 @@ describe("export", () => {
   it("has no API guard: disabling it guards nothing", async () => {
     const app = makeApp({ export: { enabled: false } });
     expect(await (await send(app, "GET", "/session/ses_1/message")).text()).toBe("forwarded");
-    expect(await (await send(app, "POST", "/session/a%5Cb")).text()).toBe("forwarded");
   });
 });

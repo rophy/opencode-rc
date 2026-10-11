@@ -8,7 +8,7 @@ export interface BlockedRoute {
 }
 
 // A guard that refuses the given routes outright, whatever the body. The routes are writes,
-// which reach a guard only with a plain path (featureGuards checks), so the path matched here
+// which reach a guard only with a plain path (v1Guards checks), so the path matched here
 // is the path that would be forwarded.
 export function blockGuard(label: string, message: string, routes: BlockedRoute[]): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {

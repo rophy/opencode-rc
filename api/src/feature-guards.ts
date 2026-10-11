@@ -9,7 +9,8 @@ import { v1ApiGuard } from "./v1-routes.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
 
-// The API's runtime guard for each feature, run on /proxy/* while the feature is disabled.
+// The API's runtime guard for each opencode 1.x feature, run on /proxy/* of 1.x sessions while
+// the feature is disabled (2.x sessions have their own toggles and guard: v2-guard.ts).
 // This is the enforcement; the UI build only removes the feature from the app
 // (vendor/patches/v1/<name>/). null: the feature only changes the UI and there is nothing for
 // the API to enforce. Adding a feature to config/schema.ts makes this table incomplete
@@ -59,16 +60,6 @@ export const plainPath: Guard = async (c, next) => {
   }
   await next();
 };
-
-// The guards of the features the config disables, in FEATURES order; a pass-through when
-// none of them has one.
-export function featureGuards(config: RcConfig, guards: Record<FeatureName, Guard | null> = FEATURE_GUARDS): Guard {
-  const active = FEATURES.filter((name) => !config.features[name].enabled)
-    .map((name) => guards[name])
-    .filter((guard): guard is Guard => guard !== null);
-  if (active.length === 0) return (_c, next) => next();
-  return every(plainPath, ...active);
-}
 
 // The guard set for opencode 1.x sessions: the /api route check plus the guards of the
 // features the config disables (FEATURES order). Always active, so writes need plain paths.

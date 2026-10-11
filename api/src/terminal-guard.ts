@@ -10,7 +10,7 @@ export function isTerminalPath(rest: string): boolean {
 }
 
 // The guard for a disabled terminal: refuses every terminal request, including the
-// WebSocket upgrade (featureGuards runs before the relay).
+// WebSocket upgrade (v1Guards runs before the relay).
 export function terminalGuard(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
     const rest = proxyRest(c.req.path, c.req.param("sessionId")!);

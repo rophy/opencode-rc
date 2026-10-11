@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { sessionAccess, proxyHttp, type ProxyEnv } from "./proxy.js";
 import { isUploadPart } from "./upload-guard.js";
-import { featureGuards, isPlainPath, rawPath } from "./feature-guards.js";
+import { v1Guards, isPlainPath, rawPath } from "./feature-guards.js";
 import { parseConfig } from "../../config/schema.js";
 import type { SessionStore, SessionMeta } from "./store.js";
 
@@ -22,7 +22,7 @@ function makeApp(enabled = false) {
     c.set("token", "tok");
     await next();
   });
-  app.all("/proxy/:sessionId/*", sessionAccess(store), featureGuards(parseConfig({ features: { uploads: { enabled } } })), proxyHttp());
+  app.all("/proxy/:sessionId/*", sessionAccess(store), v1Guards(parseConfig({ features: { uploads: { enabled } } })), proxyHttp());
   return app;
 }
 
@@ -169,10 +169,10 @@ describe("uploadGuard", () => {
     },
   );
 
-  it("lets a GET with an encoded slash through", async () => {
+  it("rejects a GET with an encoded slash (the 1.x route check)", async () => {
     const res = await makeApp().request("/proxy/alice-dev/file/content%2Fa.ts", { method: "GET" });
-    expect(res.status).toBe(204);
-    expect(upstream).toHaveBeenCalled();
+    expect(res.status).toBe(400);
+    expect(upstream).not.toHaveBeenCalled();
   });
 
   it("rejects POST /sync/replay outright", async () => {

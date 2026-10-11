@@ -3,7 +3,7 @@ import { websocket } from "hono/bun";
 import Redis from "ioredis";
 import { loadConfig } from "./config.js";
 import { loadRcConfig } from "./rc-config.js";
-import { featureGuards } from "./feature-guards.js";
+import { versionedGuards } from "./guards.js";
 import { FEATURES } from "../../config/schema.js";
 import { discoverOIDC, createProvider } from "./oidc.js";
 import { authRoutes, authMiddleware, type AuthEnv } from "./auth.js";
@@ -104,7 +104,7 @@ app.all(
   access,
   sessionAccess(store),
   // Before the WebSocket relay, so a guard can refuse an upgrade (the terminal).
-  featureGuards(rcConfig),
+  versionedGuards(rcConfig),
   wsRelay(),
   proxyHttp(),
 );

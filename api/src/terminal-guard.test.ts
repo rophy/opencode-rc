@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono } from "hono";
 import type { ProxyEnv } from "./proxy.js";
 import { canonicalPath } from "./proxy.js";
-import { featureGuards } from "./feature-guards.js";
+import { v1Guards } from "./feature-guards.js";
 import { parseConfig } from "../../config/schema.js";
 import { isTerminalPath, terminalGuard } from "./terminal-guard.js";
 
@@ -17,7 +17,7 @@ function makeApp(config = terminalOff) {
     c.set("userId", "alice@example.com");
     await next();
   });
-  app.all("/proxy/:sessionId/*", featureGuards(config), async (c, next) => {
+  app.all("/proxy/:sessionId/*", v1Guards(config), async (c, next) => {
     if ((c.req.header("upgrade") ?? "").toLowerCase() === "websocket") {
       relay();
       return c.text("relayed");
@@ -101,12 +101,17 @@ describe("terminal guard", () => {
     ["DELETE", "/pty/abc"],
     ["POST", "/pty/abc/connect-token"],
     ["POST", "/api/pty/abc/connect-token"],
-    ["GET", "/pty%2Fabc/connect"],
   ])("rejects %s %s", async (method, path) => {
     const { app } = makeApp();
     const res = await app.request(`/proxy/alice-dev${path}`, { method });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe("the terminal is disabled");
+  });
+
+  it("rejects a path with an encoded slash before the terminal guard", async () => {
+    const { app } = makeApp();
+    const res = await app.request("/proxy/alice-dev/pty%2Fabc/connect", { method: "GET" });
+    expect(res.status).toBe(400);
   });
 
   it("refuses the WebSocket upgrade before the relay", async () => {

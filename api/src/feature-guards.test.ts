@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono, type MiddlewareHandler } from "hono";
 import { FEATURES, parseConfig, type FeatureName } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
-import { FEATURE_GUARDS, featureGuards, plainPath, v1Guards } from "./feature-guards.js";
+import { FEATURE_GUARDS, plainPath, v1Guards } from "./feature-guards.js";
 
 type Guard = MiddlewareHandler<ProxyEnv>;
 
@@ -26,44 +26,6 @@ afterEach(() => vi.restoreAllMocks());
 describe("FEATURE_GUARDS", () => {
   it("has an entry for every feature", () => {
     expect(Object.keys(FEATURE_GUARDS).sort()).toEqual([...FEATURES].sort());
-  });
-});
-
-describe("featureGuards", () => {
-  it("runs the guard of a disabled feature", async () => {
-    const blocked: Guard = async (c) => c.text("blocked", 403);
-    const res = await makeApp(featureGuards(off, guards({ uploads: blocked }))).request("/proxy/s/x", { method: "POST" });
-    expect(res.status).toBe(403);
-    expect(await res.text()).toBe("blocked");
-  });
-
-  it("passes through when the feature is enabled", async () => {
-    const blocked: Guard = async (c) => c.text("blocked", 403);
-    const res = await makeApp(featureGuards(on, guards({ uploads: blocked }))).request("/proxy/s/x", { method: "POST" });
-    expect(await res.text()).toBe("forwarded");
-  });
-
-  it("passes through a disabled feature without a guard, with no path check", async () => {
-    const res = await makeApp(featureGuards(off, guards({}))).request("/proxy/s/a%5Cb", { method: "POST" });
-    expect(await res.text()).toBe("forwarded");
-  });
-
-  it("checks the path before any active guard runs", async () => {
-    const guard = vi.fn<Guard>(async (_c, next) => {
-      await next();
-    });
-    const res = await makeApp(featureGuards(off, guards({ uploads: guard }))).request("/proxy/s/a%5Cb", { method: "POST" });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toBe("unsupported characters in path");
-    expect(guard).not.toHaveBeenCalled();
-  });
-
-  it("forwards when the active guards let the request through", async () => {
-    const pass: Guard = async (_c, next) => {
-      await next();
-    };
-    const res = await makeApp(featureGuards(off, guards({ uploads: pass }))).request("/proxy/s/x", { method: "POST" });
-    expect(await res.text()).toBe("forwarded");
   });
 });
 

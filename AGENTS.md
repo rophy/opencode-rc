@@ -68,8 +68,14 @@ pinned submodule (CI checks it out for the UI tests).
 
 ### Adding a feature toggle
 
-A deployment switches features off in its config.json (`{"features": {"<name>": {"enabled": false}}}`).
-Each feature has up to two parts, found by its name:
+A deployment switches features off in its config.json (`{"features": {"<name>": {"enabled": false}}}`
+for opencode 1.x, `{"opencodeV2": {"features": ...}}` for 2.x). The two sets are independent, and the
+API picks the guard set per session from the opencode version in the gateway's record
+(`api/src/guards.ts`; no version means 1.x). The steps below add a 1.x feature. A 2.x feature is
+named in `FEATURES_V2`, enforced by `api/src/v2-routes.ts` and `api/src/v2-guard.ts`, and its UI
+patches come later.
+
+Each 1.x feature has up to two parts, found by its name:
 
 1. **Name**: add it to `FEATURES` in `config/schema.ts`. The schema then accepts it, the UI
    build and the API pick it up, and type-checking fails until step 3 has an entry.
@@ -78,8 +84,8 @@ Each feature has up to two parts, found by its name:
    feature fails the build. Add a test like `ui/build/upload-patches.test.ts`.
 3. **API**: an entry in `FEATURE_GUARDS` (`api/src/feature-guards.ts`): a middleware that rejects
    the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
-   is the enforcement; a UI patch alone can be bypassed by calling the API directly. While any
-   guard is active, write requests must have plain paths, so guards can match paths safely.
+   is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions always require
+   plain paths on write requests, so guards can match paths safely.
 4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`) and test both
    parts, as the `uploads disabled` tests do.
 5. **Docs**: describe it in the README's "Deployment Config" section.
