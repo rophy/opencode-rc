@@ -6,7 +6,8 @@ import type { FeatureNameV2 } from "../../config/schema.js";
 // until it is classified here. Body and query checks for some allowed routes live in v2-guard.ts.
 //
 // never: runs commands, writes outside the workspace, changes the server or its config,
-// injects input into a session, or mints opencode's own logins (pairing).
+// injects input into a session, mints opencode's own logins (pairing), returns stored secrets,
+// or is unused by the 2.x UI and reaches outside the session (vcs.init, session.generate).
 export type V2Rule = "allow" | "never" | FeatureNameV2;
 
 export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
@@ -15,13 +16,13 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["GET", "/api/command", "allow"], // command.list
   ["GET", "/api/config", "allow"], // config.get
   ["GET", "/api/config/shell", "allow"], // config.shells
-  ["GET", "/api/credential", "allow"], // credential.list
+  ["GET", "/api/credential", "never"], // credential.list (returns every secret; the UI uses integration.get)
   ["POST", "/api/credential", "never"], // credential.create
   ["DELETE", "/api/credential/:credentialID", "allow"], // credential.remove
   ["PATCH", "/api/credential/:credentialID", "never"], // credential.update
   ["POST", "/api/credential/:credentialID/activate", "allow"], // credential.activate
   ["DELETE", "/api/debug/location", "never"], // debug.location.evict
-  ["GET", "/api/debug/location", "allow"], // debug.location
+  ["GET", "/api/debug/location", "never"], // debug.location (every loaded directory; the UI never calls it)
   ["GET", "/api/event", "allow"], // event.subscribe
   ["PATCH", "/api/experimental/config", "never"], // config.update
   ["POST", "/api/experimental/fs/write", "uploads"], // fs.write
@@ -112,7 +113,7 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["DELETE", "/api/session/:sessionID/form/:formID", "allow"], // session.form.cancel
   ["GET", "/api/session/:sessionID/form/:formID", "allow"], // session.form.get
   ["POST", "/api/session/:sessionID/form/:formID/reply", "allow"], // session.form.reply
-  ["POST", "/api/session/:sessionID/generate", "allow"], // session.generate
+  ["POST", "/api/session/:sessionID/generate", "never"], // session.generate (a model call outside the session history; unused by the UI)
   ["GET", "/api/session/:sessionID/inbox", "allow"], // session.inbox.list
   ["DELETE", "/api/session/:sessionID/inbox/:inboxID", "allow"], // session.inbox.cancel
   ["PATCH", "/api/session/:sessionID/inbox/:inboxID", "allow"], // session.inbox.update
@@ -143,13 +144,13 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["GET", "/api/vcs/base", "allow"], // vcs.base
   ["GET", "/api/vcs/branch", "allow"], // vcs.branch.list
   ["GET", "/api/vcs/diff", "allow"], // vcs.diff
-  ["POST", "/api/vcs/init", "allow"], // vcs.init
+  ["POST", "/api/vcs/init", "never"], // vcs.init (git init in any location; unused by the UI)
   ["GET", "/api/vcs/status", "allow"], // vcs.status
   ["POST", "/api/websearch", "never"], // websearch.query
   ["GET", "/api/websearch/provider", "allow"], // websearch.providers
   ["DELETE", "/api/worktree", "allow"], // worktree.remove
   ["GET", "/api/worktree", "allow"], // worktree.list
-  ["POST", "/api/worktree", "allow"], // worktree.create
+  ["POST", "/api/worktree", "allow"], // worktree.create (no directory: v2-guard.ts)
   ["POST", "/api/worktree/refresh", "allow"], // worktree.refresh
   ["GET", "/auth/connect/:code", "never"], // server.connect
 ];

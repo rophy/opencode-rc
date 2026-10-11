@@ -287,3 +287,47 @@ describe("v2 session permission rules", () => {
     await expectForwarded(await call(makeApp(), "POST", "/api/session", rules));
   });
 });
+
+describe("v2 routes refused whatever the toggles", () => {
+  it.each([
+    ["GET", "/api/credential"],
+    ["GET", "/API/Credential/"],
+    ["GET", "/api/debug/location"],
+    ["GET", "/api/debug/location/"],
+    ["POST", "/api/vcs/init"],
+    ["POST", "/API/VCS/Init/"],
+    ["POST", "/api/session/ses_1/generate"],
+    ["POST", "/api/session/ses_1/Generate/"],
+  ])("refuses %s %s", async (method, path) => {
+    await expectRejected(await call(makeApp(), method, path, method === "POST" ? {} : undefined), /not available through opencode-rc/);
+  });
+
+  // The routes next to them that the 2.x UI uses.
+  it.each([
+    ["DELETE", "/api/credential/cred_1"],
+    ["POST", "/api/credential/cred_1/activate"],
+    ["GET", "/api/integration/openai"],
+    ["GET", "/api/vcs"],
+    ["GET", "/api/vcs/status"],
+    ["GET", "/api/vcs/diff"],
+    ["GET", "/api/location"],
+    ["POST", "/api/session/ses_1/prompt"],
+  ])("forwards %s %s", async (method, path) => {
+    await expectForwarded(await call(makeApp(), method, path, method === "POST" ? {} : undefined));
+  });
+
+  it("refuses a worktree created in a chosen directory", async () => {
+    const res = call(makeApp(), "POST", "/api/worktree", { projectID: "prj_1", directory: "/tmp/elsewhere" });
+    await expectRejected(await res, /worktree directory cannot be set/);
+    await expectRejected(await call(makeApp(), "POST", "/API/Worktree/", { projectID: "prj_1", directory: null }), /worktree directory/);
+    await expectRejected(await call(makeApp(), "POST", "/api/worktree", "not json"), /not JSON/);
+  });
+
+  it("forwards a worktree create as the UI sends it, and the other worktree routes", async () => {
+    const body = { projectID: "prj_1", from: "/w", branch: "feature" };
+    expect(await (await call(makeApp(), "POST", "/api/worktree", body)).text()).toBe(`forwarded ${JSON.stringify(body)}`);
+    await expectForwarded(await call(makeApp(), "GET", "/api/worktree"));
+    await expectForwarded(await call(makeApp(), "DELETE", "/api/worktree", { projectID: "prj_1", directory: "/w2", force: false }));
+    await expectForwarded(await call(makeApp(), "POST", "/api/worktree/refresh", {}));
+  });
+});

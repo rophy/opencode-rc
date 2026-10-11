@@ -83,6 +83,15 @@ async function checkRequest(
 ): Promise<string | null> {
   const uploadsOff = !features.uploads.enabled;
   if (template === "/api/experimental/fs/write") return checkFsWrite(c, fetchServerInfo);
+  // The parent directory of the new worktree, anywhere on the machine (schema worktree.ts
+  // CreateInput). The UI never sends it; the project's configuration or opencode's data
+  // directory decides.
+  if (template === "/api/worktree" && c.req.method === "POST") {
+    const body = await readJson(c);
+    if (typeof body === "string") return body;
+    if ("directory" in body) return "the worktree directory cannot be set through opencode-rc";
+    return null;
+  }
   if (template === "/api/project/:projectID") {
     const body = await readJson(c);
     if (typeof body === "string") return body;
