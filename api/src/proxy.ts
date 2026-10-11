@@ -7,7 +7,7 @@ import type { AccessWatch } from "./authz.js";
 type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
 
 // body: set by the guards that read the request body to check it (request-body.ts).
-// rewriteJson: set by a guard to rewrite a JSON 2xx response before it goes to the browser
+// rewriteJson: set by a guard to rewrite a 2xx JSON response before it goes to the browser
 // (provider-secrets.ts).
 export type ProxyEnv = AuthEnv &
   ServerEnv & {
@@ -130,16 +130,15 @@ export function proxyHttp(): Handler<ProxyEnv> {
   };
 }
 
-// The upstream response with its JSON body rewritten, for a 2xx JSON response; null for any
-// other response, which the caller streams as is. A JSON body that cannot be parsed gets a 502:
-// passing it on would skip the rewrite.
+// The upstream response with its JSON body rewritten, for a 2xx response whatever its content
+// type; null for any other status, which the caller streams as is. A body that cannot be parsed
+// gets a 502: passing it on would skip the rewrite.
 export async function rewriteResponse(
   upstream: Response,
   headers: Headers,
   rewrite: (json: unknown) => unknown,
 ): Promise<Response | null> {
-  const type = headers.get("content-type")?.toLowerCase() ?? "";
-  if (upstream.status < 200 || upstream.status > 299 || !/^application\/([\w.+-]*\+)?json\b/.test(type)) return null;
+  if (upstream.status < 200 || upstream.status > 299) return null;
   const bytes = await upstream.arrayBuffer();
   headers.delete("content-encoding");
   headers.delete("content-length");
@@ -147,7 +146,7 @@ export async function rewriteResponse(
   try {
     text = JSON.stringify(rewrite(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes))));
   } catch {
-    return new Response("invalid JSON from opencode", { status: 502 });
+    return new Response("unexpected response from opencode", { status: 502 });
   }
   return new Response(text, { status: upstream.status, headers });
 }

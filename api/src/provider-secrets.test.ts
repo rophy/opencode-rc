@@ -55,18 +55,7 @@ const cleanLegacy = (id: string) => ({
   name: id,
   source: "env",
   env: ["TEST_KEY"],
-  options: { baseURL: "https://example.test/v1", region: "us-east-1", headers: { "X-Title": "opencode" } },
-  models: {
-    m1: {
-      id: "m1",
-      providerID: id,
-      name: "Model 1",
-      options: { reasoningEffort: "low" },
-      headers: { "User-Agent": "opencode" },
-      variants: { high: { reasoningEffort: "high" } },
-      limit: { context: 1000, output: 100 },
-    },
-  },
+  models: { m1: { id: "m1", providerID: id, name: "Model 1", variants: { high: {} }, limit: { context: 1000, output: 100 } } },
 });
 
 // A 1.18 ProviderV2.Info / ModelV2.Info as the /api routes return them.
@@ -78,13 +67,7 @@ const apiItem = (id: string) => ({
   variants: [{ id: "high", headers: { "x-api-key": "test-key-value" }, body: { apiKey: "test-key-value", effort: "high" } }],
 });
 
-const cleanApiItem = (id: string) => ({
-  id,
-  name: id,
-  api: { type: "aisdk", package: "@ai-sdk/openai", settings: { organization: "org" } },
-  request: { headers: { "X-Title": "opencode" }, body: { baseURL: "https://example.test" } },
-  variants: [{ id: "high", headers: {}, body: { effort: "high" } }],
-});
+const cleanApiItem = (id: string) => ({ id, name: id, api: { type: "aisdk", package: "@ai-sdk/openai" }, variants: [{ id: "high" }] });
 
 const location = { directory: "/w", project: { id: "p", directory: "/w" } };
 
@@ -105,32 +88,43 @@ describe("providerSecretsStrip", () => {
     expect(strip("/config/providers", json)).toEqual({ providers: [cleanLegacy("openai")], default: { openai: "m1" } });
   });
 
+  it("removes provider options and headers from GET /config and GET /global/config", () => {
+    const { key: _key, source: _source, ...entry } = legacyProvider("openai");
+    const { source: _s, ...cleanEntry } = cleanLegacy("openai");
+    for (const path of ["/config", "/global/config"]) {
+      const json = { model: "openai/m1", provider: { openai: { ...entry, npm: "@ai-sdk/openai", headers: { Authorization: "x" } } }, mcp: {} };
+      expect(strip(path, json)).toEqual({ model: "openai/m1", provider: { openai: { ...cleanEntry, npm: "@ai-sdk/openai" } }, mcp: {} });
+    }
+    expect(strip("/config", { model: "openai/m1" })).toEqual({ model: "openai/m1" });
+  });
+
   it("cleans the 1.18 /api provider and model routes", () => {
     expect(strip("/api/provider", { location, data: [apiItem("openai")] })).toEqual({ location, data: [cleanApiItem("openai")] });
     expect(strip("/api/provider/openai", { location, data: apiItem("openai") })).toEqual({ location, data: cleanApiItem("openai") });
     expect(strip("/api/model", { location, data: [apiItem("m1")] })).toEqual({ location, data: [cleanApiItem("m1")] });
   });
 
-  it("leaves providers without secrets unchanged", () => {
-    const provider = { id: "p", name: "p", source: "custom", env: [], options: {}, models: {} };
-    expect(strip("/provider", { all: [provider], default: {}, connected: [] })).toEqual({ all: [provider], default: {}, connected: [] });
+  it("keeps the fields the UI reads", () => {
+    const provider = { id: "p", name: "p", source: "custom", env: [], models: { m: { id: "m", name: "M", api: { id: "m", npm: "x", url: "" } } } };
+    expect(strip("/provider", { all: [provider], default: { p: "m" }, connected: ["p"] })).toEqual({ all: [provider], default: { p: "m" }, connected: ["p"] });
   });
 
   it("tolerates other shapes", () => {
     expect(strip("/provider", null)).toBeNull();
     expect(strip("/provider", [1])).toEqual([1]);
     expect(strip("/provider", { all: "x" })).toEqual({ all: "x" });
-    expect(strip("/api/provider", { data: [null, { id: "x", request: 1 }] })).toEqual({ data: [null, { id: "x", request: 1 }] });
+    expect(strip("/api/provider", { data: [null, { id: "x", api: 1, variants: "v" }] })).toEqual({ data: [null, { id: "x", api: 1, variants: "v" }] });
   });
 
   it("matches the paths ignoring case and a trailing slash", () => {
     expect(providerSecretsStrip("/Provider/")).not.toBeNull();
     expect(providerSecretsStrip("//config//providers")).not.toBeNull();
     expect(providerSecretsStrip("/API/model")).not.toBeNull();
+    expect(providerSecretsStrip("/Global/Config/")).not.toBeNull();
   });
 
   it("matches no other route", () => {
-    for (const path of ["/provider/auth", "/config", "/global/config", "/api/integration", "/session", "/api/provider/a/b", "/%2fprovider"]) {
+    for (const path of ["/provider/auth", "/config/x", "/global/config/x", "/api/integration", "/session", "/api/provider/a/b", "/%2fprovider"]) {
       expect(providerSecretsStrip(path)).toBeNull();
     }
   });
@@ -173,22 +167,33 @@ describe("provider responses through the proxy", () => {
     expect(await (await makeApp().request("/proxy/s/Provider/")).text()).not.toContain("test-key-value");
   });
 
-  it("passes error and non-JSON responses through", async () => {
+  it("passes error responses through", async () => {
     upstream('{"key":"test-key-value"}', { status: 500, headers: { "content-type": "application/json" } });
-    let res = await makeApp("1.18.29").request("/proxy/s/provider");
+    const res = await makeApp("1.18.29").request("/proxy/s/provider");
     expect(res.status).toBe(500);
     expect(await res.text()).toBe('{"key":"test-key-value"}');
-    vi.restoreAllMocks();
-    upstream("plain", { status: 200, headers: { "content-type": "text/plain" } });
-    res = await makeApp("1.18.29").request("/proxy/s/config/providers");
-    expect(await res.text()).toBe("plain");
   });
 
-  it("refuses a JSON response it cannot parse", async () => {
-    upstream("{not json", { status: 200, headers: { "content-type": "application/json" } });
+  it("rewrites a 2xx body whatever its content type", async () => {
+    upstream(listing(), { status: 200, headers: { "content-type": "text/plain" } });
     const res = await makeApp("1.18.29").request("/proxy/s/provider");
-    expect(res.status).toBe(502);
-    expect(await res.text()).not.toContain("not json");
+    expect(res.headers.get("content-type")).toBe("text/plain");
+    expect(await res.text()).not.toContain("test-key-value");
+  });
+
+  it("refuses a 2xx body it cannot parse", async () => {
+    for (const [body, type] of [["{not json", "application/json"], ["plain", "text/plain"], ["", "application/json"]]) {
+      vi.restoreAllMocks();
+      upstream(body, { status: 200, headers: { "content-type": type } });
+      const res = await makeApp("1.18.29").request("/proxy/s/config/providers");
+      expect(res.status).toBe(502);
+      expect(await res.text()).toBe("unexpected response from opencode");
+    }
+  });
+
+  it("removes provider options from GET /config", async () => {
+    upstream(JSON.stringify({ provider: { openai: { options: { apiKey: "test-key-value" } } } }), { status: 200, headers: { "content-type": "application/json" } });
+    expect(await (await makeApp("1.18.29").request("/proxy/s/config")).json()).toEqual({ provider: { openai: {} } });
   });
 
   it("streams other routes untouched", async () => {

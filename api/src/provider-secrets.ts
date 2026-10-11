@@ -4,102 +4,61 @@ import { canonicalPath, proxyRest, type ProxyEnv } from "./proxy.js";
 
 type Json = Record<string, unknown>;
 
-// Provider options that hold a secret. opencode 1.x puts them in each provider's options
-// (vendor/opencode-v1/packages/opencode/src/provider/provider.ts: config options, and the
-// custom loaders for gitlab, cloudflare-workers-ai and snowflake-cortex set apiKey from env or
-// stored keys), and 1.18's /api routes in request.body and api.settings
-// (packages/core/src/catalog.ts, session/runner/model.ts). Matched ignoring case:
-// - apiKey: every AI SDK provider;
-// - authToken: @ai-sdk/anthropic (core/src/v1/config/provider-options.ts treats it as one);
-// - token: snowflake-cortex reads it as its bearer token (provider.ts);
-// - accessKeyId, secretAccessKey, sessionToken: @ai-sdk/amazon-bedrock;
-// - googleAuthOptions: @ai-sdk/google-vertex, holds the service account credentials;
-// - credentials, serviceAccount: no provider in the pinned source sets them at the top level;
-//   removed in case a config does.
-const SECRET_OPTIONS = new Set([
-  "apikey",
-  "authtoken",
-  "token",
-  "accesskeyid",
-  "secretaccesskey",
-  "sessiontoken",
-  "googleauthoptions",
-  "credentials",
-  "serviceaccount",
-]);
+// opencode 1.x returns provider credentials to any client: each provider's key (from an env var
+// or a stored API key, vendor/opencode-v1/packages/opencode/src/provider/provider.ts; toPublicInfo
+// keeps it), and options and headers that hold apiKey, Authorization and the like (from config
+// and the custom loaders). 1.18's /api routes carry them in request.headers, request.body and
+// api.settings (packages/core/src/catalog.ts). The 1.x UI reads none of these fields, nor the
+// contents of a model's variants (only their names), so they are removed whole rather than
+// picked over by name.
 
-// Request headers that carry a provider credential, matched ignoring case: authorization and
-// proxy-authorization (bearer keys, copilot), x-api-key (anthropic), api-key (azure),
-// x-goog-api-key (google), private-token (gitlab).
-const SECRET_HEADERS = new Set(["authorization", "proxy-authorization", "x-api-key", "api-key", "x-goog-api-key", "private-token"]);
-
-function withoutSecretHeaders(headers: unknown): unknown {
-  if (!isObject(headers)) return headers;
-  return Object.fromEntries(Object.entries(headers).filter(([name]) => !SECRET_HEADERS.has(name.toLowerCase())));
-}
-
-// An options object (1.x options, 1.18 request.body and api.settings) without its secrets,
-// including the headers it nests.
-function withoutSecretOptions(options: unknown): unknown {
-  if (!isObject(options)) return options;
-  const out: Json = {};
-  for (const [name, value] of Object.entries(options)) {
-    if (SECRET_OPTIONS.has(name.toLowerCase())) continue;
-    out[name] = name.toLowerCase() === "headers" ? withoutSecretHeaders(value) : value;
-  }
-  return out;
-}
-
+const omit = (value: Json, names: string[]): Json => Object.fromEntries(Object.entries(value).filter(([name]) => !names.includes(name)));
 const mapRecord = (value: unknown, fn: (item: unknown) => unknown) =>
   isObject(value) ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fn(v)])) : value;
 const mapArray = (value: unknown, fn: (item: unknown) => unknown) => (Array.isArray(value) ? value.map(fn) : value);
 const patch = (value: unknown, fn: (item: Json) => Json) => (isObject(value) ? fn(value) : value);
 
-// 1.x Provider.Info: key, options, and per model options, headers and variants (option sets).
+// A 1.x provider (Provider.Info, or a provider entry of the config): key and options; per model
+// options and headers, and the variants' option sets (their names stay for the variant picker).
 function legacyProvider(provider: unknown): unknown {
-  return patch(provider, ({ key: _key, ...rest }) => ({
-    ...rest,
-    ...("options" in rest && { options: withoutSecretOptions(rest.options) }),
-    ...("models" in rest && {
-      models: mapRecord(rest.models, (model) =>
-        patch(model, (m) => ({
-          ...m,
-          ...("options" in m && { options: withoutSecretOptions(m.options) }),
-          ...("headers" in m && { headers: withoutSecretHeaders(m.headers) }),
-          ...("variants" in m && { variants: mapRecord(m.variants, withoutSecretOptions) }),
-        })),
-      ),
-    }),
-  }));
+  return patch(provider, (p) => {
+    const out = omit(p, ["key", "options", "headers"]);
+    if ("models" in p) {
+      out.models = mapRecord(p.models, (model) =>
+        patch(model, (m) => {
+          const clean = omit(m, ["options", "headers"]);
+          if ("variants" in m) clean.variants = mapRecord(m.variants, () => ({}));
+          return clean;
+        }),
+      );
+    }
+    return out;
+  });
 }
 
-// 1.18 request shape ({ headers, body }), used by providers, models and model variants.
-const request = (value: Json): Json => ({
-  ...value,
-  ...("headers" in value && { headers: withoutSecretHeaders(value.headers) }),
-  ...("body" in value && { body: withoutSecretOptions(value.body) }),
-});
-
-// 1.18 ProviderV2.Info and ModelV2.Info (packages/schema/src): api.settings and request.
+// A 1.18 provider or model (ProviderV2.Info, ModelV2.Info in packages/schema/src): request and
+// api.settings; model variants keep only their id.
 function apiItem(item: unknown): unknown {
-  return patch(item, (i) => ({
-    ...i,
-    ...("api" in i && { api: patch(i.api, (api) => ({ ...api, ...("settings" in api && { settings: withoutSecretOptions(api.settings) }) })) }),
-    ...("request" in i && { request: patch(i.request, request) }),
-    ...("variants" in i && { variants: mapArray(i.variants, (v) => patch(v, request)) }),
-  }));
+  return patch(item, (i) => {
+    const out = omit(i, ["request"]);
+    if ("api" in i) out.api = patch(i.api, (api) => omit(api, ["settings"]));
+    if ("variants" in i) out.variants = mapArray(i.variants, (v) => patch(v, (variant) => omit(variant, ["headers", "body"])));
+    return out;
+  });
 }
 
 const field = (name: string, fn: (value: unknown) => unknown) => (json: unknown) =>
   patch(json, (j) => (name in j ? { ...j, [name]: fn(j[name]) } : j));
 
 // The 1.x GET routes that return providers, relative to the session (canonical path without a
-// trailing slash), and how each response is cleaned. The 1.x UI reads none of the removed
-// fields. /provider and /config/providers are the legacy routes (Provider.ListResult and
-// ConfigProvidersResult); 1.18's /api routes wrap their data in { location, data }.
+// trailing slash), and how each response is cleaned. /provider and /config/providers are the
+// legacy routes (Provider.ListResult and ConfigProvidersResult); 1.18's /api routes wrap their
+// data in { location, data }. /config and /global/config return the config, whose provider
+// entries hold the same options (the UI reads only a provider's npm and model names there).
 const ROUTES: { path: RegExp; strip: (json: unknown) => unknown }[] = [
   { path: /^\/provider$/, strip: field("all", (all) => mapArray(all, legacyProvider)) },
   { path: /^\/config\/providers$/, strip: field("providers", (list) => mapArray(list, legacyProvider)) },
+  { path: /^\/(global\/)?config$/, strip: field("provider", (providers) => mapRecord(providers, legacyProvider)) },
   { path: /^\/api\/provider$/, strip: field("data", (data) => mapArray(data, apiItem)) },
   { path: /^\/api\/provider\/[^/]+$/, strip: field("data", apiItem) },
   { path: /^\/api\/model$/, strip: field("data", (data) => mapArray(data, apiItem)) },
@@ -112,9 +71,8 @@ export function providerSecretsStrip(rest: string): ((json: unknown) => unknown)
   return ROUTES.find((r) => r.path.test(bare))?.strip ?? null;
 }
 
-// Removes provider API keys and secret options from the 1.x provider responses, for every 1.x
-// session whatever the toggles: opencode returns them to any client
-// (provider.ts toPublicInfo keeps key). The proxy buffers and rewrites only these GET
+// Removes provider keys, options and headers from the 1.x provider and config responses, for
+// every 1.x session whatever the toggles. The proxy buffers and rewrites only these GET
 // responses (proxyHttp, rewriteJson); everything else streams through untouched.
 export function providerSecretsGuard(): MiddlewareHandler<ProxyEnv> {
   return async (c, next) => {
