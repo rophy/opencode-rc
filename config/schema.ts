@@ -5,8 +5,9 @@
 // Every feature that can be switched off. A disabled feature gets the UI build's patches in
 // vendor/patches/v1/<name>/ and the API's runtime guard in api/src/feature-guards.ts.
 // downloads blocks reading a file's contents, directly or by referencing it in a prompt (not listing
-// or finding files by name).
-export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share"] as const;
+// or finding files by name). config blocks changing opencode's config from the browser (1.x only:
+// 2.x never allows it).
+export const FEATURES = ["uploads", "downloads", "terminal", "shell", "export", "share", "config"] as const;
 
 export type FeatureName = (typeof FEATURES)[number];
 

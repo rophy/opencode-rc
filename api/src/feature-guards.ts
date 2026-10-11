@@ -3,6 +3,7 @@ import { every } from "hono/combine";
 import { FEATURES, type FeatureName, type RcConfig } from "../../config/schema.js";
 import type { ProxyEnv } from "./proxy.js";
 import { blockGuard } from "./block-guard.js";
+import { configGuard } from "./config-guard.js";
 import { downloadGuard } from "./download-guard.js";
 import { shellGuard } from "./shell-guard.js";
 import { terminalGuard } from "./terminal-guard.js";
@@ -31,6 +32,9 @@ export const FEATURE_GUARDS: Record<FeatureName, Guard | null> = {
   export: null,
   // Publishing a session through opencode's share service. Unsharing stays allowed.
   share: blockGuard("share", "sharing is disabled", [{ method: "POST", path: /^\/session\/[^/]+\/share$/i }]),
+  // Changing opencode's config: the project and global config, adding MCP servers, project
+  // commands. Independent of shell and downloads, which refuse parts of the same requests.
+  config: configGuard(),
 };
 
 // Hono matches on a decoded path, while fetch, the gateway, the CLI and opencode's router
