@@ -3,13 +3,13 @@ import solid from "vite-plugin-solid"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
 import fs from "fs"
-import { FEATURES, parseConfig, parseConfigText, type RcConfig } from "../config/schema"
-import { contentSecurityPolicy } from "./csp"
-import { featurePatches, vendorPatches } from "./build/vendor-patches"
+import { FEATURES, parseConfig, parseConfigText, type RcConfig } from "../config/schema.ts"
+import { contentSecurityPolicy } from "./csp.ts"
+import { featurePatches, vendorPatches } from "./build/vendor-patches.ts"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
-const opencodeRoot = process.env.OPENCODE_ROOT || path.resolve(__dirname, "../vendor/opencode-v1")
+const opencodeRoot = process.env.OPENCODE_ROOT || path.resolve(import.meta.dirname, "../vendor/opencode-v1")
 const opencodePackages = path.join(opencodeRoot, "packages")
 const appNodeModules = path.join(opencodePackages, "app/node_modules")
 
@@ -44,7 +44,7 @@ const ocPackages = loadOpenCodePackages()
 function readBuildConfig(): RcConfig {
   const file = process.env.OPENCODE_RC_CONFIG
   if (!file) return parseConfig({})
-  return parseConfigText(fs.readFileSync(path.resolve(__dirname, file), "utf8"), file)
+  return parseConfigText(fs.readFileSync(path.resolve(import.meta.dirname, file), "utf8"), file)
 }
 
 const rcConfig = readBuildConfig()
@@ -165,7 +165,7 @@ export default defineConfig({
     vendorPatches(
       opencodeRoot,
       featurePatches(
-        path.resolve(__dirname, "../vendor/patches/v1"),
+        path.resolve(import.meta.dirname, "../vendor/patches/v1"),
         FEATURES,
         FEATURES.filter((name) => !rcConfig.features[name].enabled),
       ),
@@ -187,7 +187,7 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3001,
     fs: {
-      allow: [opencodeRoot, __dirname],
+      allow: [opencodeRoot, import.meta.dirname],
     },
     proxy: {
       "/api": "http://localhost:12029",
