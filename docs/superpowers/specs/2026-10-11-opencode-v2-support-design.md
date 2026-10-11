@@ -88,8 +88,9 @@ per-user registry for the picker.
 - Dropping v1 later: delete its submodule, patches, guard set and build.
 - One development stream: the work merges to `main` in steps, each leaving 1.x working (CI
   publishes only on version bumps). Order: (1) submodule renamed to `vendor/opencode-v1`, patches moved to `vendor/patches/v1/`, Vite 8;
-  (2) CLI reports the version, gateway stores it and checks the range, picker routes by it;
-  (3) API guard sets per version; (4) v2 UI build and patches; (5) CLI v2 mode; (6) mobile and
+  (2) CLI reports the version, gateway stores it and checks the range, picker shows it
+  (no 2.x range yet, so 2.x is rejected);
+  (3) API guard sets per version; (4) v2 UI build and patches, picker routing to `/v2/`, first 2.x range; (5) CLI v2 mode; (6) mobile and
   e2e. The release (version bump) follows step 6.
 
 ### CLI
@@ -107,7 +108,10 @@ per-user registry for the picker.
    - Not `opencode service`: that is the user's own singleton (fixed port, `service.json` they
      control, may already have remote access enabled). If it is running, ours would attach to it.
 4. Send the version on tunnel registration: `/tunnel?sessionId=…&directory=…&opencodeVersion=2.0.26`.
-   Bump the CLI ↔ gateway protocol (`docs/api-versioning.md`).
+   A missing version means 1.x. Bump the CLI ↔ gateway protocol in step 5, when the CLI first
+   relies on the gateway knowing versions (`docs/api-versioning.md`).
+   Until step 5, the CLI checks the version before starting opencode and exits on 2.x with
+   "opencode 2.x needs a newer opencode-rc".
 5. Install: users install opencode themselves (`opencode-ai` for 1.x or `@opencode/cli` for 2.x),
    then `opencode-rc`, as today. opencode-rc does not depend on or bundle opencode (a v2 binary is
    ~210 MB per platform).
@@ -119,8 +123,9 @@ per-user registry for the picker.
 - Add `opencodeVersion` to the session record (`gateway/store.go`), read from the tunnel query
   (`gateway/tunnel.go`), and include it in the session list.
 - Reject a 2.x version outside the supported range at `/tunnel` (see "Version policy"). The
-  gateway reads no deployment config today; it needs the range from the repo default and the
-  deployment's config.
+  default range comes from `config/opencode-versions.json`, copied into the gateway image; the
+  deployment's `config.json` (the API's ConfigMap, now also mounted into the gateway) can narrow
+  it. The gateway applies the overlap.
 - No path-specific logic changes: the gateway forwards `/proxy/<sid>/*` unchanged.
 
 ### API
@@ -239,10 +244,12 @@ features moved to extensions, v2.0.25 default-server option removed). A machine 
 Decided: a **supported range**, `min ≤ version < max` (min inclusive, so it can start at the
 tested version; max exclusive).
 
-- The repo holds a default range per v2 build: the versions its patches were tested against.
+- The repo holds a default range per v2 build in `config/opencode-versions.json`: the versions
+  its patches were tested against. Empty (`"v2": null`) until the 2.x build exists (step 4).
 - A deployment's `opencodeV2.versions` may narrow it, never widen it.
 - The gateway rejects a version outside the range at `/tunnel` with a clear message, so a new
-  range needs no new CLI. The UI checks it too, for stale links.
+  range needs no new CLI. The UI checks only the major version (1.x vs 2.x build) and redirects;
+  it does not repeat the range check.
 - A mismatch inside the range can only break features, not bypass guards: the v2 allowlist
   rejects routes it does not list.
 
@@ -282,7 +289,7 @@ Settled 2026-10-11:
 
 1. One development stream on `main`, merged in steps (see "Repository layout").
 2. Version policy: supported range `min ≤ version < max`, default per build, deployments may
-   only narrow it, enforced by the gateway at registration and checked by the UI.
+   only narrow it, enforced by the gateway at registration; the UI checks only the major version.
 3. Separate feature toggles per version (`features` for 1.x, `opencodeV2.features` for 2.x).
 4. Version claims: each guard set rejects the other version's routes; the residual gap on shared
    routes is accepted and documented (see "Risks").
