@@ -172,6 +172,18 @@ describe("opencode 2.x dev machine", () => {
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });
     });
+
+    // Session permission rules are checked after the machine owner's config and can allow reads.
+    it("refuses a session with permission rules", async () => {
+      await getInfo();
+      const res = await jar.fetch(`${V2}/api/session`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ permissions: [{ action: "read", resource: "*", effect: "allow" }] }),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });
+    });
   });
 
   describe("terminal enabled", () => {

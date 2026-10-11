@@ -183,8 +183,9 @@ describe("terminal, shell commands and sharing disabled", () => {
     const refused = await command("!`echo pwned`");
     expect(refused.status).toBe(403);
     expect(await refused.text()).toBe("shell commands are disabled");
-    // Positive control: without !` the guard forwards it (opencode runs init against the mock AI).
-    expect((await command("wow!")).status).not.toBe(403);
+    // Positive control: arguments that cannot form !` are forwarded, and opencode answers 200
+    // once init has run against the mock AI.
+    expect((await command("HEAD~1")).status).toBe(200);
   }, 60_000);
 
   it("refuses shell interpolation in command text on the opencode 2.x machine", async () => {
@@ -201,11 +202,29 @@ describe("terminal, shell commands and sharing disabled", () => {
     const refused = await command("!`echo pwned`");
     expect(refused.status).toBe(400);
     expect(await refused.json()).toEqual({ _tag: "FeatureDisabled", message: "shell commands are disabled" });
-    // Positive control: without !` the guard forwards it; a guard refusal would be a FeatureDisabled 400.
-    const passed = await command("wow!");
-    const body = await passed.text();
-    expect(body).not.toContain("FeatureDisabled");
+    // Positive control: text that cannot form !` is forwarded, and opencode accepts the command
+    // with 204 (session.command, success NoContent).
+    const passed = await command("HEAD~1");
+    expect(passed.status, await passed.clone().text()).toBe(204);
   }, 60_000);
+
+  it("refuses a worktree start command and MCP servers in the config", async () => {
+    const json = { "content-type": "application/json" };
+    const worktree = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/experimental/worktree`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ startCommand: "echo marker" }),
+    });
+    expect(worktree.status).toBe(403);
+    expect(await worktree.text()).toBe("shell commands are disabled");
+    const config = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/global/config`, {
+      method: "PATCH",
+      headers: json,
+      body: JSON.stringify({ mcp: {} }),
+    });
+    expect(config.status).toBe(403);
+    expect(await config.text()).toBe("shell commands are disabled");
+  });
 
   it("still serves the rest of the session", async () => {
     expect((await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`)).status).toBe(200);

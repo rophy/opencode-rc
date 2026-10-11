@@ -763,4 +763,23 @@ describe("downloads disabled", () => {
     const res = await jar.fetch(proxy(`/session/${sessionID}/prompt_async`), json({ parts: [{ type: "text", text: "hi user@example.com" }] }));
     expect(res.status).toBe(204);
   });
+
+  // opencode puts the file's contents in place of {file:path} when it loads the config.
+  it("refuses a config value that reads a file, and stores nothing", async () => {
+    const before = await jar.fetch(proxy("/global/config"));
+    expect(before.status).toBe(200);
+    const config = await before.json();
+    const res = await jar.fetch(proxy("/global/config"), {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: `{file:${file}}` }),
+    });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("file downloads are disabled");
+    const after = await jar.fetch(proxy("/global/config"));
+    expect(after.status).toBe(200);
+    const text = await after.text();
+    expect(text).not.toContain("{file:");
+    expect(JSON.parse(text)).toEqual(config);
+  });
 });
