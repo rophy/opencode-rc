@@ -317,10 +317,13 @@ export async function startTunnel(
   idToken: string,
   sessionID: string,
   localUrl: string,
-  directory: string
+  directory: string,
+  opencodeVersion: string
 ): Promise<TunnelHandle> {
   const baseUrl = config.gatewayUrl.replace(/\/$/, "");
-  const tunnelPath = `/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}`;
+  const tunnelPath =
+    `/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}` +
+    `&opencodeVersion=${encodeURIComponent(opencodeVersion)}`;
 
   // Pre-flight: plain HTTP request to surface auth/network errors
   // before the opaque WebSocket upgrade failure.
@@ -335,6 +338,12 @@ export async function startTunnel(
       const body = (await resp.clone().json().catch(() => ({}))) as { error?: string };
       if (body.error === "client_outdated") {
         throw new ProtocolError("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
+      }
+    }
+    if (resp.status === 422) {
+      const body = (await resp.clone().json().catch(() => ({}))) as { error?: string; message?: string };
+      if (body.error === "opencode_unsupported") {
+        throw new ProtocolError(body.message ?? "This server does not support the installed opencode version.");
       }
     }
     if (resp.status < 500 && readProtocol(resp.headers.get(PROTOCOL_HEADER)) < MIN_GATEWAY_PROTOCOL) {
@@ -449,6 +458,7 @@ export async function startTunnelWithReconnect(
   sessionID: string,
   localUrl: string,
   directory: string,
+  opencodeVersion: string,
   onFatal?: (err: ProtocolError) => void
 ): Promise<TunnelHandle> {
   let closed = false;
@@ -463,7 +473,8 @@ export async function startTunnelWithReconnect(
           idToken,
           sessionID,
           localUrl,
-          directory
+          directory,
+          opencodeVersion
         );
         backoff = 1000;
         await currentHandle.disconnected;
@@ -500,7 +511,8 @@ export async function startTunnelWithReconnect(
         idToken,
         sessionID,
         localUrl,
-        directory
+        directory,
+        opencodeVersion
       );
       break;
     } catch (err) {

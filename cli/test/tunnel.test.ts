@@ -376,7 +376,9 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           "test-token",
           "sess-ws",
           `http://127.0.0.1:${localPort}`,
-          "/tmp"
+          "/tmp",
+          "1.18.29",
+          "1.18.29"
         );
         const serverWs = await serverConn;
 
@@ -439,7 +441,9 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           "test-token",
           "sess-http",
           `http://127.0.0.1:${echoPort}`,
-          "/tmp"
+          "/tmp",
+          "1.18.29",
+          "1.18.29"
         );
         const serverWs2 = await serverConn2;
 
@@ -524,7 +528,9 @@ describe("startTunnel", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       expect(handle).toHaveProperty("close");
@@ -552,12 +558,14 @@ describe("startTunnel", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/my/project"
+        "/my/project",
+        "1.18.29"
       );
 
       const { url, auth } = await requestInfo;
       expect(url).toContain("sessionId=sess1");
       expect(url).toContain("directory=%2Fmy%2Fproject");
+      expect(url).toContain("opencodeVersion=1.18.29");
       expect(auth).toBe("Bearer test-token");
 
       handle.close();
@@ -585,7 +593,9 @@ describe("startTunnel", () => {
           "test-token",
           "sess1",
           `http://127.0.0.1:${localPort}`,
-          "/tmp"
+          "/tmp",
+          "1.18.29",
+          "1.18.29"
         );
 
         const serverWs = await serverConn;
@@ -649,7 +659,9 @@ describe("startTunnel", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       )
     ).rejects.toThrow();
   });
@@ -679,11 +691,11 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp")
+          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 401");
 
         await expect(
-          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp")
+          startTunnel(makeConfig(port), "bad-token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toThrow("invalid token: token is expired");
       }
     );
@@ -697,7 +709,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 403");
       }
     );
@@ -711,7 +723,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toThrow("Tunnel pre-flight failed: 502");
       }
     );
@@ -730,7 +742,7 @@ describe("startTunnel pre-flight", () => {
       async (port) => {
         // Will fail on WebSocket upgrade (not pre-flight)
         await expect(
-          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp")
+          startTunnel(makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toThrow();
 
         // But NOT a pre-flight error
@@ -757,10 +769,27 @@ describe("startTunnel pre-flight", () => {
     );
   });
 
+  it("rejects with the server's message on 422 opencode_unsupported", async () => {
+    const message = "opencode 2.0.26 is not supported by this server: it supports opencode 1.x only";
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(422, { "Content-Type": "application/json", "OpenCode-RC-Protocol": "1" });
+        res.end(JSON.stringify({ error: "opencode_unsupported", message }));
+      },
+      async (port) => {
+        const err = await startTunnel(
+          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "2.0.26"
+        ).catch((e: Error) => e);
+        expect(err).toBeInstanceOf(ProtocolError);
+        expect((err as Error).message).toBe(message);
+      }
+    );
+  });
+
   it("rejects with network error when server unreachable", async () => {
     // Use a port with no server
     await expect(
-      startTunnel(makeConfig(1), "token", "s1", "http://localhost:9999", "/tmp")
+      startTunnel(makeConfig(1), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29")
     ).rejects.toThrow();
   });
 });
@@ -775,7 +804,7 @@ describe("protocol versioning", () => {
         res.end("no");
       },
       async (port) => {
-        await expect(startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp")).rejects.toThrow();
+        await expect(startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29")).rejects.toThrow();
       }
     );
     expect(seen).toBe("1");
@@ -788,7 +817,7 @@ describe("protocol versioning", () => {
         res.end(JSON.stringify({ error: "client_outdated", client: 1, minimum: 2, server: 2 }));
       },
       async (port) => {
-        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
         await expect(p).rejects.toBeInstanceOf(ProtocolError);
         await expect(p).rejects.toThrow("opencode-rc CLI is too old for this server. Update it: npm i -g opencode-rc@latest");
       }
@@ -802,7 +831,7 @@ describe("protocol versioning", () => {
         res.end("websocket required");
       },
       async (port) => {
-        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+        const p = startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
         await expect(p).rejects.toBeInstanceOf(ProtocolError);
         await expect(p).rejects.toThrow(
           `The gateway at ${makeConfig(port).gatewayUrl} is older than this CLI supports. Ask your administrator to upgrade it.`
@@ -821,7 +850,7 @@ describe("protocol versioning", () => {
       },
       async (port) => {
         await expect(
-          startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp")
+          startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29")
         ).rejects.toBeInstanceOf(ProtocolError);
       }
     );
@@ -835,7 +864,7 @@ describe("protocol versioning", () => {
         res.end("bad gateway");
       },
       async (port) => {
-        const err = await startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp").catch((e) => e);
+        const err = await startTunnel(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29").catch((e) => e);
         expect(err).not.toBeInstanceOf(ProtocolError);
         expect(err.message).toContain("Tunnel pre-flight failed: 502");
       }
@@ -865,7 +894,7 @@ describe("protocol versioning", () => {
     const port = typeof address === "object" && address ? address.port : 0;
 
     try {
-      const handle = await startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp");
+      const handle = await startTunnelWithReconnect(makeConfig(port), "t", "s1", "http://localhost:9999", "/tmp", "1.18.29");
       // Not a ProtocolError (would have rejected), and the server saw more
       // than one attempt — the header-less 502 was retried rather than fatal.
       expect(calls).toBeGreaterThan(1);
@@ -905,7 +934,9 @@ describe("handleBodyFrame and proxyToLocal with body", () => {
           "test-token",
           "sess1",
           `http://127.0.0.1:${localPort}`,
-          "/tmp"
+          "/tmp",
+          "1.18.29",
+          "1.18.29"
         );
 
         const serverWs = await serverConn;
@@ -975,7 +1006,9 @@ describe("startTunnel message handling", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       const serverWs = await serverConn;
@@ -1004,7 +1037,9 @@ describe("startTunnel post-connection events", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       const serverWs = await serverConn;
@@ -1029,7 +1064,9 @@ describe("startTunnelWithReconnect", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       expect(typeof handle.close).toBe("function");
@@ -1056,7 +1093,9 @@ describe("startTunnelWithReconnect", () => {
       "test-token",
       "sess1",
       "http://localhost:9999",
-      "/tmp"
+      "/tmp",
+      "1.18.29",
+      "1.18.29"
     );
 
     // After a short delay (let first attempt fail), start the server
@@ -1092,7 +1131,9 @@ describe("startTunnelWithReconnect", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       expect(connectionCount).toBe(1);
@@ -1125,7 +1166,9 @@ describe("startTunnelWithReconnect", () => {
         "test-token",
         "sess1",
         "http://localhost:9999",
-        "/tmp"
+        "/tmp",
+        "1.18.29",
+        "1.18.29"
       );
 
       // Swap the server's HTTP handling: after the tunnel drops, the next
@@ -1171,6 +1214,7 @@ describe("startTunnelWithReconnect", () => {
         "sess1",
         "http://localhost:9999",
         "/tmp",
+        "1.18.29",
         onFatal
       );
 

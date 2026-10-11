@@ -3,6 +3,7 @@
 
 import { loadConfig } from "./config.js";
 import { authorizationCodeAuth } from "./oidc.js";
+import { detectOpencodeVersion } from "./opencode-version.js";
 import { startServer } from "./server.js";
 import { startTunnelWithReconnect } from "./tunnel.js";
 import { ProtocolError } from "./protocol.js";
@@ -27,6 +28,24 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
+  let opencodeVersion: string;
+  try {
+    opencodeVersion = detectOpencodeVersion();
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+  const major = Number(opencodeVersion.split(".")[0]);
+  if (major !== 1) {
+    console.error(
+      major === 2
+        ? `opencode 2.x needs a newer opencode-rc (found opencode ${opencodeVersion}). Use opencode 1.x for now.`
+        : `opencode ${opencodeVersion} is not supported. opencode-rc supports opencode 1.x.`,
+    );
+    process.exit(1);
+  }
+  console.log(`opencode ${opencodeVersion}`);
+
   const server = await startServer();
 
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
@@ -36,6 +55,7 @@ async function main() {
     sessionID,
     server.url,
     process.cwd(),
+    opencodeVersion,
     (err) => {
       console.error(err.message);
       server.close();
