@@ -291,3 +291,24 @@ test.describe("downloads disabled", () => {
     await expect(page.locator('[data-suggestion-id^="file:"]')).toHaveCount(0);
   });
 });
+
+// The UI image is built from e2e/rc-config.json, which turns config off. The settings dialog
+// (mod+comma) keeps its tabs but loses what writes opencode's config.
+test.describe("config disabled", () => {
+  test("settings show no custom provider and no terminal shell", async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAs(page, "Alice");
+    await page.locator("a[href*='/s/alice-dev/']").first().click();
+    await page.locator('[data-component="home-project-row"]').first().waitFor({ state: "visible", timeout: 30_000 });
+    await page.keyboard.press("Control+Comma");
+    // Positive control: the settings dialog opens.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByText("Terminal shell")).toHaveCount(0);
+    await dialog.getByText("Providers", { exact: true }).first().click();
+    // Positive control: providers can still be connected.
+    await expect(dialog.getByRole("button", { name: "Connect" }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByText("Custom provider")).toHaveCount(0);
+    await expect(dialog.locator('[data-component="custom-provider-section"]')).toHaveCount(0);
+  });
+});

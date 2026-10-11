@@ -783,3 +783,43 @@ describe("downloads disabled", () => {
     expect(JSON.parse(text)).toEqual(config);
   });
 });
+
+describe("config disabled", () => {
+  let jar: TokenSession;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+  const json = (method: string, body: unknown): RequestInit => ({
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+  });
+
+  it("refuses a global config update", async () => {
+    const res = await jar.fetch(proxy("/global/config"), json("PATCH", { disabled_providers: [] }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("config changes are disabled");
+  });
+
+  it("refuses adding an MCP server", async () => {
+    const res = await jar.fetch(proxy("/mcp"), json("POST", { name: "docs", config: { type: "remote", url: "https://example.com/mcp" } }));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("config changes are disabled");
+  });
+
+  it("refuses project commands, and lets a name edit through to opencode", async () => {
+    const refused = await jar.fetch(proxy("/project/any"), json("PATCH", { commands: { start: "" } }));
+    expect(refused.status).toBe(403);
+    expect(await refused.text()).toBe("config changes are disabled");
+    // The guard lets it pass; opencode answers for the unknown project.
+    const passed = await jar.fetch(proxy("/project/any"), json("PATCH", { name: "e2e" }));
+    expect(await passed.text()).not.toBe("config changes are disabled");
+  });
+
+  it("still serves the config", async () => {
+    expect((await jar.fetch(proxy("/config"))).status).toBe(200);
+  });
+});

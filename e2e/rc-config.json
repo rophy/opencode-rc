@@ -3,7 +3,8 @@
   "features": {
     "uploads": { "enabled": false },
     "downloads": { "enabled": false },
-    "terminal": { "enabled": false }
+    "terminal": { "enabled": false },
+    "config": { "enabled": false }
   },
   "opencodeV2": {
     "features": {

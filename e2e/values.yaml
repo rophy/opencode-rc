@@ -30,6 +30,8 @@ config:
       enabled: false
     downloads:
       enabled: false
+    config:
+      enabled: false
   opencodeV2:
     features:
       uploads:
