@@ -25,9 +25,8 @@ beforeEach(() => {
   proto.send = function () {
     sent++
   }
-  proto.abort = function (this: XMLHttpRequest) {
-    Object.defineProperty(this, "readyState", { value: 0, configurable: true })
-  }
+  // Like a browser: abort() on an OPENED request that was not sent leaves it OPENED.
+  proto.abort = function () {}
 })
 
 afterEach(() => {
@@ -106,5 +105,90 @@ describe("installProxyXHR", () => {
     Object.defineProperty(xhr, "status", { value: 200 })
     xhr.dispatchEvent(new Event("loadend"))
     expect(onForbidden).not.toHaveBeenCalled()
+  })
+
+  it("drops the token when the instance is re-opened on a non-proxied URL", async () => {
+    installProxyXHR({ ...opts, getToken: async () => "tok" })
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", uploadUrl())
+    xhr.open("GET", "https://other.example/x")
+    xhr.send()
+    await flush()
+    expect(opened[1]).toEqual(["GET", "https://other.example/x"])
+    expect(headers).toEqual([])
+    expect(sent).toBe(1)
+  })
+
+  it("is idempotent: a second install replaces the options without stacking", async () => {
+    const forbiddenA = vi.fn()
+    const forbiddenB = vi.fn()
+    installProxyXHR({ ...opts, getToken: async () => "A", onForbidden: forbiddenA })
+    installProxyXHR({ ...opts, sessionId: "B", getToken: async () => "B", onForbidden: forbiddenB })
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", new URL("/api/x", "https://ui.example/proxy/B/"))
+    xhr.send()
+    await flush()
+    expect(opened).toEqual([["POST", "https://rc.example/proxy/B/api/x"]])
+    expect(headers).toEqual([["authorization", "Bearer B"]])
+    expect(sent).toBe(1)
+    Object.defineProperty(xhr, "status", { value: 403 })
+    xhr.dispatchEvent(new Event("loadend"))
+    expect(forbiddenA).not.toHaveBeenCalled()
+    expect(forbiddenB).toHaveBeenCalledTimes(1)
+  })
+
+  it("calls onForbidden once even if the instance is opened twice", () => {
+    const onForbidden = vi.fn()
+    installProxyXHR({ ...opts, getToken: async () => "tok", onForbidden })
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", uploadUrl())
+    xhr.open("POST", uploadUrl())
+    Object.defineProperty(xhr, "status", { value: 403 })
+    xhr.dispatchEvent(new Event("loadend"))
+    expect(onForbidden).toHaveBeenCalledTimes(1)
+  })
+
+  it("ignores 403 after re-opening on a non-proxied URL", () => {
+    const onForbidden = vi.fn()
+    installProxyXHR({ ...opts, getToken: async () => "tok", onForbidden })
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", uploadUrl())
+    xhr.open("GET", "https://other.example/x")
+    Object.defineProperty(xhr, "status", { value: 403 })
+    xhr.dispatchEvent(new Event("loadend"))
+    expect(onForbidden).not.toHaveBeenCalled()
+  })
+
+  it("drops an Authorization header the app sets on a proxied request", async () => {
+    installProxyXHR({ ...opts, getToken: async () => "tok" })
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", uploadUrl())
+    xhr.setRequestHeader("Authorization", "Basic abc")
+    xhr.setRequestHeader("content-type", "text/plain")
+    xhr.send()
+    await flush()
+    expect(headers).toEqual([
+      ["content-type", "text/plain"],
+      ["authorization", "Bearer tok"],
+    ])
+  })
+
+  it("leaves a non-proxied request's Authorization header alone", () => {
+    installProxyXHR({ ...opts, getToken: async () => "tok" })
+    const xhr = new XMLHttpRequest()
+    xhr.open("GET", "https://other.example/x")
+    xhr.setRequestHeader("Authorization", "Basic abc")
+    expect(headers).toEqual([["Authorization", "Basic abc"]])
+  })
+
+  it("leaves a synchronous request untouched", () => {
+    const getToken = vi.fn(async () => "tok")
+    installProxyXHR({ ...opts, getToken })
+    const xhr = new XMLHttpRequest()
+    xhr.open("GET", uploadUrl(), false)
+    xhr.send()
+    expect(opened).toEqual([["GET", uploadUrl().href]])
+    expect(sent).toBe(1)
+    expect(getToken).not.toHaveBeenCalled()
   })
 })

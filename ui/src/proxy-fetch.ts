@@ -131,40 +131,75 @@ export function installProxyWebSocket(
   globalThis.WebSocket = ProxiedWebSocket as typeof WebSocket
 }
 
+type XHROptions = ProxyOptions & { getToken: () => Promise<string | null>; onForbidden?: () => void }
+
 // opencode 2.x uploads attachments with XMLHttpRequest (for progress events) to a root-relative
 // /api/experimental/fs/write URL, which the fetch patch never sees. Rewrite proxied requests
 // the same way and add the bearer token. send() waits for the token, so a request aborted in
-// the meantime (readyState back to UNSENT) is not sent. No 401 retry: getToken already
-// refreshes an expired token before it resolves.
-export function installProxyXHR(
-  opts: ProxyOptions & { getToken: () => Promise<string | null>; onForbidden?: () => void },
-): void {
+// the meantime is not sent. No 401 retry: getToken already refreshes an expired token before
+// it resolves.
+//
+// The prototype is patched once; later calls (SessionView mounts per session) only replace the
+// active options, so wrappers never stack.
+let activeXHR: XHROptions | null = null
+let xhrPatch: { open: typeof XMLHttpRequest.prototype.open } | null = null
+
+export function installProxyXHR(opts: XHROptions): void {
+  activeXHR = opts
   const proto = XMLHttpRequest.prototype
+  if (xhrPatch && proto.open === xhrPatch.open) return
+
   const originalOpen = proto.open
   const originalSend = proto.send
-  const proxied = new WeakSet<XMLHttpRequest>()
+  const originalAbort = proto.abort
+  const originalSetRequestHeader = proto.setRequestHeader
+  const proxied = new WeakSet<XMLHttpRequest>() // opened with a rewritten URL
+  const listening = new WeakSet<XMLHttpRequest>() // has the 403 listener
+  const pending = new WeakSet<XMLHttpRequest>() // send() waiting for the token
 
   proto.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-    const target = proxyTarget(String(url), opts)
+    pending.delete(this)
+    // Synchronous XHR can't wait for a token; opencode doesn't use it, so leave it untouched.
+    const target = rest[0] === false || !activeXHR ? null : proxyTarget(String(url), activeXHR)
     if (target) {
       proxied.add(this)
-      this.addEventListener("loadend", () => {
-        if (this.status === 403) opts.onForbidden?.()
-      })
+      if (!listening.has(this)) {
+        listening.add(this)
+        this.addEventListener("loadend", () => {
+          if (proxied.has(this) && this.status === 403) activeXHR?.onForbidden?.()
+        })
+      }
+    } else {
+      proxied.delete(this)
     }
     return (originalOpen as (...args: unknown[]) => void).call(this, method, target ?? url, ...rest)
   } as typeof proto.open
 
+  proto.setRequestHeader = function (this: XMLHttpRequest, name: string, value: string) {
+    // The bearer is set in send(); an app-set Authorization would be appended to it.
+    if (proxied.has(this) && name.toLowerCase() === "authorization") return
+    return originalSetRequestHeader.call(this, name, value)
+  }
+
   proto.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-    if (!proxied.has(this)) return originalSend.call(this, body)
-    opts
+    if (!proxied.has(this) || !activeXHR) return originalSend.call(this, body)
+    pending.add(this)
+    activeXHR
       .getToken()
       .catch(() => null)
       .then((token) => {
-        if (this.readyState !== XMLHttpRequest.OPENED) return
-        if (token) this.setRequestHeader("authorization", `Bearer ${token}`)
+        // abort() before send has no effect on the request state, so check our own flag.
+        if (!pending.delete(this) || this.readyState !== XMLHttpRequest.OPENED) return
+        if (token) originalSetRequestHeader.call(this, "authorization", `Bearer ${token}`)
         originalSend.call(this, body)
       })
       .catch(() => {})
   }
+
+  proto.abort = function (this: XMLHttpRequest) {
+    pending.delete(this)
+    return originalAbort.call(this)
+  }
+
+  xhrPatch = { open: proto.open }
 }
