@@ -242,6 +242,15 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
   writes to opencode's config, pairing, adding or removing MCP servers, plugin updates and
   persistent terminals (see `api/src/v2-routes.ts`).
 
+The API picks the 2.x or 1.x rules from the opencode version the dev machine's CLI reports, which it
+cannot verify. Routes both versions serve (such as the terminal under `/api/pty`) follow the reported
+version's toggle, so a feature disabled for only one version can be reached by a user who modifies
+their CLI. Disable a feature for both versions to enforce it fully.
+
+`opencode pair --remote` (opencode 2.x) lets any user expose their own machine through opencode's
+public relay (opentunnel.xyz), outside opencode-rc's sign-in and controls; only opencode's own password
+protects it. If that matters, block it with network or endpoint policy.
+
 opencode 1.x and 2.x on the same machine share opencode's data directory and database. 2.x migrates the
 database in place the first time it runs, and opencode does not guarantee that a machine switched back to
 1.x afterwards can still use it.

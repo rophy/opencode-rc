@@ -8,7 +8,7 @@ Remote control CLI for [OpenCode](https://opencode.ai). Connects your dev machin
 npm install -g opencode-rc
 ```
 
-Requires [OpenCode](https://opencode.ai) to be installed (`opencode` on PATH).
+Requires [OpenCode](https://opencode.ai) to be installed (`opencode` on PATH): the `opencode-ai` package for 1.x, or `@opencode/cli` for 2.x within the range the server supports.
 
 ## Usage
 

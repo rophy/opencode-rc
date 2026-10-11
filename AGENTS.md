@@ -39,6 +39,9 @@ cd <submodule> && git fetch --tags && git checkout <new-tag>
 cd ../.. && git add <submodule> && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
+A 2.x bump updates these together: the `vendor/opencode-v2` tag, `config/opencode-versions.json`
+(the range the gateway accepts) and `OPENCODE_V2_VERSION` in `cli/Dockerfile` (the e2e tests read it).
+
 The Android app's language list (`ui/android/app/src/main/res/xml/locales_config.xml`, shown under
 Settings > App languages) is generated from opencode's UI languages. After a bump, regenerate it
 with `cd ui && bun build/locales-config.ts`; `ui/build/locales-config.test.ts` fails until you do.
@@ -92,7 +95,8 @@ Each 1.x feature has up to two parts, found by its name:
    the feature's requests on `/proxy/*`, or `null` when the feature only changes the UI. The guard
    is the enforcement; a UI patch alone can be bypassed by calling the API directly. 1.x sessions
    always require plain paths on write requests, so guards can match paths safely.
-4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`) and test both
+4. **e2e**: disable it in `e2e/rc-config.json` and `e2e/values.yaml` (`config:`), for 1.x and in the
+   `opencodeV2` features (2.x), and test both
    parts, as the `uploads disabled` tests do.
 5. **Docs**: describe it in the README's "Deployment Config" section.
 
@@ -184,6 +188,7 @@ The test environment deploys:
 - The Helm chart (api, ui, gateway, redis, oidc-mock) with `local` profile
 - An aimock service (mock AI backend)
 - A dev-machine pod (Playwright image with CLI + test runner)
+- A second dev-machine pod, `dev-machine-v2`, running opencode 2.x (`alice-dev-v2`)
 
 Tests run inside the dev-machine pod via `kubectl exec`.
 

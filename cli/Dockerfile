@@ -3,6 +3,8 @@ FROM mcr.microsoft.com/playwright:v1.52.0-noble
 # Pinned, checksum-verified downloads (no remote install scripts). opencode matches
 # the vendor/opencode-v1 tag the UI is built from. Bump versions and checksums together.
 # OPENCODE_MAJOR picks which opencode the image carries: 1 (the tarball) or 2 (the npm package).
+# Unlike the checksum-verified 1.x tarball, the 2.x path installs @opencode/cli from npm: it relies
+# on the npm registry's integrity checks and the package's own install step.
 ARG OPENCODE_MAJOR=1
 ARG TARGETARCH
 ARG KUBECTL_VERSION=v1.37.1
@@ -13,6 +15,9 @@ ARG OPENCODE_SHA256_AMD64=ea800b7ff56226b70952126c9fc1e2517ca4c4b5682fd9d3f9e874
 ARG OPENCODE_SHA256_ARM64=70baf769395ca4e7a68924026530c390eace194f3b7e4919d4efcb2aa2eed3c0
 # The 2.x release the gateway accepts (config/opencode-versions.json). Bump together with it.
 ARG OPENCODE_V2_VERSION=2.0.26
+# Kept in the environment (whichever opencode the image carries) so the e2e tests, which run in
+# the 1.x image, know which 2.x version the second dev machine runs.
+ENV OPENCODE_V2_VERSION=${OPENCODE_V2_VERSION}
 # -C - resumes a partial download on retry (GitHub release downloads can be slow).
 ARG CURL="curl -fsSL -C - --retry 10 --retry-all-errors --connect-timeout 20 --max-time 900"
 
