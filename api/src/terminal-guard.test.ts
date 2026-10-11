@@ -36,18 +36,20 @@ describe("canonicalPath", () => {
   it.each([
     ["/pty/1/connect", "/pty/1/connect"],
     ["/PTY", "/pty"],
-    ["/pty%2F1", "/pty/1"],
-    ["/pty%252F1", "/pty/1"],
     ["//pty//1", "/pty/1"],
-    ["/x/..%2Fpty", "/pty"],
+    ["/a/b/../c", "/a/c"],
     ["/%70ty", "/pty"],
     ["/api/session/abc", "/api/session/abc"],
-    ["/api/fs/read/a%20b.ts", "/api/fs/read/ab.ts"],
+    ["/api/fs/read/a%20b.ts", "/api/fs/read/a%20b.ts"],
   ])("%s -> %s", (input, expected) => {
     expect(canonicalPath(input)).toBe(expected);
   });
 
   // The forwarded raw path is parsed again by fetch / WebSocket, where these change the path.
+  it.each(["/x/%2f", "/x/%2F", "/x/%2e%2e", "/x/%25", "/x/%00", "/pty%2F1", "/pty%252F1", "/x/..%2Fpty"])("%s is null (encoded structural character)", (input) => {
+    expect(canonicalPath(input)).toBeNull();
+  });
+
   it.each(["/pty%3fx", "/pty%3bx", "/pty%23x", "/pty%5c1", "/pty;x/1", "/pty\\1", "/pty%09/1", "/pty\t/1", "/pty%00", "/pty%7f", "/pty%0a"])(
     "%s is null",
     (input) => {
@@ -65,6 +67,15 @@ describe("terminalGuard with ?, ; and \\ in the path", () => {
   app.all("/proxy/:sessionId/*", terminalGuard(), (c) => c.text("forwarded"));
   it.each(["/proxy/s/session%3b%5c..%5cpty%5cp%5cconnect", "/proxy/s/api/session%3f%5c..%5cpty%5cp%5cconnect"])("%s is refused", async (path) => {
     const res = await app.request(new Request(`http://localhost${path}`));
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("terminalGuard with a literal space before dot segments", () => {
+  const app = new Hono<ProxyEnv>();
+  app.all("/proxy/:sessionId/*", terminalGuard(), (c) => c.text("forwarded"));
+  it("refuses /pty/%20../.. (forwarded as /pty)", async () => {
+    const res = await app.request(new Request("http://localhost/proxy/s/pty/%20../.."));
     expect(res.status).toBe(403);
   });
 });

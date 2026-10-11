@@ -14,26 +14,27 @@ export function proxyRest(path: string, sessionId: string): string {
   return rest.startsWith("/") ? rest : `/${rest}`;
 }
 
-// How a path may be read by the hops after the API (see PLAIN_PATH in feature-guards.ts), for guards that must
-// match GET requests too, where paths are not required to be plain: fully percent-decoded,
-// spaces dropped, slashes collapsed, dot segments resolved, lower case.
-// The raw path is what gets forwarded, and fetch / WebSocket parse it again as a URL: there
-// '\' becomes '/', ';' '?' '#' end or split the path, control characters are dropped. Any
-// character that changes how that parse splits or resolves the path would make the guards
-// match a different path than the one forwarded, so such a path is rejected (null), not
-// normalized. null also when it cannot be decoded.
+// How a path is read by the hops after the API, for guards that must match GET requests too,
+// where paths are not required to be plain. The input is the path as the proxy forwards it
+// (proxyRest of Hono's c.req.path, already decoded once with decodeURI). fetch and WebSocket
+// parse it again as a URL without decoding more, and opencode's router decodes once, so the
+// guards decode exactly once too and never drop or resolve more than that parse does:
+// - a percent-encoded structural character (/ \ ? # ; . %) or control character is rejected
+//   (null): the hops after the API would not decode it the way a second decode here would;
+// - after the one decode, ? # ; \ and control characters are rejected (null) as well, since
+//   fetch / WebSocket would split or rewrite the path at them;
+// - then slashes are collapsed, literal dot segments resolved (new URL, which encodes spaces
+//   and the like as fetch does) and the result lower-cased.
+// null also when the path cannot be decoded.
 export function canonicalPath(path: string): string | null {
-  let p = path;
-  for (let i = 0; i < 5 && /%[0-9a-f]{2}/i.test(p); i++) {
-    try {
-      p = decodeURIComponent(p);
-    } catch {
-      return null;
-    }
+  if (/%(2f|5c|3f|23|3b|2e|25|[01][0-9a-f]|7f)/i.test(path)) return null;
+  let p: string;
+  try {
+    p = decodeURIComponent(path);
+  } catch {
+    return null;
   }
-  if (/%[0-9a-f]{2}/i.test(p)) return null;
   if (/[?#;\\\x00-\x1f\x7f]/.test(p)) return null;
-  p = p.replace(/ /g, "");
   p = `/${p}`.replace(/\/{2,}/g, "/");
   return new URL(p, "http://x").pathname.replace(/\/{2,}/g, "/").toLowerCase();
 }

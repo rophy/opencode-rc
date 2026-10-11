@@ -106,7 +106,7 @@ describe("v1Guards", () => {
     expect((await req("GET", "/API/Pty")).status).toBe(200);
   });
   it("rejects undecodable paths", async () => {
-    expect((await req("GET", "/api/%zz")).status).toBe(403);
+    expect((await req("GET", "/api/%zz")).status).toBe(400);
   });
   it("still applies the guards of disabled features", async () => {
     const cfg = parseConfig({ features: { terminal: { enabled: false } } });

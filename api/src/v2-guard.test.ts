@@ -162,6 +162,14 @@ describe("v2Guard", () => {
     await expectRejected(await raw(off, "/api/session%23x"));
   });
 
+  it("13: rejects paths that resolve differently once forwarded (space before .., encoded /)", async () => {
+    const raw = (app: Hono<ProxyEnv>, path: string) => app.request(new Request(`http://localhost/proxy/s${path}`));
+    const off = makeApp(cfg({ terminal: { enabled: false } }));
+    await expectRejected(await raw(off, "/api/pty/p/connect/%20../.."));
+    await expectRejected(await raw(off, "/api/pty/%20../.."));
+    await expectRejected(await raw(makeApp(), "/api/integration/i/connect/command/a/x%2f..%2f..%2f../.."));
+  });
+
   it("rejects a non-JSON body on a checked route", async () => {
     await expectRejected(await call(makeApp(), "PATCH", "/api/project/p", "not json"));
   });
