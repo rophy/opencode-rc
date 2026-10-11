@@ -99,8 +99,9 @@ per-user registry for the picker.
    `opencode v2.0.26` on 2.x.
 2. **v1 mode:** unchanged (`createOpencodeServer`, no password).
 3. **v2 mode:**
-   - Spawn `opencode serve --stdio --hostname 127.0.0.1` (port unset or 0; confirm the flag
-     parser accepts `--port 0`) with a random `OPENCODE_SERVER_PASSWORD`.
+   - Spawn `opencode serve --stdio --hostname 127.0.0.1 --port 0` with a random
+     `OPENCODE_PASSWORD` (2.x reads it before `OPENCODE_SERVER_PASSWORD`, which is removed from
+     the child's environment; stdio mode deletes both before running tools).
    - Read the `{"url": …}` line; stop the server by closing stdin.
    - The tunnel overwrites `Authorization` with `Basic base64("opencode:" + pw)` on every
      forwarded HTTP request and WebSocket upgrade, and strips any `auth_token` query parameter
