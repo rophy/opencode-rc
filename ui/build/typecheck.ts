@@ -1,5 +1,5 @@
 // Type-checks ui/src against opencode's real types: tsconfig maps @opencode-ai/app to the
-// submodule's source (installed with `cd vendor/opencode && bun install`), so tsc also checks
+// submodule's source (installed with `cd vendor/opencode-v1 && bun install`), so tsc also checks
 // the opencode files we import. Their errors are opencode's (it type-checks them with its own
 // setup); only errors in our files fail.
 //   bun build/typecheck.ts
@@ -18,5 +18,5 @@ if (tsc.status !== 0 && errors.length === 0 && vendor.length === 0) {
   process.exit(1)
 }
 for (const line of errors) console.error(line)
-console.log(`typecheck: ${errors.length} error(s) in ui, ${vendor.length} in vendor/opencode (ignored)`)
+console.log(`typecheck: ${errors.length} error(s) in ui, ${vendor.length} in vendor/opencode-v1 (ignored)`)
 process.exit(errors.length ? 1 : 0)

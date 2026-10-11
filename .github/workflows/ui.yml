@@ -6,14 +6,14 @@ on:
     paths:
       - 'ui/**'
       - 'config/**'
-      - 'vendor/opencode'
+      - 'vendor/opencode-v1'
       - 'vendor/patches/**'
       - '.github/workflows/ui.yml'
   pull_request:
     paths:
       - 'ui/**'
       - 'config/**'
-      - 'vendor/opencode'
+      - 'vendor/opencode-v1'
       - 'vendor/patches/**'
       - '.github/workflows/ui.yml'
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - run: cd vendor/opencode && bun install --frozen-lockfile
+      - run: cd vendor/opencode-v1 && bun install --frozen-lockfile
       - run: cd ui && bun install --frozen-lockfile && bun run typecheck && bun run test
 
   build:

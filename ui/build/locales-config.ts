@@ -8,7 +8,7 @@ import {
   DESKTOP_NATIVE_LOCALES,
   DESKTOP_NATIVE_LOCALE_TAGS,
   type DesktopNativeLocale,
-} from "../../vendor/opencode/packages/app/src/i18n/desktop-native"
+} from "../../vendor/opencode-v1/packages/app/src/i18n/desktop-native"
 
 export const LOCALES_CONFIG = fileURLToPath(new URL("../android/app/src/main/res/xml/locales_config.xml", import.meta.url))
 

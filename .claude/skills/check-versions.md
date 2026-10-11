@@ -13,11 +13,11 @@ Use this skill when determining which components need version bumps after code c
 | Component | Version source | Registry | CI workflow | Trigger paths |
 |-----------|---------------|----------|-------------|---------------|
 | **API** | `api/package.json` | ghcr.io docker image | `.github/workflows/api.yml` | `api/**` |
-| **UI** | `ui/package.json` | ghcr.io docker image | `.github/workflows/ui.yml` | `ui/**`, `vendor/opencode` |
+| **UI** | `ui/package.json` | ghcr.io docker image | `.github/workflows/ui.yml` | `ui/**`, `vendor/opencode-v1` |
 | **Gateway** | `gateway/VERSION` | ghcr.io docker image | `.github/workflows/gateway.yml` | `gateway/**` |
 | **Helm** | `charts/opencode-rc/Chart.yaml` | ghcr.io OCI chart | `.github/workflows/helm.yml` | `charts/**` |
 | **CLI** | `cli/package.json` | npm (`opencode-rc`) | `.github/workflows/cli.yml` | `cli/**` |
-| **iOS** | `ui/ios/App/App.xcodeproj/project.pbxproj` (MARKETING_VERSION-CURRENT_PROJECT_VERSION) | `releases/ios` branch + `ios/<ver>` git tag | `.github/workflows/ios.yml` | `ui/**`, `vendor/opencode` |
+| **iOS** | `ui/ios/App/App.xcodeproj/project.pbxproj` (MARKETING_VERSION-CURRENT_PROJECT_VERSION) | `releases/ios` branch + `ios/<ver>` git tag | `.github/workflows/ios.yml` | `ui/**`, `vendor/opencode-v1` |
 
 ## How CI publishing works
 

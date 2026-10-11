@@ -3,11 +3,11 @@ import { describe, it, expect } from "vitest"
 import fs from "node:fs"
 import { fileURLToPath } from "node:url"
 
-const desktopNative = fileURLToPath(new URL("../../vendor/opencode/packages/app/src/i18n/desktop-native.ts", import.meta.url))
+const desktopNative = fileURLToPath(new URL("../../vendor/opencode-v1/packages/app/src/i18n/desktop-native.ts", import.meta.url))
 
 describe.skipIf(!fs.existsSync(desktopNative))("Android locales_config.xml", async () => {
   const { DESKTOP_NATIVE_LOCALES, detectDesktopNativeLocale } = await import(
-    "../../vendor/opencode/packages/app/src/i18n/desktop-native"
+    "../../vendor/opencode-v1/packages/app/src/i18n/desktop-native"
   )
   const { LOCALES_CONFIG, androidTag, localesConfigXml } = await import("./locales-config")
 

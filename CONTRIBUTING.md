@@ -10,7 +10,7 @@ ui/             # SolidJS SPA — session picker + OpenCode web UI wrapper
 ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf, runtime config)
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
-vendor/opencode # Git submodule — upstream OpenCode source (build dependency for ui/)
+vendor/opencode-v1 # Git submodule — upstream OpenCode source (build dependency for ui/)
 ```
 
 ## Prerequisites
@@ -44,7 +44,7 @@ cd gateway && go build -o opencode-rc .
 ### Web UI
 
 ```bash
-cd vendor/opencode && bun install
+cd vendor/opencode-v1 && bun install
 cd ../../ui && bun install && bun run build
 ```
 
@@ -106,12 +106,12 @@ helm unittest charts/opencode-rc
 
 ## Git Submodule
 
-`vendor/opencode` tracks upstream OpenCode, pinned to a release tag.
+`vendor/opencode-v1` tracks upstream OpenCode, pinned to a release tag.
 
 ```bash
 # Bump opencode version
-cd vendor/opencode && git fetch --tags && git checkout <new-tag>
-cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
+cd vendor/opencode-v1 && git fetch --tags && git checkout <new-tag>
+cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
 ## Gateway Environment Variables
@@ -161,7 +161,7 @@ Each component is versioned independently. Only bump what changed.
 The API and UI are separate images with independent versions. When bumping, update every location that references the changed version:
 
 - **API code changed** (`api/**`) → bump `api/package.json`, update `api.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
-- **UI code changed** (`ui/**`, `vendor/opencode`) → bump `ui/package.json`, update `ui.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`. The iOS and Android builds also consume `ui/dist`, so a UI change may need a mobile release too
+- **UI code changed** (`ui/**`, `vendor/opencode-v1`) → bump `ui/package.json`, update `ui.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`. The iOS and Android builds also consume `ui/dist`, so a UI change may need a mobile release too
 - **Gateway code changed** → bump `gateway/VERSION`, update `gateway.image.tag` in `values.yaml`, bump chart version in `Chart.yaml`
 - **Chart-only change** (no image rebuild) → bump chart version in `Chart.yaml`, image tags stay as-is
 - **CLI code changed** → bump `cli/package.json`

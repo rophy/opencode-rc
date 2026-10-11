@@ -16,14 +16,14 @@ ui/web/         # nginx image packaging for ui/dist (Dockerfile, nginx.conf)
 config/         # config.json schema shared by the UI build and the API
 e2e/            # Kind + Skaffold e2e test environment
 charts/         # Helm chart for Kubernetes deployment
-vendor/opencode # Git submodule — upstream opencode source (build dependency for ui/)
-vendor/patches  # Our patches to vendor/opencode, applied by the UI build per disabled feature
+vendor/opencode-v1 # Git submodule — upstream opencode source (build dependency for ui/)
+vendor/patches  # Our patches to vendor/opencode-v1, applied by the UI build per disabled feature
 docs/           # Design docs
 ```
 
 ## Git Submodule
 
-`vendor/opencode` is a git submodule tracking upstream opencode, pinned to a release tag.
+`vendor/opencode-v1` is a git submodule tracking upstream opencode 1.x, pinned to a release tag; 2.x support (a second submodule) is in progress.
 
 ```bash
 # Clone with submodule
@@ -33,8 +33,8 @@ git clone --recurse-submodules <repo-url>
 git submodule update --init --recursive
 
 # Bump opencode version
-cd vendor/opencode && git fetch --tags && git checkout <new-tag>
-cd ../.. && git add vendor/opencode && git commit -m "chore: bump opencode to <new-tag>"
+cd vendor/opencode-v1 && git fetch --tags && git checkout <new-tag>
+cd ../.. && git add vendor/opencode-v1 && git commit -m "chore: bump opencode to <new-tag>"
 ```
 
 The Android app's language list (`ui/android/app/src/main/res/xml/locales_config.xml`, shown under
@@ -44,14 +44,14 @@ with `cd ui && bun build/locales-config.ts`; `ui/build/locales-config.test.ts` f
 ### Patches (`vendor/patches/`)
 
 Our changes to upstream opencode live in `vendor/patches/<feature>/*.patch`: plain `git diff`
-output, paths relative to `vendor/opencode`. The submodule itself is never edited. The UI build
+output, paths relative to `vendor/opencode-v1`. The submodule itself is never edited. The UI build
 applies a feature's patches in memory (`ui/build/vendor-patches.ts`) when the deployment's
 config.json disables that feature (e.g. `vendor/patches/uploads/` for `features.uploads`).
 Patches apply with no fuzz; one that no longer applies fails the build.
 
 ```bash
 # Change a patch: apply it, edit the files, write it back, reset the submodule
-cd vendor/opencode
+cd vendor/opencode-v1
 git apply ../patches/uploads/composer-v1.patch
 # ...edit packages/app/src/components/prompt-input.tsx...
 git diff -- packages/app/src/components/prompt-input.tsx packages/app/src/components/prompt-input/attachments.ts > ../patches/uploads/composer-v1.patch
@@ -84,7 +84,7 @@ Each feature has up to two parts, found by its name:
 
 ## Package Managers
 
-- `api/`, `ui/`, `vendor/opencode` — **bun** (`bun.lock`)
+- `api/`, `ui/`, `vendor/opencode-v1` — **bun** (`bun.lock`)
 - `cli/` — **npm** (`package-lock.json`)
 
 Do not mix them: don't run `bun install` in `cli/` or `npm install` in `api/`/`ui/`.
@@ -97,7 +97,7 @@ The UI uses a custom Vite resolve plugin to compile against opencode source in t
 
 ```bash
 # Install deps in submodule (one-time after clone)
-cd vendor/opencode && bun install
+cd vendor/opencode-v1 && bun install
 
 # Build the UI
 cd ui && bun install && bun run build

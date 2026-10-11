@@ -4,14 +4,14 @@ import { applyPatch, parsePatch, type StructuredPatch } from "diff"
 import type { Plugin } from "vite"
 
 export interface FilePatch {
-  /** Relative to the opencode root (vendor/opencode). */
+  /** Relative to the opencode root (vendor/opencode-v1). */
   file: string
   patch: StructuredPatch
   /** The .patch file it came from, for error messages. */
   source: string
 }
 
-// Reads the .patch files in dir (git diff output, paths relative to vendor/opencode), in
+// Reads the .patch files in dir (git diff output, paths relative to vendor/opencode-v1), in
 // name order. Only edits of existing files are supported.
 export function readPatches(dir: string): FilePatch[] {
   const out: FilePatch[] = []

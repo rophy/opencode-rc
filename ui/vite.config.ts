@@ -9,7 +9,7 @@ import { featurePatches, vendorPatches } from "./build/vendor-patches"
 
 // The sibling opencode repo provides all @opencode-ai/* packages and their
 // npm dependencies. In CI, clone it as a build step.
-const opencodeRoot = process.env.OPENCODE_ROOT || path.resolve(__dirname, "../vendor/opencode")
+const opencodeRoot = process.env.OPENCODE_ROOT || path.resolve(__dirname, "../vendor/opencode-v1")
 const opencodePackages = path.join(opencodeRoot, "packages")
 const appNodeModules = path.join(opencodePackages, "app/node_modules")
 

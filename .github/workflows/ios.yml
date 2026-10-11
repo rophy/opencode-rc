@@ -6,7 +6,7 @@ on:
     paths:
       - 'ui/**'
       - 'config/**'
-      - 'vendor/opencode'
+      - 'vendor/opencode-v1'
       - 'vendor/patches/**'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
@@ -56,7 +56,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - name: Install submodule deps
-        run: cd vendor/opencode && bun install --frozen-lockfile
+        run: cd vendor/opencode-v1 && bun install --frozen-lockfile
 
       - name: Build SPA
         run: cd ui && bun install --frozen-lockfile && bun run build

@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.52.0-noble
 
 # Pinned, checksum-verified downloads (no remote install scripts). opencode matches
-# the vendor/opencode tag the UI is built from. Bump versions and checksums together.
+# the vendor/opencode-v1 tag the UI is built from. Bump versions and checksums together.
 ARG TARGETARCH
 ARG KUBECTL_VERSION=v1.37.1
 ARG KUBECTL_SHA256_AMD64=65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8

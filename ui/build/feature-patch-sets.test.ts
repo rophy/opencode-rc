@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import { FEATURES } from "../../config/schema"
 import { applyPatches, featurePatches, readPatches } from "./vendor-patches"
 
-const opencode = fileURLToPath(new URL("../../vendor/opencode", import.meta.url))
+const opencode = fileURLToPath(new URL("../../vendor/opencode-v1", import.meta.url))
 const patchesRoot = fileURLToPath(new URL("../../vendor/patches", import.meta.url))
 const patched = (feature: string, file: string) =>
   applyPatches(fs.readFileSync(path.join(opencode, file), "utf8"), file, readPatches(path.join(patchesRoot, feature)))
