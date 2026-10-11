@@ -119,7 +119,7 @@ describe("terminal, shell commands and sharing disabled", () => {
     const config = JSON.parse(original);
     const off = { enabled: false };
     const features = { ...config.features, terminal: off, shell: off, share: off };
-    const opencodeV2 = { ...config.opencodeV2, features: { ...config.opencodeV2?.features, terminal: off } };
+    const opencodeV2 = { ...config.opencodeV2, features: { ...config.opencodeV2?.features, terminal: off, shell: off } };
     await redeployApi(JSON.stringify({ ...config, features, opencodeV2 }), jar, 403);
   }, 300_000);
 
@@ -168,6 +168,44 @@ describe("terminal, shell commands and sharing disabled", () => {
     expect(share.status).toBe(403);
     expect(await share.text()).toBe("sharing is disabled");
   });
+
+  // opencode runs !`cmd` in a command's text after adding the arguments to the template; the
+  // built-in init command exists on both machines.
+  it("refuses shell interpolation in command arguments", async () => {
+    const json = { "content-type": "application/json" };
+    const session = await (await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session`, { method: "POST", headers: json, body: "{}" })).json();
+    const command = (args: string) =>
+      jar.fetch(`${API_URL}/proxy/${SESSION_ID}/session/${session.id}/command`, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ command: "init", arguments: args, parts: [] }),
+      });
+    const refused = await command("!`echo pwned`");
+    expect(refused.status).toBe(403);
+    expect(await refused.text()).toBe("shell commands are disabled");
+    // Positive control: without !` the guard forwards it (opencode runs init against the mock AI).
+    expect((await command("wow!")).status).not.toBe(403);
+  }, 60_000);
+
+  it("refuses shell interpolation in command text on the opencode 2.x machine", async () => {
+    const json = { "content-type": "application/json" };
+    const created = await jar.fetch(`${API_URL}/proxy/${SESSION_ID_V2}/api/session`, { method: "POST", headers: json, body: "{}" });
+    expect(created.status).toBe(200);
+    const id = (await created.json()).data.id;
+    const command = (text: string) =>
+      jar.fetch(`${API_URL}/proxy/${SESSION_ID_V2}/api/session/${id}/command`, {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ name: "init", text }),
+      });
+    const refused = await command("!`echo pwned`");
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ _tag: "FeatureDisabled", message: "shell commands are disabled" });
+    // Positive control: without !` the guard forwards it; a guard refusal would be a FeatureDisabled 400.
+    const passed = await command("wow!");
+    const body = await passed.text();
+    expect(body).not.toContain("FeatureDisabled");
+  }, 60_000);
 
   it("still serves the rest of the session", async () => {
     expect((await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/api/health`)).status).toBe(200);
