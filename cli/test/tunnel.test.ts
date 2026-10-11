@@ -569,6 +569,29 @@ describe("startTunnel", () => {
     });
   });
 
+  it("omits opencodeVersion when the version is unknown", async () => {
+    await withServer(async (wss, port) => {
+      const requestUrl = new Promise<string>((resolve) => {
+        wss.once("connection", (_ws, req) => resolve(req.url ?? ""));
+      });
+
+      const handle = await startTunnel(
+        makeConfig(port),
+        "test-token",
+        "sess1",
+        "http://localhost:9999",
+        "/my/project",
+        ""
+      );
+
+      const url = await requestUrl;
+      expect(url).toContain("sessionId=sess1");
+      expect(url).not.toContain("opencodeVersion");
+
+      handle.close();
+    });
+  });
+
   it("proxies incoming request frames back through the tunnel", async () => {
     const localServer: Server = createServer((_req, res) => {
       res.writeHead(200, { "content-type": "text/plain" });

@@ -82,7 +82,7 @@ func LoadConfig() (*Config, error) {
 
 	versionsFile, versionsExplicit := os.LookupEnv("OPENCODE_VERSIONS_FILE")
 	if versionsFile == "" {
-		versionsFile = "/etc/opencode-rc/opencode-versions.json"
+		versionsFile = "/usr/share/opencode-rc/opencode-versions.json"
 		versionsExplicit = false
 	}
 

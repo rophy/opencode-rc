@@ -23,7 +23,9 @@ between them.
   checked.
 - The gateway checks `/tunnel` before authentication: `426` JSON for a versioned but
   outdated CLI, and a plain-text `403` for CLIs that send no header (older CLIs print
-  that body).
+  that body). It also answers `422 {"error":"opencode_unsupported","message":...}` when the
+  CLI reports an opencode version the deployment does not support; the CLI prints the
+  message and exits.
 - The UI shows a full-screen message: update the app, reload the page, or ask the
   administrator to upgrade the server. The CLI prints the matching message and exits.
 - Clients treat a missing or too-low server header as "server outdated" only for

@@ -3,7 +3,7 @@
 
 import { loadConfig } from "./config.js";
 import { authorizationCodeAuth } from "./oidc.js";
-import { detectOpencodeVersion } from "./opencode-version.js";
+import { classifyOpencodeVersion, detectOpencodeVersion } from "./opencode-version.js";
 import { startServer } from "./server.js";
 import { startTunnelWithReconnect } from "./tunnel.js";
 import { ProtocolError } from "./protocol.js";
@@ -17,6 +17,33 @@ function generateSessionID(): string {
 async function main() {
   const config = await loadConfig();
 
+  // Check opencode first, so a missing or unsupported opencode is reported before signing in.
+  let output: string;
+  try {
+    output = detectOpencodeVersion();
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
+  const check = classifyOpencodeVersion(output);
+  let opencodeVersion = "";
+  if (check.kind === "needs-newer-cli") {
+    console.error(
+      `opencode 2.x needs a newer opencode-rc (found opencode ${check.version}). Use opencode 1.x for now.`,
+    );
+    process.exit(1);
+  } else if (check.kind === "unsupported") {
+    console.error(`opencode ${check.version} is not supported. opencode-rc supports opencode 1.x.`);
+    process.exit(1);
+  } else if (check.kind === "unknown") {
+    console.error(
+      `Warning: could not determine a supported opencode release from "${output.trim()}"; continuing as opencode 1.x.`,
+    );
+  } else {
+    opencodeVersion = check.version;
+    console.log(`opencode ${opencodeVersion}`);
+  }
+
   let idToken: string;
   if (process.env.OPENCODE_RC_TOKEN) {
     idToken = process.env.OPENCODE_RC_TOKEN;
@@ -27,24 +54,6 @@ async function main() {
     idToken = auth.idToken;
     console.log("Authenticated successfully.\n");
   }
-
-  let opencodeVersion: string;
-  try {
-    opencodeVersion = detectOpencodeVersion();
-  } catch (err) {
-    console.error((err as Error).message);
-    process.exit(1);
-  }
-  const major = Number(opencodeVersion.split(".")[0]);
-  if (major !== 1) {
-    console.error(
-      major === 2
-        ? `opencode 2.x needs a newer opencode-rc (found opencode ${opencodeVersion}). Use opencode 1.x for now.`
-        : `opencode ${opencodeVersion} is not supported. opencode-rc supports opencode 1.x.`,
-    );
-    process.exit(1);
-  }
-  console.log(`opencode ${opencodeVersion}`);
 
   const server = await startServer();
 

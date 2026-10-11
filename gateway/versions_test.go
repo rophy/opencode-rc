@@ -90,3 +90,9 @@ func TestLoadVersionPolicyForMissingFile(t *testing.T) {
 		t.Error("explicit missing file must be an error")
 	}
 }
+
+func TestRepoVersionsFileLoads(t *testing.T) {
+	if _, err := LoadVersionPolicy("../config/opencode-versions.json"); err != nil {
+		t.Fatalf("config/opencode-versions.json: %v", err)
+	}
+}

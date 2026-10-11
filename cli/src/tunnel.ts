@@ -323,7 +323,7 @@ export async function startTunnel(
   const baseUrl = config.gatewayUrl.replace(/\/$/, "");
   const tunnelPath =
     `/tunnel?sessionId=${encodeURIComponent(sessionID)}&directory=${encodeURIComponent(directory)}` +
-    `&opencodeVersion=${encodeURIComponent(opencodeVersion)}`;
+    (opencodeVersion ? `&opencodeVersion=${encodeURIComponent(opencodeVersion)}` : "");
 
   // Pre-flight: plain HTTP request to surface auth/network errors
   // before the opaque WebSocket upgrade failure.

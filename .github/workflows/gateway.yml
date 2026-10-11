@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'gateway/**'
+      - 'config/opencode-versions.json'
       - '.github/workflows/gateway.yml'
   pull_request:
     paths:
       - 'gateway/**'
+      - 'config/opencode-versions.json'
       - '.github/workflows/gateway.yml'
   workflow_dispatch:
 

@@ -175,7 +175,7 @@ func setupGateway(ctx context.Context, cfg *Config) (http.Handler, error) {
 }
 
 // loadVersionPolicyFor loads the policy file. A missing default file (a locally built binary)
-// means no 2.x support; a missing file named by OPENCODE_VERSIONS_FILE is an error.
+// means no 2.x support (1.x stays supported); a missing file named by OPENCODE_VERSIONS_FILE is an error.
 func loadVersionPolicyFor(cfg *Config) (VersionPolicy, error) {
 	p, err := LoadVersionPolicy(cfg.OpencodeVersionsFile)
 	if err != nil && !cfg.OpencodeVersionsExplicit && errors.Is(err, fs.ErrNotExist) {
