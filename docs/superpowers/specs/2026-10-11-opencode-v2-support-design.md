@@ -233,7 +233,9 @@ deployment states which 2.x features it disables (the README must say so).
 
 ### Mobile
 
-Both builds are bundled; the WebView routes the same way as the web UI. Estimated APK sizes
+Both builds are bundled. Capacitor's local server answers every path without a file extension
+with the root `index.html` (Android `WebViewLocalServer`, iOS `CapacitorRouter`), so `/v2/s/<id>/`
+would load the 1.x build: the apps need their own routing to `/v2/index.html` (step 6). Estimated APK sizes
 (compressed `dist` swapped into today's 18.5 MB debug APK, not built):
 
 | Contents | APK |
@@ -262,6 +264,11 @@ tested version; max exclusive).
   rejects routes it does not list.
 
 ### Testing
+
+Checks carried from step 4 into steps 5 and 6: switching one browser between a 1.x and a 2.x
+session and back (both opencode apps use the same localStorage keys; 2.x reads 1.x data, the
+reverse is unverified), the 2.x upload path through the XHR shim and the gateway's `fs/write`
+check against a real 2.x server, and the redirect between builds.
 
 - Unit: v2 guard set (allowlist, each feature rule, unknown-version fallback), CLI version
   parsing and v2 launch (start line, password, header injection, `auth_token` strip), XHR wrapper.
