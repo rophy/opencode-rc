@@ -118,7 +118,9 @@ describe("terminal, shell commands and sharing disabled", () => {
     original = kubectl(["get", "configmap", CONFIG_MAP, "-o", "jsonpath={.data.config\\.json}"]);
     const config = JSON.parse(original);
     const off = { enabled: false };
-    const features = { ...config.features, terminal: off, shell: off, share: off };
+    // config is enabled here (values.yaml disables it) so the share and response checks below
+    // reach the share guard and opencode rather than the config guard.
+    const features = { ...config.features, terminal: off, shell: off, share: off, config: { enabled: true } };
     const opencodeV2 = { ...config.opencodeV2, features: { ...config.opencodeV2?.features, terminal: off, shell: off } };
     await redeployApi(JSON.stringify({ ...config, features, opencodeV2 }), jar, 403);
   }, 300_000);
@@ -224,6 +226,28 @@ describe("terminal, shell commands and sharing disabled", () => {
     });
     expect(config.status).toBe(403);
     expect(await config.text()).toBe("shell commands are disabled");
+  });
+
+  it("refuses config that shares every new session while config changes are enabled", async () => {
+    const res = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ share: "auto" }),
+    });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("sharing is disabled");
+  });
+
+  // PATCH /global/config returns the whole global config file; {} changes nothing.
+  it("returns the global config without provider options after an update", async () => {
+    const res = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/global/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(200);
+    const config = (await res.json()) as { provider?: Record<string, Record<string, unknown>> };
+    expect(Object.values(config.provider ?? {}).some((p) => "options" in p)).toBe(false);
   });
 
   it("still serves the rest of the session", async () => {

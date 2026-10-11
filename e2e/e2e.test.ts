@@ -775,6 +775,7 @@ describe("downloads disabled", () => {
       body: JSON.stringify({ username: `{file:${file}}` }),
     });
     expect(res.status).toBe(403);
+    // config is disabled too; downloads answers first because it comes before config in FEATURES.
     expect(await res.text()).toBe("file downloads are disabled");
     const after = await jar.fetch(proxy("/global/config"));
     expect(after.status).toBe(200);

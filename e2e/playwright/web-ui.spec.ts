@@ -304,6 +304,8 @@ test.describe("config disabled", () => {
     // Positive control: the settings dialog opens.
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: 10_000 });
+    // Positive control: the General tab shows the row next to the shell setting (both layouts).
+    await expect(dialog.getByText("Show reasoning summaries", { exact: true })).toBeVisible({ timeout: 10_000 });
     await expect(dialog.getByText("Terminal shell")).toHaveCount(0);
     await dialog.getByText("Providers", { exact: true }).first().click();
     // Positive control: providers can still be connected.
