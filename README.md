@@ -195,6 +195,12 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 - `features.uploads.enabled: false` removes image and file attachments from the UI (pasted,
   dropped or picked files and project icons) and makes the API reject them with `403`. `@`
   references to workspace files keep working; pasting into the terminal is not covered.
+- `features.downloads.enabled: false` stops file contents from leaving the dev machine through
+  opencode-rc: the UI loses the file viewer, opening files (`mod+p`, `/open`), file results in
+  the command palette and the diff's "view file", and the API rejects reading a file or text
+  search (`/find`) with `403`. Chat, diffs, `@` mentions, file listing and name search keep
+  working. It cannot stop the AI from printing a file into the chat. With `uploads` also
+  disabled, nothing but chat text and diff hunks is transferred to or from the machine.
 - `features.terminal.enabled: false` removes the terminal panel (a shell on the developer's
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
@@ -233,9 +239,11 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 }
 ```
 
-- `opencodeV2.features` has `uploads`, `terminal`, `shell` and `export`, with the same meaning as
+- `opencodeV2.features` has `uploads`, `downloads`, `terminal`, `shell` and `export`, with the same meaning as
   above. They are **enabled unless set to `false`**, so a deployment that disables features for
   1.x must disable them here too. `share` is not a 2.x toggle.
+- On 2.x, `downloads` also stops chat links to file paths and images loaded from disk, and the
+  API rejects reading a file with `400`; the directory picker still works.
 - `opencodeV2.versions` (`min` inclusive, `max` exclusive) can only narrow the supported range
   in `config/opencode-versions.json`; other 2.x versions are refused.
 - On 2.x the API only forwards the routes in an allowlist and always blocks some, such as
