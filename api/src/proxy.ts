@@ -7,7 +7,12 @@ import type { AccessWatch } from "./authz.js";
 type ServerEnv = { Bindings: { timeout?: (request: Request, seconds: number) => void } | undefined };
 
 // body: set by the guards that read the request body to check it (request-body.ts).
-export type ProxyEnv = AuthEnv & ServerEnv & { Variables: { session: SessionMeta; body: ArrayBuffer | undefined } };
+// rewriteJson: set by a guard to rewrite a JSON 2xx response before it goes to the browser
+// (provider-secrets.ts).
+export type ProxyEnv = AuthEnv &
+  ServerEnv & {
+    Variables: { session: SessionMeta; body: ArrayBuffer | undefined; rewriteJson: ((json: unknown) => unknown) | undefined };
+  };
 
 export function proxyRest(path: string, sessionId: string): string {
   const rest = path.slice(`/proxy/${sessionId}`.length).replace(/\/{2,}/g, "/");
@@ -92,6 +97,11 @@ export function proxyHttp(): Handler<ProxyEnv> {
     headers.delete("host");
     // The browser origin (e.g. capacitor://localhost) means nothing to opencode's own CORS check.
     headers.delete("origin");
+    const rewrite = c.get("rewriteJson");
+    // A rewritten response is read whole, so ask for it uncompressed. fetch decodes a
+    // compressed body anyway but keeps content-encoding and content-length; rewriteResponse
+    // drops both.
+    if (rewrite) headers.set("accept-encoding", "identity");
 
     const upstream = await fetch(url, {
       method: c.req.method,
@@ -105,6 +115,10 @@ export function proxyHttp(): Handler<ProxyEnv> {
     for (const name of [...out.keys()]) {
       if (name.startsWith("access-control-")) out.delete(name);
     }
+    if (rewrite) {
+      const rewritten = await rewriteResponse(upstream, out, rewrite);
+      if (rewritten) return rewritten;
+    }
     let body: ReadableStream<Uint8Array> | null = upstream.body;
     if (out.get("content-type")?.startsWith("text/event-stream")) {
       // Bun closes connections idle for 10s, which would cut SSE streams between heartbeats.
@@ -114,6 +128,28 @@ export function proxyHttp(): Handler<ProxyEnv> {
     }
     return new Response(body, { status: upstream.status, headers: out });
   };
+}
+
+// The upstream response with its JSON body rewritten, for a 2xx JSON response; null for any
+// other response, which the caller streams as is. A JSON body that cannot be parsed gets a 502:
+// passing it on would skip the rewrite.
+export async function rewriteResponse(
+  upstream: Response,
+  headers: Headers,
+  rewrite: (json: unknown) => unknown,
+): Promise<Response | null> {
+  const type = headers.get("content-type")?.toLowerCase() ?? "";
+  if (upstream.status < 200 || upstream.status > 299 || !/^application\/([\w.+-]*\+)?json\b/.test(type)) return null;
+  const bytes = await upstream.arrayBuffer();
+  headers.delete("content-encoding");
+  headers.delete("content-length");
+  let text: string;
+  try {
+    text = JSON.stringify(rewrite(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes))));
+  } catch {
+    return new Response("invalid JSON from opencode", { status: 502 });
+  }
+  return new Response(text, { status: upstream.status, headers });
 }
 
 // The event stream, ended when a re-check of the user's access denies. The client then
