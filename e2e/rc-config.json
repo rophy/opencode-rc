@@ -4,13 +4,15 @@
     "uploads": { "enabled": false },
     "downloads": { "enabled": false },
     "terminal": { "enabled": false },
-    "config": { "enabled": false }
+    "config": { "enabled": false },
+    "mcp": { "enabled": false }
   },
   "opencodeV2": {
     "features": {
       "uploads": { "enabled": false },
       "downloads": { "enabled": false },
-      "terminal": { "enabled": false }
+      "terminal": { "enabled": false },
+      "mcp": { "enabled": false }
     }
   }
 }

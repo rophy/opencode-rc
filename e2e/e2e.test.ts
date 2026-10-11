@@ -823,3 +823,39 @@ describe("config disabled", () => {
     expect((await jar.fetch(proxy("/config"))).status).toBe(200);
   });
 });
+
+describe("mcp disabled", () => {
+  let jar: TokenSession;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+  });
+
+  it("refuses connecting an MCP server", async () => {
+    const res = await jar.fetch(proxy("/mcp/docs/connect"), { method: "POST" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("MCP changes are disabled");
+  });
+
+  it("still lists MCP servers", async () => {
+    expect((await jar.fetch(proxy("/mcp"))).status).toBe(200);
+  });
+});
+
+describe("1.x routes refused whatever the toggles", () => {
+  let jar: TokenSession;
+  const proxy = (path: string) => `${API_URL}/proxy/${SESSION_ID}${path}`;
+
+  beforeAll(async () => {
+    await waitFor("api", `${API_URL}/healthz`, 30);
+    jar = await loginAs("user1");
+  });
+
+  it.each(["/vcs/apply", "/tui/show-toast"])("refuses POST %s", async (path) => {
+    const res = await jar.fetch(proxy(path), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("this opencode route is not available through opencode-rc");
+  });
+});

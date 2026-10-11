@@ -89,6 +89,12 @@ describe("opencode 2.x dev machine", () => {
       await featureDisabled(await jar.fetch(`${V2}/auth/connect/x`));
     });
 
+    it("refuses the credential list (it returns secrets)", async () => {
+      const res = await jar.fetch(`${V2}/api/credential`);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "this opencode feature is not available through opencode-rc" });
+    });
+
     it("refuses /auth/connect on a 1.x session", async () => {
       const res = await jar.fetch(`${API_URL}/proxy/${SESSION_ID}/auth/connect/x`);
       expect(res.status).toBe(403);
@@ -183,6 +189,20 @@ describe("opencode 2.x dev machine", () => {
       });
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "file downloads are disabled" });
+    });
+  });
+
+  describe("mcp disabled", () => {
+    it("refuses connecting an MCP server", async () => {
+      await getInfo();
+      const res = await jar.fetch(`${V2}/api/experimental/mcp/docs/connect`, { method: "POST", headers: JSON_HEADERS, body: "{}" });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ _tag: "FeatureDisabled", message: "MCP changes are disabled" });
+    });
+
+    it("still lists MCP servers", async () => {
+      await getInfo();
+      expect((await jar.fetch(`${V2}/api/mcp`)).status).toBe(200);
     });
   });
 
