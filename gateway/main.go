@@ -180,9 +180,12 @@ func loadVersionPolicyFor(cfg *Config) (VersionPolicy, error) {
 	p, err := LoadVersionPolicy(cfg.OpencodeVersionsFile)
 	if err != nil && !cfg.OpencodeVersionsExplicit && errors.Is(err, fs.ErrNotExist) {
 		slog.Warn("opencode versions file not found, supporting opencode 1.x only", "path", cfg.OpencodeVersionsFile)
-		return VersionPolicy{}, nil
+		p, err = VersionPolicy{}, nil
 	}
-	return p, err
+	if err != nil || cfg.DeploymentConfigFile == "" {
+		return p, err
+	}
+	return NarrowVersionPolicy(p, cfg.DeploymentConfigFile)
 }
 
 func runGateway() error {

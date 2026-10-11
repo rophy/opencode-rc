@@ -27,6 +27,8 @@ type Config struct {
 	OpencodeVersionsFile      string
 	// OpencodeVersionsExplicit is true when OPENCODE_VERSIONS_FILE was set.
 	OpencodeVersionsExplicit bool
+	// DeploymentConfigFile is OPENCODE_RC_CONFIG, the deployment's config.json (optional).
+	DeploymentConfigFile string
 	// Versions is the loaded policy; runGateway fills it from OpencodeVersionsFile.
 	Versions VersionPolicy
 }
@@ -104,5 +106,6 @@ func LoadConfig() (*Config, error) {
 		TLSInsecureSkipVerify:     tlsInsecure,
 		OpencodeVersionsFile:      versionsFile,
 		OpencodeVersionsExplicit:  versionsExplicit,
+		DeploymentConfigFile:      os.Getenv("OPENCODE_RC_CONFIG"),
 	}, nil
 }

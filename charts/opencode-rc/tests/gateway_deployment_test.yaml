@@ -289,3 +289,58 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: OIDC_USER_CLAIM, value: oid}
+
+  - it: mounts the deployment config and points the gateway at it when config is set
+    set:
+      config:
+        opencodeV2:
+          versions:
+            min: "2.0.26"
+            max: "2.0.27"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENCODE_RC_CONFIG
+            value: /etc/opencode-rc/config.json
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /etc/opencode-rc
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-opencode-rc-api-config
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: has no config env or mount when config is unset
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENCODE_RC_CONFIG
+            value: /etc/opencode-rc/config.json
+      - isNull:
+          path: spec.template.spec.containers[0].volumeMounts
+      - isNull:
+          path: spec.template.spec.volumes
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  - it: keeps extra CA certs alongside the config
+    set:
+      extraCACerts: "x"
+      config:
+        features: {}
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+      - lengthEqual:
+          path: spec.template.spec.containers[0].volumeMounts
+          count: 2

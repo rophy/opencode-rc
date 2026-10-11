@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
@@ -101,4 +102,59 @@ func LoadVersionPolicy(path string) (VersionPolicy, error) {
 		return VersionPolicy{}, fmt.Errorf("%s: v2.min must be lower than v2.max", path)
 	}
 	return VersionPolicy{V2: &VersionRange{Min: min, Max: max}}, nil
+}
+
+// NarrowVersionPolicy intersects the default 2.x range with opencodeV2.versions from the
+// deployment config.json. A deployment can only narrow the defaults: a range reaching outside
+// them is clamped, and an empty overlap (or no default range) leaves no 2.x support. Other keys
+// are ignored here; the API validates the whole file.
+func NarrowVersionPolicy(p VersionPolicy, deploymentConfigPath string) (VersionPolicy, error) {
+	data, err := os.ReadFile(deploymentConfigPath)
+	if err != nil {
+		return VersionPolicy{}, fmt.Errorf("deployment config: %w", err)
+	}
+	var raw struct {
+		OpencodeV2 *struct {
+			Versions *struct {
+				Min string `json:"min"`
+				Max string `json:"max"`
+			} `json:"versions"`
+		} `json:"opencodeV2"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return VersionPolicy{}, fmt.Errorf("%s: %w", deploymentConfigPath, err)
+	}
+	if raw.OpencodeV2 == nil || raw.OpencodeV2.Versions == nil {
+		return p, nil
+	}
+	min, okMin := ParseVersion(raw.OpencodeV2.Versions.Min)
+	max, okMax := ParseVersion(raw.OpencodeV2.Versions.Max)
+	if !okMin || !okMax {
+		return VersionPolicy{}, fmt.Errorf("%s: opencodeV2.versions.min and max must be MAJOR.MINOR.PATCH versions", deploymentConfigPath)
+	}
+	if !min.Less(max) {
+		return VersionPolicy{}, fmt.Errorf("%s: opencodeV2.versions.min must be lower than max", deploymentConfigPath)
+	}
+	if p.V2 == nil {
+		slog.Warn("deployment sets opencodeV2.versions but this server supports no opencode 2.x", "deployment", fmt.Sprintf(">=%s <%s", min, max))
+		return VersionPolicy{}, nil
+	}
+	def := *p.V2
+	out := def
+	if def.Min.Less(min) {
+		out.Min = min
+	}
+	if max.Less(def.Max) {
+		out.Max = max
+	}
+	if min.Less(def.Min) || def.Max.Less(max) {
+		slog.Warn("deployment opencodeV2.versions reaches outside the supported range, clamping",
+			"deployment", fmt.Sprintf(">=%s <%s", min, max), "supported", fmt.Sprintf(">=%s <%s", def.Min, def.Max))
+	}
+	if !out.Min.Less(out.Max) {
+		slog.Warn("deployment opencodeV2.versions does not overlap the supported range, opencode 2.x disabled",
+			"deployment", fmt.Sprintf(">=%s <%s", min, max), "supported", fmt.Sprintf(">=%s <%s", def.Min, def.Max))
+		return VersionPolicy{}, nil
+	}
+	return VersionPolicy{V2: &out}, nil
 }

@@ -19,9 +19,15 @@ spec:
         {{- with .Values.gateway.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.gateway.podAnnotations }}
+      {{- if or .Values.gateway.podAnnotations .Values.config }}
       annotations:
+        {{- with .Values.gateway.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.config }}
+        # The gateway reads the config once at startup.
+        checksum/config: {{ toJson .Values.config | sha256sum }}
+        {{- end }}
       {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
@@ -77,6 +83,10 @@ spec:
             - name: SSL_CERT_FILE
               value: "/etc/ssl/certs/extra/ca-bundle.crt"
             {{- end }}
+            {{- if .Values.config }}
+            - name: OPENCODE_RC_CONFIG
+              value: /etc/opencode-rc/config.json
+            {{- end }}
             {{- if .Values.redis.enabled }}
             - name: REDIS_URL
               value: {{ include "opencode-rc.redisUrl" . | quote }}
@@ -91,21 +101,35 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.extraCACerts }}
+          {{- if or .Values.extraCACerts .Values.config }}
           volumeMounts:
+            {{- if .Values.extraCACerts }}
             - name: extra-ca-certs
               mountPath: /etc/ssl/certs/extra
               readOnly: true
+            {{- end }}
+            {{- if .Values.config }}
+            - name: config
+              mountPath: /etc/opencode-rc
+              readOnly: true
+            {{- end }}
           {{- end }}
           {{- with .Values.gateway.containerSecurityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if .Values.extraCACerts }}
+      {{- if or .Values.extraCACerts .Values.config }}
       volumes:
+        {{- if .Values.extraCACerts }}
         - name: extra-ca-certs
           configMap:
             name: {{ include "opencode-rc.fullname" . }}-extra-ca-certs
+        {{- end }}
+        {{- if .Values.config }}
+        - name: config
+          configMap:
+            name: {{ include "opencode-rc.fullname" . }}-api-config
+        {{- end }}
       {{- end }}
       {{- with .Values.gateway.nodeSelector }}
       nodeSelector:

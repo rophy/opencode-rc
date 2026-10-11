@@ -119,3 +119,34 @@ describe("loadRcConfig", () => {
     expect(() => loadRcConfig(file)).toThrow(`${file}: features.uploads.enabled must be true or false`);
   });
 });
+
+describe("opencodeV2.versions", () => {
+  it("is absent by default", () => {
+    expect(parseConfig({}).opencodeV2.versions).toBeUndefined();
+  });
+
+  it("accepts a min/max range", () => {
+    expect(parseConfig({ opencodeV2: { versions: { min: "2.0.26", max: "2.0.27" } } }).opencodeV2.versions).toEqual({
+      min: "2.0.26",
+      max: "2.0.27",
+    });
+  });
+
+  it.each([
+    [{ min: "2.0.26" }, /max/],
+    [{ max: "2.0.27" }, /min/],
+    [{ min: "2.0", max: "2.0.27" }, /min/],
+    [{ min: "2.0.26", max: "v2.0.27" }, /max/],
+    [{ min: 2, max: "2.0.27" }, /min/],
+    [{ min: "2.0.27", max: "2.0.27" }, /lower/],
+    [{ min: "2.0.28", max: "2.0.27" }, /lower/],
+    [{ min: "2.0.9", max: "2.0.10", extra: 1 }, /extra/],
+    ["2.0.26", /object/],
+  ])("rejects %j", (versions, message) => {
+    expect(() => parseConfig({ opencodeV2: { versions } })).toThrow(message);
+  });
+
+  it("compares numerically", () => {
+    expect(parseConfig({ opencodeV2: { versions: { min: "2.0.9", max: "2.0.10" } } }).opencodeV2.versions).toBeDefined();
+  });
+});

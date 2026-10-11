@@ -18,7 +18,11 @@ export interface RcConfig {
   /** API URL compiled into the UI. The API ignores it. */
   serverUrl?: string;
   features: Record<FeatureName, { enabled: boolean }>;
-  opencodeV2: { features: Record<FeatureNameV2, { enabled: boolean }> };
+  opencodeV2: {
+    features: Record<FeatureNameV2, { enabled: boolean }>;
+    /** Narrows the opencode 2.x versions the server accepts (min <= v < max). The gateway reads it. */
+    versions?: { min: string; max: string };
+  };
 }
 
 export class ConfigError extends Error {}
@@ -69,7 +73,20 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
 
   const v2 = raw.opencodeV2 ?? {};
   if (!isObject(v2)) return fail("opencodeV2 must be an object");
-  only(v2, ["features"], "opencodeV2.");
+  only(v2, ["features", "versions"], "opencodeV2.");
+  let versions: { min: string; max: string } | undefined;
+  if (v2.versions !== undefined) {
+    if (!isObject(v2.versions)) return fail("opencodeV2.versions must be an object");
+    only(v2.versions, ["min", "max"], "opencodeV2.versions.");
+    const semver = /^\d+\.\d+\.\d+$/;
+    const { min, max } = v2.versions;
+    if (typeof min !== "string" || !semver.test(min)) return fail("opencodeV2.versions.min must be a MAJOR.MINOR.PATCH version");
+    if (typeof max !== "string" || !semver.test(max)) return fail("opencodeV2.versions.max must be a MAJOR.MINOR.PATCH version");
+    const [a, b] = [min.split(".").map(Number), max.split(".").map(Number)];
+    const order = a.findIndex((n, i) => n !== b[i]);
+    if (order === -1 || a[order] > b[order]) fail("opencodeV2.versions.min must be lower than max");
+    versions = { min, max };
+  }
   const v2Features = v2.features ?? {};
   if (!isObject(v2Features)) return fail("opencodeV2.features must be an object");
   only(v2Features, [...FEATURES_V2], "opencodeV2.features.");
@@ -81,6 +98,7 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
       features: Object.fromEntries(
         FEATURES_V2.map((name) => [name, feature(v2Features[name], `opencodeV2.features.${name}`)]),
       ) as RcConfig["opencodeV2"]["features"],
+      ...(versions ? { versions } : {}),
     },
   };
 }
