@@ -99,6 +99,25 @@ jobs:
       - name: Wait for dev-machine
         run: kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" wait --for=condition=Available deployment/dev-machine --timeout=120s
 
+      - name: Wait for dev-machine-v2
+        run: kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" wait --for=condition=Available deployment/dev-machine-v2 --timeout=120s
+
+      - name: Wait for tunnels
+        run: |
+          for m in dev-machine dev-machine-v2; do
+            for i in $(seq 1 120); do
+              if kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/$m --tail=10 2>/dev/null | grep -q 'Session.*connected\|Tunnel established'; then
+                echo "Tunnel established: $m"
+                break
+              fi
+              if [ "$i" -eq 120 ]; then
+                echo "ERROR: $m tunnel not established after 240s"
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
       - name: Run vitest e2e tests
         run: |
           DEV_POD=$(kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" get pod -l app=dev-machine -o jsonpath='{.items[0].metadata.name}')
@@ -124,5 +143,6 @@ jobs:
           kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/opencode-rc-ui --tail=50 || true
           kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/opencode-rc-gateway --tail=50 || true
           kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/dev-machine --tail=50 || true
+          kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/dev-machine-v2 --tail=50 || true
           kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/tls-test-trusted --tail=20 || true
           kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" logs deployment/tls-test-untrusted --tail=20 || true
