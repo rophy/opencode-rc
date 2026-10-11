@@ -27,13 +27,9 @@ async function main() {
   }
   const check = classifyOpencodeVersion(output);
   let opencodeVersion = "";
-  if (check.kind === "needs-newer-cli") {
-    console.error(
-      `opencode 2.x needs a newer opencode-rc (found opencode ${check.version}). Use opencode 1.x for now.`,
-    );
-    process.exit(1);
-  } else if (check.kind === "unsupported") {
-    console.error(`opencode ${check.version} is not supported. opencode-rc supports opencode 1.x.`);
+  let major: 1 | 2 = 1;
+  if (check.kind === "unsupported") {
+    console.error(`opencode ${check.version} is not supported. opencode-rc supports opencode 1.x and 2.x.`);
     process.exit(1);
   } else if (check.kind === "unknown") {
     console.error(
@@ -41,6 +37,7 @@ async function main() {
     );
   } else {
     opencodeVersion = check.version;
+    major = check.kind === "needs-newer-cli" ? 2 : 1;
     console.log(`opencode ${opencodeVersion}`);
   }
 
@@ -55,14 +52,21 @@ async function main() {
     console.log("Authenticated successfully.\n");
   }
 
-  const server = await startServer(1);
+  let tunnel: { close(): void } | undefined;
+  const server = await startServer(major, {
+    onExit: () => {
+      console.error("opencode stopped unexpectedly. Stopping.");
+      tunnel?.close();
+      process.exit(1);
+    },
+  });
 
   const sessionID = process.env.OPENCODE_RC_SESSION_ID || generateSessionID();
-  const tunnel = await startTunnelWithReconnect(
+  tunnel = await startTunnelWithReconnect(
     config,
     idToken,
     sessionID,
-    { url: server.url },
+    server,
     process.cwd(),
     opencodeVersion,
     (err) => {
@@ -77,7 +81,7 @@ async function main() {
 
   const shutdown = async () => {
     console.log("\nShutting down...");
-    tunnel.close();
+    tunnel?.close();
     server.close();
     process.exit(0);
   };

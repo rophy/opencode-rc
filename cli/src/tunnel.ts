@@ -2,7 +2,7 @@ import type { Config } from "./config.js";
 import WebSocket from "ws";
 import { request as httpRequest } from "node:http";
 import type { Socket } from "node:net";
-import { PROTOCOL_HEADER, PROTOCOL, MIN_GATEWAY_PROTOCOL, readProtocol, ProtocolError } from "./protocol.js";
+import { PROTOCOL_HEADER, PROTOCOL, MIN_GATEWAY_PROTOCOL, MIN_GATEWAY_PROTOCOL_V2, readProtocol, ProtocolError } from "./protocol.js";
 
 export const FRAME_REQUEST_HEADERS = 0x01;
 export const FRAME_RESPONSE_HEADERS = 0x02;
@@ -371,10 +371,18 @@ export async function startTunnel(
         throw new ProtocolError(body.message ?? "This server does not support the installed opencode version.");
       }
     }
-    if (resp.status < 500 && readProtocol(resp.headers.get(PROTOCOL_HEADER)) < MIN_GATEWAY_PROTOCOL) {
-      throw new ProtocolError(
-        `The gateway at ${baseUrl} is older than this CLI supports. Ask your administrator to upgrade it.`,
-      );
+    if (resp.status < 500) {
+      const gatewayProtocol = readProtocol(resp.headers.get(PROTOCOL_HEADER));
+      if (gatewayProtocol < MIN_GATEWAY_PROTOCOL) {
+        throw new ProtocolError(
+          `The gateway at ${baseUrl} is older than this CLI supports. Ask your administrator to upgrade it.`,
+        );
+      }
+      if (opencodeVersion.startsWith("2.") && gatewayProtocol < MIN_GATEWAY_PROTOCOL_V2) {
+        throw new ProtocolError(
+          `The gateway at ${baseUrl} is too old for opencode 2.x. Ask your administrator to upgrade it.`,
+        );
+      }
     }
     const preflightOk = [400, 405, 426];
     if (!preflightOk.includes(resp.status) && (resp.status === 401 || resp.status === 403 || resp.status >= 500)) {

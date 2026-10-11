@@ -10,6 +10,10 @@ for its server, or a server too old for its client, fails with a clear message.
 | UI (web and apps) ↔ API | `api/src/protocol.ts`: `PROTOCOL`, `MIN_CLIENT_PROTOCOL` | `ui/src/protocol.ts`: `PROTOCOL`, `MIN_SERVER_PROTOCOL` |
 | CLI ↔ gateway | `gateway/protocol.go`: `TunnelProtocol`, `MinCLIProtocol` | `cli/src/protocol.ts`: `PROTOCOL`, `MIN_GATEWAY_PROTOCOL` |
 
+Gateway protocol 2 means the gateway checks the opencode version the CLI reports. A CLI
+running opencode 2.x requires gateway protocol 2 (`MIN_GATEWAY_PROTOCOL_V2`); 1.x machines
+still work against protocol 1.
+
 The API and gateway are deployed together by the chart, so they need no versioning
 between them.
 

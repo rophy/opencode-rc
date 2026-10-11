@@ -11,7 +11,9 @@ import (
 // raise MinCLIProtocol when those CLIs are no longer supported.
 const (
 	ProtocolHeader = "OpenCode-RC-Protocol"
-	TunnelProtocol = 1
+	// 2: the gateway checks the reported opencode version (opencodeVersion, 422
+	// opencode_unsupported).
+	TunnelProtocol = 2
 	MinCLIProtocol = 1
 )
 

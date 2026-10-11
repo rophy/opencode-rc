@@ -978,6 +978,46 @@ describe("protocol versioning", () => {
     );
   });
 
+  it("stops an opencode 2.x CLI when the gateway only speaks protocol 1", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(400, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+        res.end("websocket required");
+      },
+      async (port) => {
+        const p = startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "2.0.26");
+        await expect(p).rejects.toBeInstanceOf(ProtocolError);
+        await expect(p).rejects.toThrow(/too old for opencode 2\.x.*administrator to upgrade/);
+      }
+    );
+  });
+
+  it("lets an opencode 2.x CLI proceed against gateway protocol 2", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(401, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "2" });
+        res.end("no");
+      },
+      async (port) => {
+        const p = startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "2.0.26");
+        await expect(p).rejects.not.toBeInstanceOf(ProtocolError);
+      }
+    );
+  });
+
+  it("lets an opencode 1.x CLI proceed against gateway protocol 1", async () => {
+    await withHttpServer(
+      (_req, res) => {
+        res.writeHead(401, { "Content-Type": "text/plain", "OpenCode-RC-Protocol": "1" });
+        res.end("no");
+      },
+      async (port) => {
+        const p = startTunnel(makeConfig(port), "t", "s1", { url: "http://localhost:9999" }, "/tmp", "1.18.29");
+        await expect(p).rejects.not.toBeInstanceOf(ProtocolError);
+      }
+    );
+  });
+
   it("does not retry protocol errors", async () => {
     let calls = 0;
     await withHttpServer(

@@ -45,7 +45,7 @@ func TestCheckCLIProtocolTooLow(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body["error"] != "client_outdated" || body["client"] != float64(0) || body["minimum"] != float64(1) || body["server"] != float64(1) {
+	if body["error"] != "client_outdated" || body["client"] != float64(0) || body["minimum"] != float64(1) || body["server"] != float64(2) {
 		t.Fatalf("body = %v", body)
 	}
 }
@@ -64,7 +64,7 @@ func TestWithProtocolHeader(t *testing.T) {
 	}))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/x", nil))
-	if w.Header().Get(ProtocolHeader) != "1" {
+	if w.Header().Get(ProtocolHeader) != "2" {
 		t.Fatalf("header = %q", w.Header().Get(ProtocolHeader))
 	}
 }
@@ -75,5 +75,14 @@ func TestTunnelChecksProtocolBeforeAuth(t *testing.T) {
 	h(w, httptest.NewRequest("GET", "/tunnel?sessionId=s", nil))
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (protocol) before 401 (auth)", w.Code)
+	}
+}
+
+func TestTunnelProtocolIsTwo(t *testing.T) {
+	if TunnelProtocol != 2 {
+		t.Fatalf("TunnelProtocol = %d, want 2", TunnelProtocol)
+	}
+	if MinCLIProtocol != 1 {
+		t.Fatalf("MinCLIProtocol = %d, want 1", MinCLIProtocol)
 	}
 }
