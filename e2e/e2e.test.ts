@@ -869,19 +869,31 @@ describe("1.x provider responses have no API keys", () => {
     jar = await loginAs("user1");
   });
 
-  // alice-dev runs with OPENAI_API_KEY=mock, which opencode returns as the openai provider's key.
+  // alice-dev runs with OPENAI_API_KEY=mock, which opencode returns as the openai provider's key,
+  // and its opencode.json sets openai's options (baseURL).
   it.each([
     ["/provider", "all"],
     ["/config/providers", "providers"],
-  ])("GET %s lists openai without its key", async (path, field) => {
+  ])("GET %s lists openai without its key or options", async (path, field) => {
     const res = await jar.fetch(proxy(path));
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).not.toContain('"mock"');
-    const providers = (JSON.parse(text) as Record<string, { id: string; key?: string; models: Record<string, unknown> }[]>)[field];
-    expect(providers.some((p) => "key" in p)).toBe(false);
+    type Item = { id: string; models: Record<string, Record<string, unknown>> };
+    const providers = (JSON.parse(text) as Record<string, Item[]>)[field];
+    expect(providers.some((p) => "key" in p || "options" in p)).toBe(false);
+    expect(providers.some((p) => Object.values(p.models).some((m) => "options" in m || "headers" in m))).toBe(false);
     const openai = providers.find((p) => p.id === "openai");
     expect(openai).toBeDefined();
     expect(Object.keys(openai!.models).length).toBeGreaterThan(0);
+  });
+
+  it("GET /config keeps the openai provider without its options", async () => {
+    const res = await jar.fetch(proxy("/config"));
+    expect(res.status).toBe(200);
+    const config = (await res.json()) as { model?: string; provider?: Record<string, Record<string, unknown>> };
+    expect(config.model).toBe("openai/gpt-4o");
+    expect(config.provider?.openai).toBeDefined();
+    expect("options" in config.provider!.openai).toBe(false);
   });
 });
