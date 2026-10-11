@@ -217,9 +217,13 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   machine) from the UI and makes the API reject terminal requests, including the WebSocket,
   with `403`.
 - `features.shell.enabled: false` removes shell mode (`!`: one command run on the developer's
-  machine, kept in the session) from the UI and makes the API reject it with `403`. The terminal
-  and shell mode are separate: to stop users from running commands themselves, disable both.
-  The AI's own tools are not affected.
+  machine, kept in the session) from the UI and makes the API reject it with `403`. The API
+  also rejects commands whose arguments contain shell interpolation (``!`…` ``), which
+  opencode would run on the machine. A custom command whose own template runs its arguments
+  in a shell (such as ``!`git log $ARGUMENTS` ``) still runs what the user types; avoid such
+  templates on machines where shell is disabled. The terminal and shell mode are separate: to
+  stop users from running commands themselves, disable both. The AI's own tools are not
+  affected.
 - `features.export.enabled: false` removes exporting a session as JSON from the UI. The export is
   built in the browser from what the UI already shows, so there is nothing for the API to reject.
 - `features.share.enabled: false` removes sharing from the UI and makes the API reject publishing
