@@ -1,3 +1,17 @@
+diff --git a/packages/app/src/providers/connect/dialog.tsx b/packages/app/src/providers/connect/dialog.tsx
+index 6c4b4fda60..a77a2b8d82 100644
+--- a/packages/app/src/providers/connect/dialog.tsx
++++ b/packages/app/src/providers/connect/dialog.tsx
+@@ -253,7 +253,8 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
+           integration.id === CONSOLE_INTEGRATION
+             ? !consoleAccount()
+             : !integration.connections.some((connection) => connection.type === "credential"),
+-        ),
++        )
++        .filter((integration) => integration.metadata?.source !== "mcp"),
+     ]
+ 
+     if (!query) return values
 diff --git a/packages/app/src/providers/connect/mcp-dialog.tsx b/packages/app/src/providers/connect/mcp-dialog.tsx
 index 6be62f2fa2..2a505ba18e 100644
 --- a/packages/app/src/providers/connect/mcp-dialog.tsx

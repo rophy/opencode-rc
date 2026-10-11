@@ -78,6 +78,23 @@ describe.skipIf(!fs.existsSync(path.join(v2, "packages/app")))("2.x mcp patches 
     expect(project).toContain('<ExtensionRow icon="mcp" name={name} />')
   })
 
+  // opencode registers each remote OAuth MCP server as an integration with metadata
+  // { source: "mcp" } (core/src/mcp/index.ts register), and the provider picker lists every
+  // integration without a stored credential.
+  it("the Connect provider picker leaves out MCP integrations", () => {
+    const file = `${app}/providers/connect/dialog.tsx`
+    expect(read(v2, file)).not.toContain('metadata?.source !== "mcp"')
+    expect(patchedV2(file)).toContain('.filter((integration) => integration.metadata?.source !== "mcp")')
+    // The other callers look integrations up by id, keep only featured providers or count connections.
+    expect(filesWith(path.join(v2, app), "useIntegrations(")).toEqual([
+      "providers/catalog/integrations.ts",
+      "providers/catalog/providers.ts",
+      "providers/connect/dialog.tsx",
+      "providers/models/unpaid.tsx",
+      "settings/providers/providers.tsx",
+    ])
+  })
+
   it("only the patched components and the unused draft controls toggle MCP servers", () => {
     const src = path.join(v2, app)
     // new-session/mcp.ts: the new-session draft's MCP states start empty and nothing renders
