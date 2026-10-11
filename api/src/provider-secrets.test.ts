@@ -98,6 +98,28 @@ describe("providerSecretsStrip", () => {
     expect(strip("/config", { model: "openai/m1" })).toEqual({ model: "openai/m1" });
   });
 
+  it("removes MCP credentials from GET /config and GET /global/config", () => {
+    const mcp = {
+      local: { type: "local", command: ["srv"], environment: { TOKEN: "test-token" }, enabled: true },
+      remote: { type: "remote", url: "https://mcp.example.test", headers: { Authorization: "Bearer test-token" }, oauth: { clientId: "id", clientSecret: "test-secret", scope: "read" } },
+      plain: { type: "remote", url: "https://mcp.example.test", oauth: false },
+    };
+    const clean = {
+      local: { type: "local", command: ["srv"], enabled: true },
+      remote: { type: "remote", url: "https://mcp.example.test", oauth: { clientId: "id", scope: "read" } },
+      plain: { type: "remote", url: "https://mcp.example.test", oauth: false },
+    };
+    for (const path of ["/config", "/global/config"]) {
+      expect(strip(path, { mcp, provider: { openai: { options: { apiKey: "test-key-value" } } } })).toEqual({ mcp: clean, provider: { openai: {} } });
+      expect(strip(path, { mcp: { odd: null, list: [1] } })).toEqual({ mcp: { odd: null, list: [1] } });
+    }
+  });
+
+  it("leaves MCP entries alone on the provider routes", () => {
+    const json = { all: [], mcp: { s: { environment: { A: "b" } } } };
+    expect(strip("/provider", json)).toEqual(json);
+  });
+
   it("cleans the 1.18 /api provider and model routes", () => {
     expect(strip("/api/provider", { location, data: [apiItem("openai")] })).toEqual({ location, data: [cleanApiItem("openai")] });
     expect(strip("/api/provider/openai", { location, data: apiItem("openai") })).toEqual({ location, data: cleanApiItem("openai") });
