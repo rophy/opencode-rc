@@ -84,7 +84,7 @@ export function parseConfig(raw: unknown, source = "config"): RcConfig {
     if (typeof max !== "string" || !semver.test(max)) return fail("opencodeV2.versions.max must be a MAJOR.MINOR.PATCH version");
     const [a, b] = [min.split(".").map(Number), max.split(".").map(Number)];
     const order = a.findIndex((n, i) => n !== b[i]);
-    if (order === -1 || a[order] > b[order]) fail("opencodeV2.versions.min must be lower than max");
+    if (order === -1 || a[order] > b[order]) return fail("opencodeV2.versions.min must be lower than max");
     versions = { min, max };
   }
   const v2Features = v2.features ?? {};

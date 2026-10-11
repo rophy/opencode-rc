@@ -55,7 +55,8 @@ Output: `ui/dist/` (1.x) and `ui/dist/v2/` (2.x) — consumed by the UI image (`
 ### UI Dev Server
 
 ```bash
-cd ui && bun run dev
+cd ui && bun run dev      # opencode 1.x UI
+cd ui && bun run dev:v2   # opencode 2.x UI
 ```
 
 Proxies `/api`, `/auth`, `/gateway`, `/proxy`, `/healthz` to `localhost:12029`.

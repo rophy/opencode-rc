@@ -6,11 +6,15 @@ on:
     paths:
       - 'api/**'
       - 'config/**'
+      - 'vendor/opencode-v1'
+      - 'vendor/opencode-v2'
       - '.github/workflows/api.yml'
   pull_request:
     paths:
       - 'api/**'
       - 'config/**'
+      - 'vendor/opencode-v1'
+      - 'vendor/opencode-v2'
       - '.github/workflows/api.yml'
   workflow_dispatch:
 
