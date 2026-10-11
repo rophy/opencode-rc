@@ -378,7 +378,6 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           `http://127.0.0.1:${localPort}`,
           "/tmp",
           "1.18.29",
-          "1.18.29"
         );
         const serverWs = await serverConn;
 
@@ -443,7 +442,6 @@ describe("WebSocket streams are scoped per tunnel connection", () => {
           `http://127.0.0.1:${echoPort}`,
           "/tmp",
           "1.18.29",
-          "1.18.29"
         );
         const serverWs2 = await serverConn2;
 
@@ -530,7 +528,6 @@ describe("startTunnel", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       expect(handle).toHaveProperty("close");
@@ -595,7 +592,6 @@ describe("startTunnel", () => {
           `http://127.0.0.1:${localPort}`,
           "/tmp",
           "1.18.29",
-          "1.18.29"
         );
 
         const serverWs = await serverConn;
@@ -661,7 +657,6 @@ describe("startTunnel", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       )
     ).rejects.toThrow();
   });
@@ -747,7 +742,7 @@ describe("startTunnel pre-flight", () => {
 
         // But NOT a pre-flight error
         const err = await startTunnel(
-          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp"
+          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29"
         ).catch((e: Error) => e);
         expect(err.message).not.toContain("pre-flight");
       }
@@ -762,7 +757,7 @@ describe("startTunnel pre-flight", () => {
       },
       async (port) => {
         const err = await startTunnel(
-          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp"
+          makeConfig(port), "token", "s1", "http://localhost:9999", "/tmp", "1.18.29"
         ).catch((e: Error) => e);
         expect(err.message).not.toContain("pre-flight");
       }
@@ -936,7 +931,6 @@ describe("handleBodyFrame and proxyToLocal with body", () => {
           `http://127.0.0.1:${localPort}`,
           "/tmp",
           "1.18.29",
-          "1.18.29"
         );
 
         const serverWs = await serverConn;
@@ -1008,7 +1002,6 @@ describe("startTunnel message handling", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       const serverWs = await serverConn;
@@ -1039,7 +1032,6 @@ describe("startTunnel post-connection events", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       const serverWs = await serverConn;
@@ -1066,7 +1058,6 @@ describe("startTunnelWithReconnect", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       expect(typeof handle.close).toBe("function");
@@ -1095,7 +1086,6 @@ describe("startTunnelWithReconnect", () => {
       "http://localhost:9999",
       "/tmp",
       "1.18.29",
-      "1.18.29"
     );
 
     // After a short delay (let first attempt fail), start the server
@@ -1133,7 +1123,6 @@ describe("startTunnelWithReconnect", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       expect(connectionCount).toBe(1);
@@ -1168,7 +1157,6 @@ describe("startTunnelWithReconnect", () => {
         "http://localhost:9999",
         "/tmp",
         "1.18.29",
-        "1.18.29"
       );
 
       // Swap the server's HTTP handling: after the tunnel drops, the next
