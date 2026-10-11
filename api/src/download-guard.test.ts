@@ -177,3 +177,54 @@ describe("downloads disabled (1.x): prompts that read files", () => {
     expect(await res.text()).toBe("request body is not JSON");
   });
 });
+
+describe("downloads disabled (1.x): template-completed references, stored parts, config", () => {
+  it.each(["src/@", '"a@" "b"', "x @"])("blocks command arguments %j that end in @ (the template completes the path)", async (args) => {
+    await expectBlocked(await post(makeApp(), "/session/ses_1/command", { command: "review", arguments: args, parts: [] }));
+  });
+
+  it("blocks stored parts and replays (a stored subtask runs and reads its @paths)", async () => {
+    const subtask = { type: "subtask", prompt: "summarize @opencode.json", description: "d", agent: "general" };
+    const patch = await makeApp().request("/proxy/s/session/ses_1/message/msg_1/part/prt_1", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(subtask),
+    });
+    await expectBlocked(patch);
+    await expectBlocked(await post(makeApp(), "/sync/replay", { events: [] }));
+  });
+
+  it.each(["/config", "/global/config", "/GLOBAL/config/"])("blocks {file:} substitution and instructions on PATCH %s", async (path) => {
+    const patch = (body: unknown) =>
+      makeApp().request(`/proxy/s${path}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await expectBlocked(await patch({ provider: { p: { options: { apiKey: "{file:~/.ssh/id_rsa}" } } } }));
+    await expectBlocked(await patch({ provider: { p: { options: { headers: { x: "a{FILE:/etc/hosts}" } } } } }));
+    await expectBlocked(await patch({ provider: { "{file:/etc/hosts}": {} } }));
+    await expectBlocked(await patch({ disabled_providers: ["{file:/etc/hosts}"] }));
+    await expectBlocked(await patch({ instructions: ["notes.md"] }));
+    await expectBlocked(await patch({ permission: { read: "allow" } }));
+    expect(await (await patch({ disabled_providers: ["anthropic"], provider: { p: { options: { apiKey: "{env:KEY}" } } } })).text()).toBe("forwarded");
+  });
+
+  it.each([
+    ["POST", "/session"],
+    ["PATCH", "/session/ses_1"],
+  ])("blocks session permission rules on %s %s", async (method, path) => {
+    const req = (body: unknown) =>
+      makeApp().request(`/proxy/s${path}`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    await expectBlocked(await req({ permission: [{ permission: "read", pattern: "*", action: "allow" }] }));
+    expect(await (await req({ title: "t" })).text()).toBe("forwarded");
+  });
+
+  it("forwards all of these while downloads are enabled", async () => {
+    const app = makeApp(parseConfig({}));
+    expect(await (await post(app, "/session/ses_1/command", { command: "review", arguments: "src/@", parts: [] })).text()).toBe("forwarded");
+    expect(await (await post(app, "/sync/replay", { events: [] })).text()).toBe("forwarded");
+    const config = await app.request("/proxy/s/global/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ instructions: ["a.md"], provider: { p: { options: { apiKey: "{file:k}" } } } }),
+    });
+    expect(await config.text()).toBe("forwarded");
+  });
+});

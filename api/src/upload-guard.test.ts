@@ -290,7 +290,7 @@ describe("uploads, downloads and shell disabled together", () => {
     });
 
   it("forwards a clean command with the exact bytes", async () => {
-    const raw = ` ${JSON.stringify({ command: "review", arguments: "HEAD wow! `code`", parts: [mcp] }, null, 1)}\n`;
+    const raw = ` ${JSON.stringify({ command: "review", arguments: "HEAD wow `code`", parts: [mcp] }, null, 1)}\n`;
     const res = await all(raw);
     expect(res.status).toBe(204);
     const init = upstream.mock.calls[0][1] as RequestInit;

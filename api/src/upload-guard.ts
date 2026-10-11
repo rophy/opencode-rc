@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { proxyRest, type ProxyEnv } from "./proxy.js";
-import { jsonBody } from "./request-body.js";
+import { bodyError, jsonBody } from "./request-body.js";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,12 +51,14 @@ const RULES: Rule[] = [
   },
 ];
 
-// Blocked outright, not body-checked. The UI never calls either:
+// Routes that store parts as they are, past the prompt checks; the UI never calls either.
+// Blocked outright by the uploads and downloads guards:
 // - POST /sync/replay replays part events, which reach the model without passing through
 //   any of the rules above.
 // - PATCH of a part stores it as-is for the model to read later, and more than file parts
-//   can carry bytes (a completed tool part's attachments are sent to the model too).
-const BLOCKED: { method: string; path: RegExp }[] = [
+//   can carry bytes (a completed tool part's attachments are sent to the model too); a
+//   stored subtask part runs, and its prompt's @paths are read (download-guard.ts).
+export const RAW_PART_ROUTES: { method: string; path: RegExp }[] = [
   { method: "POST", path: /^\/sync\/replay$/i },
   { method: "PATCH", path: /^\/session\/[^/]+\/message\/[^/]+\/part\/[^/]+$/i },
 ];
@@ -70,7 +72,7 @@ export function uploadGuard(): MiddlewareHandler<ProxyEnv> {
     const method = c.req.method;
     const rest = proxyRest(c.req.path, c.req.param("sessionId")!).replace(/\/+$/, "");
 
-    if (BLOCKED.some((b) => b.method === method && b.path.test(rest))) {
+    if (RAW_PART_ROUTES.some((b) => b.method === method && b.path.test(rest))) {
       console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
       return c.text("uploads are disabled", 403);
     }
@@ -79,7 +81,7 @@ export function uploadGuard(): MiddlewareHandler<ProxyEnv> {
     if (!rule) return next();
 
     const body = await jsonBody(c);
-    if (!body) return c.text("request body is not JSON", 400);
+    if (typeof body === "string") return bodyError(c, body);
     if (rule.denies(body.json)) {
       console.log(`upload blocked user=${c.get("userId")} ${c.req.method} ${rest}`);
       return c.text("uploads are disabled", 403);

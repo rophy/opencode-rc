@@ -4,7 +4,7 @@ import type { FeatureNameV2, RcConfig } from "../../config/schema.js";
 import { plainPathGuard } from "./feature-guards.js";
 import { canonicalPath, proxyRest, upstreamUrl, type ProxyEnv } from "./proxy.js";
 import { jsonBody } from "./request-body.js";
-import { hasShellInterpolation } from "./shell-guard.js";
+import { mayRunShell } from "./shell-guard.js";
 import { templateRegex } from "./route-template.js";
 import { V2_ROUTES } from "./v2-routes.js";
 
@@ -43,10 +43,13 @@ async function defaultFetchServerInfo(c: Context<ProxyEnv>): Promise<ServerInfo>
 }
 
 
-// Reads and parses a JSON object body; the proxy forwards exactly the bytes checked.
+// Reads and parses a JSON object body (empty: no fields); the proxy forwards exactly the bytes
+// checked.
 async function readJson(c: Context<ProxyEnv>): Promise<Record<string, unknown> | string> {
   const body = await jsonBody(c);
-  if (!body) return "request body is not JSON";
+  if (body === "too-large") return "request body is too large";
+  if (body === "not-json") return "request body is not JSON";
+  if (body.json === undefined) return {};
   if (!isObject(body.json)) return "request body is not a JSON object";
   return body.json;
 }
@@ -90,13 +93,22 @@ async function checkRequest(
     }
     return null;
   }
-  // The command's text holds its arguments, which go into the template before !`cmd` runs.
-  if (!features.shell.enabled && template === "/api/session/:sessionID/command") {
+  const downloadsOff = !features.downloads.enabled;
+  const shellOff = !features.shell.enabled;
+  // Session permission rules come after the owner's and the last match wins
+  // (core/src/permission.ts), so they could allow reading files or running commands. The UI
+  // never sends them (auto-approve answers each request from the browser).
+  if ((downloadsOff || shellOff) && (template === "/api/session" || template === "/api/session/:sessionID") && (c.req.method === "POST" || c.req.method === "PATCH")) {
     const body = await readJson(c);
     if (typeof body === "string") return body;
-    if (hasShellInterpolation(body.text)) return MESSAGES.shell;
+    if ("permissions" in body) return downloadsOff ? MESSAGES.downloads : MESSAGES.shell;
   }
-  const downloadsOff = !features.downloads.enabled;
+  // The command's text holds its arguments, which go into the template before !`cmd` runs.
+  if (shellOff && template === "/api/session/:sessionID/command") {
+    const body = await readJson(c);
+    if (typeof body === "string") return body;
+    if (mayRunShell(body.text)) return MESSAGES.shell;
+  }
   if ((uploadsOff || downloadsOff) && (template === "/api/session/:sessionID/prompt" || template === "/api/session/:sessionID/command")) {
     const body = await readJson(c);
     if (typeof body === "string") return body;

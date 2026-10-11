@@ -102,10 +102,10 @@ describe("v2 downloads disabled: file attachments", () => {
 
 describe("v2 shell disabled: command text", () => {
   const off = (features: Record<string, { enabled: boolean }> = {}) => makeApp(cfg({ shell: { enabled: false }, ...features }));
-  it.each(["!`echo pwned`", "review !`id", 'HEAD "!`id`"'])("rejects a command whose text is %j", async (text) => {
+  it.each(["!`echo marker`", "review !`id", 'HEAD "!`id`"', "wow!", "! `id`", '"a!" "`id`"'])("rejects a command whose text is %j", async (text) => {
     await expectRejected(await call(off(), "POST", "/api/session/x/command", { name: "review", text }), /^shell commands are disabled$/);
   });
-  it.each(["HEAD~1", "wow!", "`code` here", "! `id`", ""])("forwards a command whose text is %j", async (text) => {
+  it.each(["HEAD~1", "!nice", "`code` here", "a!b", ""])("forwards a command whose text is %j", async (text) => {
     const body = { name: "review", text };
     expect(await (await call(off(), "POST", "/api/session/x/command", body)).text()).toBe(`forwarded ${JSON.stringify(body)}`);
   });
@@ -118,7 +118,7 @@ describe("v2 shell disabled: command text", () => {
     await expectRejected(await call(all(), "POST", route, { name: "r", text: "!`id`" }), /shell/);
     await expectRejected(await call(all(), "POST", route, { name: "r", text: "", files: [{ uri: "data:text/plain,a" }] }), /uploads/);
     await expectRejected(await call(all(), "POST", route, { name: "r", text: "", files: [{ uri: "file:///w/a" }] }), /downloads/);
-    const body = { name: "r", text: "HEAD wow! `code`", agents: [{ name: "general" }] };
+    const body = { name: "r", text: "HEAD wow `code`", agents: [{ name: "general" }] };
     expect(await (await call(all(), "POST", route, body)).text()).toBe(`forwarded ${JSON.stringify(body)}`);
   });
   it("forwards !`cmd` while shell is enabled", async () => {
@@ -265,5 +265,25 @@ describe("v2Guard", () => {
 
   it("rejects a non-JSON body on a checked route", async () => {
     await expectRejected(await call(makeApp(), "PATCH", "/api/project/p", "not json"));
+  });
+});
+
+describe("v2 session permission rules", () => {
+  const rules = { permissions: [{ permission: "read", pattern: "*", action: "allow" }] };
+  it.each([
+    ["downloads", /downloads/],
+    ["shell", /shell/],
+  ])("are refused on session create and update while %s is off", async (feature, message) => {
+    const app = makeApp(cfg({ [feature]: { enabled: false } }));
+    await expectRejected(await call(app, "POST", "/api/session", rules), message);
+    await expectRejected(await call(app, "PATCH", "/api/session/x", rules), message);
+    await expectForwarded(await call(app, "POST", "/api/session", { title: "t" }));
+    await expectForwarded(await call(app, "POST", "/api/session"));
+  });
+  it("names downloads when both are off", async () => {
+    await expectRejected(await call(makeApp(cfg({ downloads: { enabled: false }, shell: { enabled: false } })), "POST", "/api/session", rules), /downloads/);
+  });
+  it("are forwarded while both are enabled", async () => {
+    await expectForwarded(await call(makeApp(), "POST", "/api/session", rules));
   });
 });
