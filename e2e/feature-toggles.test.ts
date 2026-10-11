@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { WebSocket } from "ws";
-import { API_URL, SESSION_ID, waitFor, loginAs, upgradeStatus, type TokenSession } from "./helpers.js";
+import { API_URL, SESSION_ID, SESSION_ID_V2, waitFor, loginAs, upgradeStatus, type TokenSession } from "./helpers.js";
 
 // Feature toggles are read by the API at startup, so the disabled case redeploys the API with
 // a changed config (the chart's api-config ConfigMap) and restores it afterwards. The e2e
@@ -118,7 +118,8 @@ describe("terminal, shell commands and sharing disabled", () => {
     const config = JSON.parse(original);
     const off = { enabled: false };
     const features = { ...config.features, terminal: off, shell: off, share: off };
-    await redeployApi(JSON.stringify({ ...config, features }), jar, 403);
+    const opencodeV2 = { ...config.opencodeV2, features: { ...config.opencodeV2?.features, terminal: off } };
+    await redeployApi(JSON.stringify({ ...config, features, opencodeV2 }), jar, 403);
   }, 300_000);
 
   afterAll(async () => {
@@ -140,6 +141,16 @@ describe("terminal, shell commands and sharing disabled", () => {
       upgradeStatus(API_URL.replace(/^http/, "ws") + `/proxy/${SESSION_ID}${path}?access_token=${encodeURIComponent(jar.access)}`);
     expect(await ws("/pty/x/connect")).toBe(403);
     expect(await ws("/api/pty/x/connect")).toBe(403);
+  });
+
+  it("refuses to create a terminal on the opencode 2.x machine", async () => {
+    const res = await jar.fetch(`${API_URL}/proxy/${SESSION_ID_V2}/api/pty`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json())._tag).toBe("FeatureDisabled");
   });
 
   it("refuses shell commands and sharing", async () => {
