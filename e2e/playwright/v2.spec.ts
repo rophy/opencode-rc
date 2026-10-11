@@ -167,12 +167,17 @@ test.describe("opencode 2.x downloads disabled", () => {
     await page.keyboard.press("Control+k");
     const dialog = page.locator(".command-palette");
     await expect(dialog).toBeVisible({ timeout: 10_000 });
-    await page.keyboard.type("new session");
-    await expect(dialog.getByText(/new session/i).first()).toBeVisible({ timeout: 10_000 });
+    // Rows are button[role=option] (shell/commands/dialog.tsx PaletteRow); the search box is the
+    // palette's own input. "Open settings" is registered on the draft page (settings/command.tsx,
+    // title command.settings.open in runtime/i18n/en.ts).
+    const rows = dialog.locator('[role="option"]');
+    const search = dialog.locator("input");
+    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+    await search.fill("Open settings");
+    await expect(rows.filter({ hasText: /open settings/i }).first()).toBeVisible({ timeout: 10_000 });
     // The project's opencode.json is not offered as a file.
-    await page.keyboard.press("Control+a");
-    await page.keyboard.type("opencode.json");
+    await search.fill("opencode.json");
     await page.waitForTimeout(1500);
-    await expect(dialog.getByText("opencode.json")).toHaveCount(0);
+    await expect(rows.filter({ hasText: "opencode.json" })).toHaveCount(0);
   });
 });
