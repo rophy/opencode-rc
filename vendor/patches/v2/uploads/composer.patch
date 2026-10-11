@@ -1,8 +1,27 @@
 diff --git a/packages/app/src/composer/editor/editor.tsx b/packages/app/src/composer/editor/editor.tsx
-index defbf666d0..e238e643ad 100644
+index defbf666d0..feb42d2feb 100644
 --- a/packages/app/src/composer/editor/editor.tsx
 +++ b/packages/app/src/composer/editor/editor.tsx
-@@ -792,10 +792,6 @@ export function ComposerEditorAddMenu(props: {
+@@ -160,18 +160,6 @@ export function ComposerEditor(props: ComposerEditorProps) {
+ 
+   return (
+     <div class={`relative size-full flex flex-col gap-0 ${props.class ?? ""}`}>
+-      <input
+-        ref={props.controller.setFileInput}
+-        type="file"
+-        multiple
+-        class="hidden"
+-        onChange={(event) => {
+-          const list = event.currentTarget.files
+-
+-          if (list) props.controller.addAttachments(Array.from(list))
+-          event.currentTarget.value = ""
+-        }}
+-      />
+       <Show when={!view.draftOnly && state.popover.type !== "closed"}>
+         <ComposerEditorPopover
+           emptyLabel={i18n.t("ui.promptInput.noMatchingItems")}
+@@ -792,10 +780,6 @@ export function ComposerEditorAddMenu(props: {
              class="[&_[data-slot=menu-v2-item-shortcut]]:w-5 [&_[data-slot=menu-v2-item-shortcut]]:justify-center"
              style={{ "min-width": "180px" }}
            >

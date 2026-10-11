@@ -23,12 +23,13 @@ describe("2.x feature patches on the pinned opencode", () => {
     }
   })
 
-  it("uploads: no attachments config, no file.attach command, no attach menu item", () => {
+  it("uploads: no attachments config, no file.attach command, no attach menu item, no file input", () => {
     const model = patched("uploads", "packages/app/src/composer/model.ts")
     expect(model).not.toContain("attachments: {")
     expect(model).not.toContain('id: "file.attach"')
     const editor = patched("uploads", "packages/app/src/composer/editor/editor.tsx")
     expect(editor).not.toContain("onSelect={props.onAttach}")
+    expect(editor).not.toContain('type="file"')
   })
 
   it("uploads: a project icon file is never read and the picker never opens", () => {
