@@ -252,8 +252,8 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
 The API always rejects some opencode 1.x routes the UI never uses, whatever the toggles: applying
 a patch to the project (`/vcs/apply`), upgrading opencode (`/global/upgrade`), the terminal UI
 control routes (`/tui/*`), `/log`, workspace sync and changes, switching the opencode console
-account, and moving sessions between workspaces. It also removes API keys and other provider
-secrets from opencode 1.x provider responses (the provider list and `/config/providers`).
+account, and moving sessions between workspaces. It also removes provider keys, options and
+headers (where API keys and auth headers live) from opencode 1.x provider and config responses.
 
 While `downloads` or `shell` is disabled, the API also rejects requests that set permission
 rules (a session's rules, and the config's `permission`, `agent` and `mode`), so the machine
@@ -313,6 +313,11 @@ The API picks the 2.x or 1.x rules from the opencode version the dev machine's C
 cannot verify. Routes both versions serve (such as the terminal under `/api/pty`) follow the reported
 version's toggle, so a feature disabled for only one version can be reached by a user who modifies
 their CLI. Disable a feature for both versions to enforce it fully.
+
+A session can open any folder on the machine (1.x `?directory=`; 2.x session location, moving a
+session, the directory picker). The agent then treats that folder as its project, so opencode's
+"ask before touching files outside the project" rule applies relative to it, and the folder's file
+names and git diffs go through opencode-rc. This is not a toggle.
 
 `opencode pair --remote` (opencode 2.x) lets any user expose their own machine through opencode's
 public relay (opentunnel.xyz), outside opencode-rc's sign-in and controls; only opencode's own password
