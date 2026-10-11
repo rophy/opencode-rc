@@ -12,7 +12,7 @@ export type OpencodeCheck =
   | { kind: "unsupported"; version: string }
   | { kind: "unknown" };
 
-// Major 1 is supported; 2 needs a newer opencode-rc; 3+ is unsupported. No MAJOR.MINOR.PATCH
+// Major 1 is supported; 2 is supported (runs opencode serve --stdio); 3+ is unsupported. No MAJOR.MINOR.PATCH
 // (a source build printing "local") or major 0 (a snapshot "0.0.0-...") is not a release: unknown.
 export function classifyOpencodeVersion(output: string): OpencodeCheck {
   const version = parseOpencodeVersion(output);

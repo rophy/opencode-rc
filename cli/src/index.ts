@@ -4,7 +4,8 @@
 import { loadConfig } from "./config.js";
 import { authorizationCodeAuth } from "./oidc.js";
 import { classifyOpencodeVersion, detectOpencodeVersion } from "./opencode-version.js";
-import { startServer } from "./server.js";
+import { createShutdown } from "./shutdown.js";
+import { startServer, type LocalServer } from "./server.js";
 import { startTunnelWithReconnect } from "./tunnel.js";
 import { ProtocolError } from "./protocol.js";
 import { randomUUID } from "node:crypto";
@@ -53,16 +54,19 @@ async function main() {
   }
 
   let tunnel: { close(): void } | undefined;
-  // Ctrl+C signals the whole process group, so the child can exit before our handler runs.
-  let shuttingDown = false;
-  const onSignal = () => {
-    shuttingDown = true;
-  };
-  process.on("SIGINT", onSignal);
-  process.on("SIGTERM", onSignal);
-  const server = await startServer(major, {
+  let server: LocalServer | undefined;
+  const { shutdown, isShuttingDown } = createShutdown({
+    getServer: () => server,
+    getTunnel: () => tunnel,
+    exit: (code) => process.exit(code),
+  });
+  // Registered before anything starts: a SIGINT listener removes Node's default exit, so this
+  // one must shut down in every phase.
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  server = await startServer(major, {
     onExit: () => {
-      if (shuttingDown) return;
+      if (isShuttingDown()) return;
       console.error("opencode stopped unexpectedly. Stopping.");
       tunnel?.close();
       process.exit(1);
@@ -79,23 +83,13 @@ async function main() {
     opencodeVersion,
     (err) => {
       console.error(err.message);
-      server.close();
+      server?.close();
       process.exit(1);
     }
   );
 
   console.log(`\nSession "${sessionID}" connected.`);
   console.log("Press Ctrl+C to stop.\n");
-
-  const shutdown = async () => {
-    console.log("\nShutting down...");
-    tunnel?.close();
-    server.close();
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {
