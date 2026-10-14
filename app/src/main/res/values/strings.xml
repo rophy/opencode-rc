@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OpenCode RC</string>
+    <string name="title_activity_main">OpenCode RC</string>
+    <string name="package_name">com.opencode.rc</string>
+    <string name="custom_url_scheme">com.opencode.rc</string>
+</resources>

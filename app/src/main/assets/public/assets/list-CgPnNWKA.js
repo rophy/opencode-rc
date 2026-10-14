@@ -1,0 +1,1 @@
+import{c as e,g as t}from"./web-C99xIhOq.js";import"./index-DwdLV_c_.js";var n=t(`<div data-component=settings-v2-list>`),r=t=>(()=>{var r=n();return e(r,()=>t.children),r})();export{r as t};

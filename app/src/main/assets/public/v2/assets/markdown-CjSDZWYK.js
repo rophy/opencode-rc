@@ -1,0 +1,1 @@
+import{K as e,W as t,pt as n}from"./store-FjN4ZeHF.js";var r=e();function i(e){let n=a();return t(r.Provider,{value:{get readImage(){return e.readImage},get openLocalFile(){return e.openLocalFile},get openSession(){return e.openSession??n?.openSession}},get children(){return e.children}})}var a=()=>n(r);export{a as n,i as t};
