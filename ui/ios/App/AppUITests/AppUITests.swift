@@ -6,7 +6,8 @@ final class AppUITests: XCTestCase {
     func testLaunchShowsSignInAndServerSettings() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.buttons["Sign in with OIDC"].waitForExistence(timeout: 30))
+        // CI simulators are slow: the first render took about 20 s in a passing run.
+        XCTAssertTrue(app.buttons["Sign in with OIDC"].waitForExistence(timeout: 90))
         app.buttons["Server settings"].tap()
         XCTAssertTrue(app.staticTexts["Connect to Server"].waitForExistence(timeout: 10))
     }
