@@ -1,0 +1,1 @@
+import{A as e,D as t,rt as n,ut as r}from"./store-FjN4ZeHF.js";var i=e(`<div>`);function a(e){let[a,o]=r(e,[`class`,`classList`]);return(()=>{var e=i();return t(e,n(o,{role:`separator`,"aria-orientation":`horizontal`,"data-component":`divider-v2`,get classList(){return{...a.classList,[a.class??``]:!!a.class}}}),!1,!1),e})()}export{a as t};

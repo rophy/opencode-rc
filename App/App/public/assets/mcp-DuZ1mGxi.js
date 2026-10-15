@@ -1,0 +1,1 @@
+import{F as e,Wt as t,q as n}from"./server-sdk-BB81M-Wg.js";import{t as r}from"./sync-C22iSXCM.js";function i(){let i=r(),a=n();return t(()=>({mutationFn:i().mcp.toggle,onError:t=>e({variant:`error`,title:a.t(`common.requestFailed`),description:t instanceof Error?t.message:String(t)})}))}export{i as t};
