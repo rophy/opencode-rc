@@ -16,11 +16,11 @@
 - Presets: `default` (no config file) and `all-off` (`config/presets/all-off.json`).
 - Placeholder server: `https://rc-placeholder.invalid`.
 - A published image tag is never overwritten.
-- Bundles hold no deployment-specific data; committed text names no private hosts, no `.local/` paths, no Claude/attribution.
+- Bundles hold no deployment-specific data; committed text names no private hosts, local-only files or tool attribution.
 - Non-goals: signing, prebuilt `.app`, runtime server file, Android, version bumps.
 - Commits: `<type>: <description>`, GPG-signed (default), no attribution lines. No push without the user saying so.
 - Before push: `make unit-test`, and the UI tests on Node 22 (`cd ui && npx -y node@22 node_modules/vitest/vitest.mjs run`).
-- `$SCRATCH` in the steps is a scratch directory outside the repo (e.g. the session scratchpad). `$MAC` is the ssh target of a Mac with Xcode, and `$SIM_UDID` an iPhone Simulator on it; the person running the plan supplies both (never commit them).
+- `$SCRATCH` in the steps is a scratch directory outside the repo (e.g. the session scratchpad). `$MAIN` is the main checkout (supplied by the runner). `$MAC` is the ssh target of a Mac with Xcode, and `$SIM_UDID` an iPhone Simulator on it; the person running the plan supplies both (never commit them).
 
 **Rulings against the spec (recorded):**
 - Scripts live in `ui/ios-offline/` (spec: `ui/build/ios-offline-bundle.sh`): `ui/build/` holds the TypeScript build tooling; the bundle scripts, the shipped script and the Dockerfile belong together.
@@ -427,11 +427,11 @@ Run: `ui/ios-offline/bundle.sh ui/ios nosuch /tmp/x; echo "exit $?"` → `no pre
 
 - [ ] **Step 4: Bundle a real synced project, both presets**
 
-The worktree has no built web UI. Use the main checkout's synced `ui/ios`, whose `App/App/public` is an `all-off` build of 61cc3cd (verify with `grep -rl rc-placeholder.invalid <main>/ui/ios/App/App/public`). Run on Linux into the session scratchpad:
+The worktree has no built web UI. Use the main checkout's (`$MAIN`) synced `ui/ios`, whose `App/App/public` is an `all-off` build of 61cc3cd (verify with `grep -rl rc-placeholder.invalid "$MAIN/ui/ios/App/App/public"`). Run on Linux into the session scratchpad:
 
 ```bash
-ui/ios-offline/bundle.sh /home/rophy/projects/opencode-rc/ui/ios all-off "$SCRATCH/offline"
-ui/ios-offline/bundle.sh /home/rophy/projects/opencode-rc/ui/ios default "$SCRATCH/offline"; echo "exit $?"
+ui/ios-offline/bundle.sh "$MAIN/ui/ios" all-off "$SCRATCH/offline"
+ui/ios-offline/bundle.sh "$MAIN/ui/ios" default "$SCRATCH/offline"; echo "exit $?"
 ```
 Expected: the first prints `.../opencode-rc-ios-1.4-5-all-off.tgz`; the second fails with `does not match preset default`, exit 1.
 Check the tarball: `tar tzf …all-off.tgz | grep -v '/App/App/public/' | head -40` shows `capacitor-swift-pm/{Package.swift,LICENSE.md,Capacitor.xcframework/,Cordova.xcframework/}`, `set-server-url.sh`, `config.json`, `LICENSE`, `README.md`, and no `.gitignore`. `tar xzf … -O */App/CapApp-SPM/Package.swift | grep package(` shows the `path:` dependency. `sha256sum -c` on the `.sha256` passes.
@@ -825,7 +825,7 @@ source (see "Building Locally").
 - [ ] **Step 4: Check for leftovers and private names**
 
 Run: `git grep -n "releases/ios" -- . ':!docs/superpowers/'` → no output.
-Run: `git diff origin/main` and search it for the private host names and addresses the maintainer keeps out of public content, for `.local/`, `LOCAL.md` and `Claude` → none.
+Run: `git diff origin/main` and search it for the private host names, addresses and local-only file names the maintainer keeps out of public content, and for tool attribution → none.
 
 - [ ] **Step 5: Run all unit tests**
 
