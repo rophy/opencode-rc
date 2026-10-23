@@ -17,7 +17,7 @@ Use this skill when determining which components need version bumps after code c
 | **Gateway** | `gateway/VERSION` | ghcr.io docker image | `.github/workflows/gateway.yml` | `gateway/**`, `config/opencode-versions.json` |
 | **Helm** | `charts/opencode-rc/Chart.yaml` | ghcr.io OCI chart | `.github/workflows/helm.yml` | `charts/**` |
 | **CLI** | `cli/package.json` | npm (`opencode-rc`) | `.github/workflows/cli.yml` | `cli/**` |
-| **iOS** | `ui/ios/App/App.xcodeproj/project.pbxproj` (MARKETING_VERSION-CURRENT_PROJECT_VERSION) | `releases/ios` branch + `ios/<ver>` git tag | `.github/workflows/ios.yml` | same as UI |
+| **iOS** | `ui/ios/App/App.xcodeproj/project.pbxproj` (MARKETING_VERSION-CURRENT_PROJECT_VERSION) | `ios/<ver>` git tag + `ghcr.io/rophy/opencode-rc/ios:<ver>-<preset>` images (`ios-offline.yml`) | `.github/workflows/ios.yml` | same as UI |
 | **Android** | `ui/android/app/build.gradle` (versionName-versionCode) | `releases/android` branch + `android/<ver>` git tag | `.github/workflows/android.yml` | same as UI |
 
 ## How CI publishing works

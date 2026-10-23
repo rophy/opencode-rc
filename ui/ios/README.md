@@ -1,34 +1,18 @@
 # OpenCode RC — iOS
 
-This branch contains a pre-built Xcode project for the OpenCode RC iOS app.
-It is auto-generated from the `main` branch by CI — do not edit directly.
+The Capacitor iOS project. `App/App/public` and `capacitor-cordova-ios-plugins/` are
+generated: build the UI (`cd ui && bun run build`) and run `npx cap sync ios` first.
 
-## Prerequisites
-
-- macOS with Xcode 16+
-- Apple Developer account (for code signing)
-
-## Quick Start
+To build the app on a Mac with only Xcode, use a release bundle instead: CI publishes one per
+iOS version and preset, with the web UI built in and Capacitor included, so it builds without
+internet.
 
 ```bash
-git clone --branch releases/ios --single-branch --depth 1 \
-  https://github.com/rophy/opencode-rc.git opencode-rc-ios
+docker create --name b ghcr.io/rophy/opencode-rc/ios:<version>-<preset>
+docker cp b:/bundle/opencode-rc-ios-<version>-<preset>.tgz . && docker rm b
+tar xzf opencode-rc-ios-<version>-<preset>.tgz
 ```
 
-## Build & Sign
-
-1. Open `App/App.xcodeproj` in Xcode
-2. Select your team under **Signing & Capabilities**
-3. Set the bundle identifier (default: `com.opencode.rc`)
-4. **Product → Archive**
-5. **Distribute App** — choose your distribution method
-
-## Updating
-
-Pull the latest build:
-
-```bash
-git pull origin releases/ios
-```
-
-Or re-clone with `--depth 1` for a clean copy.
+Presets: `default` (users enter the server in the app; all features on) and `all-off` (all
+features off; set your server once with the bundle's `set-server-url.sh`). The bundle's
+`README.md` has the steps. See `docs/ios-app.md`.

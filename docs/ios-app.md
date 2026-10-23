@@ -60,25 +60,36 @@ same file (chart value `config`).
 
 ## Distribution
 
-When a push to `main` brings a new `MARKETING_VERSION`-`CURRENT_PROJECT_VERSION` (no
-`ios/<version>` tag yet), `.github/workflows/ios.yml` builds the UI, runs `npx cap sync ios`,
-force-pushes the resulting Xcode project (with the web assets already bundled) to the
-`releases/ios` branch and tags it `ios/<version>`.
-Every run, new version or not, also builds the app for the iOS Simulator (unsigned) and runs
+Every push to `main` that touches the app builds it for the iOS Simulator (unsigned) and runs
 `AppUITests`, a smoke test that launches the app and checks the bundled UI renders and responds.
 Run it locally with `xcodebuild test -project App.xcodeproj -scheme App -destination 'platform=iOS Simulator,name=<device>' CODE_SIGNING_ALLOWED=NO`
 in `ui/ios/App`, after a build without a preset server and `npx cap sync ios`.
 
+When the push brings a new `MARKETING_VERSION`-`CURRENT_PROJECT_VERSION` (no `ios/<version>`
+tag yet), `.github/workflows/ios.yml` tags it `ios/<version>` and calls
+`.github/workflows/ios-offline.yml`, which publishes one image per preset:
+
+    ghcr.io/rophy/opencode-rc/ios:<version>-<preset>
+
+Each holds `/bundle/opencode-rc-ios-<version>-<preset>.tgz`: the Xcode project with the web
+UI built in and Capacitor included (`capacitor-swift-pm/`), so it builds with Xcode only and
+no internet. Presets are `config/presets/<preset>.json`; `default` is built with no config.
+Before publishing, CI builds each bundle with an empty package cache, runs `AppUITests` on it
+(a launch check for presets with a server) and builds it for devices (`ui/ios-offline/verify.sh`). A published image is never replaced.
+Run the workflow by hand to bundle an existing tag or a new preset.
+
 On the corporate Mac:
 
-1. Clone the `releases/ios` branch, or `git fetch && git reset --hard origin/releases/ios`
-   an existing clone (the branch is force-pushed).
-2. The `releases/ios` build is generic: users enter the server. To preset the server or
-   disable features, build from source instead (see "Building Locally").
-3. Open `App/App.xcodeproj` in Xcode, set the corporate signing team, build.
+1. Extract the bundle (`docker create`, `docker cp`; `docker run -t … > file` corrupts it).
+2. `all-off`: run `./set-server-url.sh https://<api-host>` once. `default`: users enter the
+   server in the app.
+3. Open `App/App.xcodeproj` in Xcode; try it in the Simulator, then set the signing team and
+   archive.
 4. Distribute via MDM (Intune, Jamf) or TestFlight.
 
-For the generic build no Node, bun, or opencode source is needed on that Mac, only Xcode.
+For another feature set, add `config/presets/<name>.json`, add `<name>` to the `preset`
+choices and the preset list in `ios-offline.yml`, and run the workflow for it; or build from
+source (see "Building Locally").
 
 ## Building Locally
 
