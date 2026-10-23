@@ -63,10 +63,11 @@ else
   xcrun simctl bootstatus "$UDID" -b >/dev/null
   xcrun simctl install "$UDID" "$app"
   bundle_id=$id
-  xcrun simctl launch "$UDID" "$bundle_id"
+  # "<bundle id>: <pid>": Simulator apps are host processes, so kill -0 sees whether it lives.
+  pid=$(xcrun simctl launch "$UDID" "$bundle_id" | sed -n 's/^[^:]*: *\([0-9][0-9]*\)$/\1/p')
+  [ -n "$pid" ] || fail "no process id from simctl launch"
   sleep 20
-  xcrun simctl spawn "$UDID" launchctl list | grep -q "UIKitApplication:$bundle_id" \
-    || fail "$bundle_id is not running 20 s after launch"
+  kill -0 "$pid" 2>/dev/null || fail "$bundle_id (pid $pid) is not running 20 s after launch"
 fi
 
 state="$work/spm/workspace-state.json"
