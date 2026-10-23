@@ -66,7 +66,8 @@ jobs:
             # 0 = exists, 1 = absent; any other registry error stops the job.
             local err
             if err=$(docker manifest inspect "$1" 2>&1 >/dev/null); then return 0; fi
-            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found'; then return 1; fi
+            # denied: no package yet. The check runs logged in as the pusher, which cannot push over a tag it cannot read.
+            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found|denied'; then return 1; fi
             echo "cannot check $1: $err" >&2
             exit 1
           }
@@ -183,7 +184,8 @@ jobs:
             # 0 = exists, 1 = absent; any other registry error stops the job.
             local err
             if err=$(docker manifest inspect "$1" 2>&1 >/dev/null); then return 0; fi
-            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found'; then return 1; fi
+            # denied: no package yet. The check runs logged in as the pusher, which cannot push over a tag it cannot read.
+            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found|denied'; then return 1; fi
             echo "cannot check $1: $err" >&2
             exit 1
           }
