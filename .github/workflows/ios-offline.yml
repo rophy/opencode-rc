@@ -24,7 +24,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 # Fixed name (not ios.yml's): runs queue, so the existence checks cannot race a push.
 concurrency:
@@ -35,6 +34,9 @@ jobs:
   # Picks the tag and the presets that have no image yet: a published image is never replaced.
   plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     outputs:
       ref: ${{ steps.plan.outputs.ref }}
       version: ${{ steps.plan.outputs.version }}
@@ -60,7 +62,7 @@ jobs:
           fi
           case "$REF" in ios/?*) ;; *) echo "not an ios/<version> tag: '$REF'" >&2; exit 1 ;; esac
           VERSION=${REF#ios/}
-          printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*-[0-9]+$' \
+          [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)*-[0-9]+$ ]] \
             || { echo "bad version in tag: '$VERSION'" >&2; exit 1; }
           tag_exists() {
             # 0 = exists, 1 = absent; any other registry error stops the job.
@@ -90,6 +92,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.presets != '[]'
     runs-on: macos-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +103,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: tools
+          persist-credentials: false
 
       - name: Check out the app at ${{ needs.plan.outputs.ref }}
         uses: actions/checkout@v5
@@ -106,6 +111,7 @@ jobs:
           ref: ${{ needs.plan.outputs.ref }}
           path: src
           submodules: recursive
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@v2
       # Vite runs on Node; pin it so the build doesn't depend on the runner's default.
@@ -144,12 +150,16 @@ jobs:
           name: ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}
           path: out/
           if-no-files-found: error
+          compression-level: 0
           retention-days: 7
 
   # macOS runners have no Docker: the image is built from the verified tarball on Linux.
   publish:
     needs: [plan, bundle]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -191,11 +201,14 @@ jobs:
           }
           if tag_exists "$IMAGE"; then echo "$IMAGE exists, not replacing it" >&2; exit 1; fi
 
+      - uses: docker/setup-buildx-action@v4
+
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: out
           file: ui/ios-offline/Dockerfile
           build-args: BUNDLE=opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository }}/ios:${{ needs.plan.outputs.version }}-${{ matrix.preset }}
