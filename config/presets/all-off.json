@@ -1,0 +1,23 @@
+{
+  "serverUrl": "https://rc-placeholder.invalid",
+  "features": {
+    "uploads": { "enabled": false },
+    "downloads": { "enabled": false },
+    "terminal": { "enabled": false },
+    "shell": { "enabled": false },
+    "export": { "enabled": false },
+    "share": { "enabled": false },
+    "config": { "enabled": false },
+    "mcp": { "enabled": false }
+  },
+  "opencodeV2": {
+    "features": {
+      "uploads": { "enabled": false },
+      "downloads": { "enabled": false },
+      "terminal": { "enabled": false },
+      "shell": { "enabled": false },
+      "export": { "enabled": false },
+      "mcp": { "enabled": false }
+    }
+  }
+}
