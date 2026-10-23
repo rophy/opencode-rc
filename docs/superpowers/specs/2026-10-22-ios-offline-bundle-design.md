@@ -1,7 +1,7 @@
 # iOS Offline Bundle Image
 
 Date: 2026-10-22
-Status: Draft for review
+Status: Implemented
 
 ## Problem
 
@@ -121,6 +121,17 @@ the tag.
 - Unit: `all-off.json` against the schema and the feature lists (UI vitest).
 - CI: the verification above, on every bundle, on every run.
 - Manual: step 2 of the rollout.
+
+## Changes in implementation
+
+- The scripts are in `ui/ios-offline/`: `bundle.sh`, `verify.sh`, `set-server-url.sh`.
+- Checksums use `shasum -a 256`.
+- `bundle.sh` takes the synced `ui/ios` directory; the tools and presets come from the workflow's commit.
+- The image is pushed from a Linux job (macOS runners have no Docker).
+- `AppUITests` run for `default` bundles only. Bundles with a preset server get a Simulator launch
+  check: the test taps "Server settings", which the app hides when a server is built in.
+- The existence check treats manifest unknown, not found and denied as absent and fails on other
+  errors. A concurrency group and a re-check before the push keep a published image from being replaced.
 
 ## Risks
 

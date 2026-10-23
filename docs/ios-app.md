@@ -75,7 +75,8 @@ Each holds `/bundle/opencode-rc-ios-<version>-<preset>.tgz`: the Xcode project w
 UI built in and Capacitor included (`capacitor-swift-pm/`), so it builds with Xcode only and
 no internet. Presets are `config/presets/<preset>.json`; `default` is built with no config.
 Before publishing, CI builds each bundle with an empty package cache, runs `AppUITests` on it
-(a launch check for presets with a server) and builds it for devices (`ui/ios-offline/verify.sh`). A published image is never replaced.
+(a launch check for presets with a server) and builds it for devices
+(`ui/ios-offline/verify.sh`). A published image is never replaced.
 Run the workflow by hand to bundle an existing tag or a new preset.
 
 On the corporate Mac:
