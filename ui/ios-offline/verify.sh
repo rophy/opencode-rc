@@ -1,7 +1,8 @@
 #!/bin/sh
 # Checks an iOS offline bundle on macOS: the checksum, the server preset (bundles with
-# set-server-url.sh), a build with no package downloads, the Simulator launch test
-# (AppUITests) and an unsigned device build.
+# set-server-url.sh), a build with no package downloads and an unsigned device build.
+# Default-preset bundles run the Simulator UI test (AppUITests); bundles with a preset
+# server build for the Simulator and check that the app stays running 20 s after launch.
 #   ui/ios-offline/verify.sh <bundle.tgz>        (UDID=<simulator> to pick the Simulator)
 set -eu
 fail() { echo "verify.sh: $*" >&2; exit 1; }
@@ -10,12 +11,24 @@ tgz=${1:-}
 (cd "$(dirname "$tgz")" && shasum -a 256 -c "$(basename "$tgz").sha256")
 
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+bundle_id=
+booted=no
+cleanup() {
+  if [ -n "$bundle_id" ]; then
+    xcrun simctl terminate "$UDID" "$bundle_id" >/dev/null 2>&1 || true
+    xcrun simctl uninstall "$UDID" "$bundle_id" >/dev/null 2>&1 || true
+  fi
+  [ "$booted" = yes ] && { xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; }
+  rm -rf "$work"
+}
+trap cleanup EXIT
+preset=no
 tar xzf "$tgz" -C "$work"
 dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d)
 [ -d "$dir/capacitor-swift-pm" ] || fail "no capacitor-swift-pm/"
 
 if [ -f "$dir/set-server-url.sh" ]; then
+  preset=yes
   "$dir/set-server-url.sh" https://rc.example.com
   ! grep -rq rc-placeholder.invalid "$dir/App/App/public" || fail "placeholder left after set-server-url.sh"
   grep -q "https://rc.example.com wss://rc.example.com" "$dir/App/App/public/index.html" || fail "CSP not updated"
@@ -30,9 +43,31 @@ fi
 
 cd "$dir/App"
 # A new package folder: anything SwiftPM would fetch must come from the bundle.
-xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
-  -destination "id=$UDID" -derivedDataPath "$work/dd" -clonedSourcePackagesDirPath "$work/spm" \
-  CODE_SIGNING_ALLOWED=NO
+if [ "$preset" = no ]; then
+  xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
+    -destination "id=$UDID" -derivedDataPath "$work/dd" -clonedSourcePackagesDirPath "$work/spm" \
+    CODE_SIGNING_ALLOWED=NO
+else
+  # AppUITests expect the server settings button, which a preset server hides: launch instead.
+  xcodebuild build -project App.xcodeproj -scheme App -configuration Debug \
+    -destination "id=$UDID" -derivedDataPath "$work/dd" -clonedSourcePackagesDirPath "$work/spm" \
+    CODE_SIGNING_ALLOWED=NO
+  app="$work/dd/Build/Products/Debug-iphonesimulator/App.app"
+  [ -d "$app" ] || fail "no $app"
+  id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+  state_now=$(xcrun simctl list devices -j | jq -r --arg u "$UDID" '[.devices[][] | select(.udid == $u)][0].state')
+  if [ "$state_now" != Booted ]; then
+    xcrun simctl boot "$UDID"
+    booted=yes
+  fi
+  xcrun simctl bootstatus "$UDID" -b >/dev/null
+  xcrun simctl install "$UDID" "$app"
+  bundle_id=$id
+  xcrun simctl launch "$UDID" "$bundle_id"
+  sleep 20
+  xcrun simctl spawn "$UDID" launchctl list | grep -q "UIKitApplication:$bundle_id" \
+    || fail "$bundle_id is not running 20 s after launch"
+fi
 
 state="$work/spm/workspace-state.json"
 [ -f "$state" ] || fail "no $state"
