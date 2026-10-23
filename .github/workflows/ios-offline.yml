@@ -1,0 +1,160 @@
+name: iOS offline bundle
+
+# Publishes ghcr.io/<repo>/ios:<version>-<preset>: the Xcode project of an ios/<version> tag
+# with Capacitor included, so it builds without internet. The app source comes from the tag;
+# the bundle tools and presets come from this workflow's commit.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: ios/<version> tag to bundle
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: ios/<version> tag to bundle (empty = the latest)
+        type: string
+        default: ''
+      preset:
+        description: Preset to bundle
+        type: choice
+        options: [all, default, all-off]
+        default: all
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Picks the tag and the presets that have no image yet: a published image is never replaced.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.plan.outputs.ref }}
+      version: ${{ steps.plan.outputs.version }}
+      presets: ${{ steps.plan.outputs.presets }}
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve tag and presets
+        id: plan
+        env:
+          REF: ${{ inputs.ref }}
+          PRESET: ${{ inputs.preset || 'all' }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$REF" ]; then
+            REF=$(git ls-remote --tags --refs "https://github.com/$REPO.git" 'refs/tags/ios/*' \
+              | sed 's|.*refs/tags/||' | sort -V | tail -1)
+          fi
+          case "$REF" in ios/?*) ;; *) echo "not an ios/<version> tag: '$REF'" >&2; exit 1 ;; esac
+          VERSION=${REF#ios/}
+          if [ "$PRESET" = all ]; then CANDIDATES="default all-off"; else CANDIDATES="$PRESET"; fi
+          PRESETS=""
+          for p in $CANDIDATES; do
+            if docker manifest inspect "ghcr.io/$REPO/ios:$VERSION-$p" > /dev/null 2>&1; then
+              echo "ghcr.io/$REPO/ios:$VERSION-$p exists, skipping"
+            else
+              PRESETS="$PRESETS $p"
+            fi
+          done
+          {
+            echo "ref=$REF"
+            echo "version=$VERSION"
+            echo "presets=$(printf '%s\n' $PRESETS | jq -Rcs 'split("\n") | map(select(length > 0))')"
+          } >> "$GITHUB_OUTPUT"
+
+  bundle:
+    needs: plan
+    if: needs.plan.outputs.presets != '[]'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: ${{ fromJSON(needs.plan.outputs.presets) }}
+    steps:
+      - name: Check out the tools
+        uses: actions/checkout@v5
+        with:
+          path: tools
+
+      - name: Check out the app at ${{ needs.plan.outputs.ref }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+          path: src
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+      # Vite runs on Node; pin it so the build doesn't depend on the runner's default.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install submodule deps
+        run: |
+          cd src/vendor/opencode-v1 && bun install --frozen-lockfile
+          cd ../opencode-v2 && bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build SPA (${{ matrix.preset }})
+        env:
+          PRESET: ${{ matrix.preset }}
+        run: |
+          if [ "$PRESET" != default ]; then export OPENCODE_RC_CONFIG="$GITHUB_WORKSPACE/tools/config/presets/$PRESET.json"; fi
+          cd src/ui && bun install --frozen-lockfile && bun run build
+
+      - name: Sync iOS project
+        run: cd src/ui && npx cap sync ios
+
+      - name: Bundle
+        run: tools/ui/ios-offline/bundle.sh src/ui/ios "${{ matrix.preset }}" out
+
+      - name: Verify
+        run: tools/ui/ios-offline/verify.sh "out/opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}.tgz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+
+  # macOS runners have no Docker: the image is built from the verified tarball on Linux.
+  publish:
+    needs: [plan, bundle]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        preset: ${{ fromJSON(needs.plan.outputs.presets) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}
+          path: out
+
+      - name: Check the tarball
+        run: cd out && sha256sum -c "opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}.tgz.sha256"
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: out
+          file: ui/ios-offline/Dockerfile
+          build-args: BUNDLE=opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/ios:${{ needs.plan.outputs.version }}-${{ matrix.preset }}

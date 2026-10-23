@@ -72,15 +72,6 @@ jobs:
       - name: Sync iOS project
         run: cd ui && npx cap sync ios
 
-      # Copy the synced project before Xcode writes its build state into it.
-      - name: Prepare releases/ios
-        if: needs.version.outputs.new == 'true'
-        run: |
-          mkdir /tmp/ios-publish
-          cp -r ui/ios/. /tmp/ios-publish/
-          cp LICENSE /tmp/ios-publish/
-          rm -f /tmp/ios-publish/.gitignore
-
       # Unsigned, in the Simulator: compiles the app and runs the launch smoke test (AppUITests).
       - name: Build and test
         run: |
@@ -91,18 +82,6 @@ jobs:
           xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
             -destination "id=$UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO
 
-      - name: Publish to releases/ios
-        if: needs.version.outputs.new == 'true'
-        run: |
-          cd /tmp/ios-publish
-          git init -b releases/ios
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add -A
-          git commit -m "build: update iOS project from ${GITHUB_SHA::8}"
-          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push -f origin releases/ios
-
       - name: Tag release
         if: needs.version.outputs.new == 'true'
         run: |
@@ -110,3 +89,15 @@ jobs:
           git config user.email "github-actions@github.com"
           git tag "ios/${{ needs.version.outputs.version }}"
           git push origin "ios/${{ needs.version.outputs.version }}"
+
+  # The offline bundles (ghcr.io/<repo>/ios:<version>-<preset>) for a new version. Called, not
+  # triggered by the tag: a tag pushed with GITHUB_TOKEN starts no other workflow.
+  offline:
+    needs: [version, build]
+    if: needs.version.outputs.new == 'true'
+    uses: ./.github/workflows/ios-offline.yml
+    with:
+      ref: ios/${{ needs.version.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
