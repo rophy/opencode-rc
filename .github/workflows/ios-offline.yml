@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: ios/<version> tag to bundle (empty = the latest)
+        description: ios/<version> tag to bundle (empty = the latest). The tag must contain this repo's opencode-v2 submodule and accept the current presets; older tags may fail
         type: string
         default: ''
       preset:
@@ -25,6 +25,11 @@ on:
 permissions:
   contents: read
   packages: write
+
+# Fixed name (not ios.yml's): runs queue, so the existence checks cannot race a push.
+concurrency:
+  group: ios-offline
+  cancel-in-progress: false
 
 jobs:
   # Picks the tag and the presets that have no image yet: a published image is never replaced.
@@ -55,10 +60,20 @@ jobs:
           fi
           case "$REF" in ios/?*) ;; *) echo "not an ios/<version> tag: '$REF'" >&2; exit 1 ;; esac
           VERSION=${REF#ios/}
+          printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*-[0-9]+$' \
+            || { echo "bad version in tag: '$VERSION'" >&2; exit 1; }
+          tag_exists() {
+            # 0 = exists, 1 = absent; any other registry error stops the job.
+            local err
+            if err=$(docker manifest inspect "$1" 2>&1 >/dev/null); then return 0; fi
+            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found'; then return 1; fi
+            echo "cannot check $1: $err" >&2
+            exit 1
+          }
           if [ "$PRESET" = all ]; then CANDIDATES="default all-off"; else CANDIDATES="$PRESET"; fi
           PRESETS=""
           for p in $CANDIDATES; do
-            if docker manifest inspect "ghcr.io/$REPO/ios:$VERSION-$p" > /dev/null 2>&1; then
+            if tag_exists "ghcr.io/$REPO/ios:$VERSION-$p"; then
               echo "ghcr.io/$REPO/ios:$VERSION-$p exists, skipping"
             else
               PRESETS="$PRESETS $p"
@@ -113,10 +128,15 @@ jobs:
         run: cd src/ui && npx cap sync ios
 
       - name: Bundle
-        run: tools/ui/ios-offline/bundle.sh src/ui/ios "${{ matrix.preset }}" out
+        env:
+          PRESET: ${{ matrix.preset }}
+        run: tools/ui/ios-offline/bundle.sh src/ui/ios "$PRESET" out
 
       - name: Verify
-        run: tools/ui/ios-offline/verify.sh "out/opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}.tgz"
+        env:
+          PRESET: ${{ matrix.preset }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: tools/ui/ios-offline/verify.sh "out/opencode-rc-ios-$VERSION-$PRESET.tgz"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -130,6 +150,7 @@ jobs:
     needs: [plan, bundle]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         preset: ${{ fromJSON(needs.plan.outputs.presets) }}
     steps:
@@ -141,7 +162,10 @@ jobs:
           path: out
 
       - name: Check the tarball
-        run: cd out && sha256sum -c "opencode-rc-ios-${{ needs.plan.outputs.version }}-${{ matrix.preset }}.tgz.sha256"
+        env:
+          PRESET: ${{ matrix.preset }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: cd out && sha256sum -c "opencode-rc-ios-$VERSION-$PRESET.tgz.sha256"
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v4
@@ -149,6 +173,21 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # plan ran before the long macOS build: check again, a published image is never replaced.
+      - name: Check the tag is still free
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/ios:${{ needs.plan.outputs.version }}-${{ matrix.preset }}
+        run: |
+          tag_exists() {
+            # 0 = exists, 1 = absent; any other registry error stops the job.
+            local err
+            if err=$(docker manifest inspect "$1" 2>&1 >/dev/null); then return 0; fi
+            if printf '%s' "$err" | grep -qiE 'manifest unknown|not found'; then return 1; fi
+            echo "cannot check $1: $err" >&2
+            exit 1
+          }
+          if tag_exists "$IMAGE"; then echo "$IMAGE exists, not replacing it" >&2; exit 1; fi
 
       - name: Build and push
         uses: docker/build-push-action@v7
