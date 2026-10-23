@@ -1,4 +1,5 @@
-FROM oven/bun:1 AS build
+# Bun 1.4.4 cannot apply opencode's photon-node patch; unpin when fixed.
+FROM oven/bun:1.4.3 AS build
 WORKDIR /src
 COPY vendor/opencode-v2/package.json vendor/opencode-v2/bun.lock vendor/opencode-v2/
 COPY vendor/opencode-v2/patches/ vendor/opencode-v2/patches/
