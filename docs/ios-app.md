@@ -90,7 +90,8 @@ On the corporate Mac:
 
 1. Extract the bundle (`docker create`, `docker cp`; `docker run -t … > file` corrupts it).
 2. `all-off`: run `./set-server-url.sh https://<api-host>` once. `default`: users enter the
-   server in the app.
+   server in the app. In either bundle, `--bundle-id <id>` sets the bundle identifier
+   (`com.opencode.rc` by default), e.g. `./set-server-url.sh --bundle-id com.corp.opencode`.
 3. Open `App/App.xcodeproj` in Xcode; try it in the Simulator, then set the signing team and
    archive.
 4. Distribute via MDM (Intune, Jamf) or TestFlight.

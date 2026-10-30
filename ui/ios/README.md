@@ -14,5 +14,6 @@ tar xzf opencode-rc-ios-<version>-<preset>.tgz
 ```
 
 Presets: `default` (users enter the server in the app; all features on) and `all-off` (all
-features off; set your server once with the bundle's `set-server-url.sh`). The bundle's
-`README.md` has the steps. See `docs/ios-app.md`.
+features off; set your server once with the bundle's `set-server-url.sh`). In both,
+`set-server-url.sh --bundle-id <id>` sets the bundle identifier. The bundle's `README.md` has
+the steps. See `docs/ios-app.md`.

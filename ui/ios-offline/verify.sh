@@ -1,6 +1,7 @@
 #!/bin/sh
-# Checks an iOS offline bundle on macOS: the checksum, the server preset (bundles with
-# set-server-url.sh), a build with no package downloads and an unsigned device build.
+# Checks an iOS offline bundle on macOS: the checksum, set-server-url.sh (the server for
+# bundles with the placeholder, and the bundle id), a build with no package downloads and an
+# unsigned device build.
 # Default-preset bundles run the Simulator UI test (AppUITests); bundles with a preset
 # server build for the Simulator and check that the app stays running 20 s after launch.
 #   ui/ios-offline/verify.sh <bundle.tgz>        (UDID=<simulator> to pick the Simulator)
@@ -27,13 +28,19 @@ tar xzf "$tgz" -C "$work"
 dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d)
 [ -d "$dir/capacitor-swift-pm" ] || fail "no capacitor-swift-pm/"
 
-if [ -f "$dir/set-server-url.sh" ]; then
+[ -f "$dir/set-server-url.sh" ] || fail "no set-server-url.sh"
+if grep -rq rc-placeholder.invalid "$dir/App/App/public"; then
   preset=yes
   "$dir/set-server-url.sh" https://rc.example.com
   ! grep -rq rc-placeholder.invalid "$dir/App/App/public" || fail "placeholder left after set-server-url.sh"
   grep -q "https://rc.example.com wss://rc.example.com" "$dir/App/App/public/index.html" || fail "CSP not updated"
   ! "$dir/set-server-url.sh" https://other.example.com 2>/dev/null || fail "set-server-url.sh ran twice"
+else
+  ! "$dir/set-server-url.sh" https://rc.example.com 2>/dev/null || fail "set-server-url.sh set a server with no placeholder"
 fi
+# The app and its UI tests build, run and test under another bundle id.
+want_id=com.example.rcverify
+"$dir/set-server-url.sh" --bundle-id $want_id
 
 if [ -z "${UDID:-}" ]; then
   UDID=$(xcrun simctl list devices available -j \
@@ -47,6 +54,8 @@ if [ "$preset" = no ]; then
   xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
     -destination "id=$UDID" -derivedDataPath "$work/dd" -clonedSourcePackagesDirPath "$work/spm" \
     CODE_SIGNING_ALLOWED=NO
+  id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$work/dd/Build/Products/Debug-iphonesimulator/App.app/Info.plist")
+  [ "$id" = "$want_id" ] || fail "bundle id $id, expected $want_id"
 else
   # AppUITests expect the server settings button, which a preset server hides: launch instead.
   xcodebuild build -project App.xcodeproj -scheme App -configuration Debug \
@@ -55,6 +64,7 @@ else
   app="$work/dd/Build/Products/Debug-iphonesimulator/App.app"
   [ -d "$app" ] || fail "no $app"
   id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+  [ "$id" = "$want_id" ] || fail "bundle id $id, expected $want_id"
   state_now=$(xcrun simctl list devices -j | jq -r --arg u "$UDID" '[.devices[][] | select(.udid == $u)][0].state')
   if [ "$state_now" != Booted ]; then
     xcrun simctl boot "$UDID"

@@ -99,7 +99,7 @@ grep -q '\.package(path: "\.\./\.\./capacitor-swift-pm")' "$spm" || fail "could 
 
 cp "$root/LICENSE" "$dest/LICENSE"
 [ -z "$config" ] || cp "$config" "$dest/config.json"
-[ "$placeholder" = no ] || cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
+cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
 
 {
   echo "# OpenCode RC iOS $marketing ($build), preset $preset"
@@ -115,30 +115,34 @@ cp "$root/LICENSE" "$dest/LICENSE"
     echo "Generic build: users enter the server in the app, and all features are on."
   fi
   echo
+  echo "## 1. Set the server and bundle identifier"
+  echo
   if [ "$placeholder" = yes ]; then
-    echo "## 1. Set the server (once)"
-    echo
-    echo "    ./set-server-url.sh https://rc.corp.example.com"
+    echo "    ./set-server-url.sh --bundle-id com.corp.opencode https://rc.corp.example.com"
     echo
     echo "Give the origin of your opencode-rc API (scheme, host, optional port; no path). The script"
     echo "replaces the placeholder in \`App/App/public\`, including the Content-Security-Policy, which"
-    echo "then allows connections only to that server. It runs once: to change the server later,"
+    echo "then allows connections only to that server. The server can be set once: to change it later,"
     echo "start again from a fresh copy of this bundle."
-    echo
-    echo "## 2. Build"
   else
-    echo "## Build"
+    echo "    ./set-server-url.sh --bundle-id com.corp.opencode"
+    echo
+    echo "Users enter the server in the app, so this bundle takes no server URL."
   fi
+  echo
+  echo "\`--bundle-id\` (optional) sets the app's bundle identifier, \`com.opencode.rc\` by default; the"
+  echo "UI tests get \`<id>.uitests\`. It can be run again to change it."
+  echo
+  echo "## 2. Build"
   echo
   echo "1. Open \`App/App.xcodeproj\` in Xcode."
   echo "2. To try it, choose an iOS Simulator as the run destination and press Run. The Simulator"
   echo "   needs no signing team, but needs an iOS Simulator runtime installed."
-  echo "3. For devices: target **App** > **Signing & Capabilities**, set your team and a bundle"
-  echo "   identifier (changing it from \`com.opencode.rc\` is fine), then **Product > Archive** and"
-  echo "   **Distribute App**."
+  echo "3. For devices: target **App** > **Signing & Capabilities**, set your team, then"
+  echo "   **Product > Archive** and **Distribute App**."
   echo
   echo "The app signs in through its own sheet (not Safari), so a per-app VPN carries the sign-in. Its"
-  echo "callback is \`com.opencode.rc:/auth/done\`."
+  echo "callback is \`com.opencode.rc:/auth/done\` whatever the bundle identifier."
 } > "$dest/README.md"
 
 (cd "$work" && COPYFILE_DISABLE=1 tar czf "$out/$name.tgz" "$name")
