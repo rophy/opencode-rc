@@ -201,8 +201,8 @@ async function exchangeCode(code: string, verifier: string): Promise<boolean> {
   }
 }
 
-// Native apps sign in through the system browser (RFC 8252): the WebView never leaves
-// the app, so the verifier stays in memory.
+// Native apps sign in outside the app's WebView (iOS: an in-app sign-in sheet; Android: a
+// Custom Tab): the WebView never leaves the app, so the verifier stays in memory.
 async function nativeLogin(verifier: string, challenge: string): Promise<LoginResult> {
   if (!getBaseUrl()) return "failed"
   let callback: string

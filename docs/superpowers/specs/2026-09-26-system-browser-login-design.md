@@ -2,6 +2,7 @@
 
 Date: 2026-09-26
 Status: Approved design
+Superseded for iOS (2026-10-30): the app signs in through its own WKWebView sheet, see `docs/ios-app.md`.
 Builds on: `2026-09-24-bearer-token-auth-design.md` (login codes, code verifier, `/auth/token`)
 
 ## Problem

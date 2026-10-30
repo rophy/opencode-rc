@@ -9,23 +9,30 @@ Package the UI (`ui/`) as a native iOS app using Capacitor for corporate distrib
 Capacitor wraps the UI in a WKWebView and serves it from the app bundle. The app
 talks to the API host (e.g. `https://api.internal/`), which serves only JSON.
 
-Login runs in the system browser (see "Sign-In and Navigation"); the app then
+Login runs outside the app's WebView (see "Sign-In and Navigation"); the app then
 holds an access token (15 min) and a refresh token (stored in `localStorage`,
 valid 7 days).
 
 ## Sign-In and Navigation
 
-The app signs in through the system browser (`ASWebAuthenticationSession` on iOS,
-Custom Tabs on Android), not in its WebView: it opens
+The app does not sign in in the WebView that shows the app. It opens
 `<api>/auth/start?return_to=com.opencode.rc:/auth/done`, the IdP may use any hosts,
-and the API finally redirects to `com.opencode.rc:/auth/done#code=…`, which the
-system hands back to the app. The app exchanges the code together with its
-verifier for tokens, so a callback stolen from this app's own login attempt is
-useless.
+and the API finally redirects to `com.opencode.rc:/auth/done#code=…`. The app
+exchanges the code together with its verifier for tokens, so a callback stolen
+from this app's own login attempt is useless.
+
+- **iOS:** a sheet with the app's own WKWebView. Its traffic belongs to the app, so a
+  per-app VPN carries it (a Safari-based sheet, `ASWebAuthenticationSession`, would
+  go through Safari, which such a VPN often excludes). The sheet stops the
+  navigation to `com.opencode.rc:` and closes; swiping it down cancels; a page that
+  cannot load closes it with a sign-in error. The IdP session is kept in the app's
+  own web data, not shared with Safari, and IdPs that refuse embedded WebViews
+  (e.g. Google) cannot be used.
+- **Android:** a Custom Tab (the default browser), which hands the callback to the app.
 
 Residual risk: a malicious app on the device can start its own login with its own
-verifier and register to receive the callback (iOS lets any app supply a matching
-`callbackURLScheme`; on Android another app can register the same custom scheme),
+verifier and register to receive the callback (any iOS app can catch a matching
+scheme in its own sign-in session; on Android another app can register the same custom scheme),
 the general weakness of private-use callback schemes (RFC 8252 section 8.6). To keep
 such a login from completing silently, the API asks the IdP to prompt the user on app
 logins (OIDC `prompt`, chart `auth.appLoginPrompt`, default `select_account`); check

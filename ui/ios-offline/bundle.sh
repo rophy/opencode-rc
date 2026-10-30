@@ -137,7 +137,8 @@ cp "$root/LICENSE" "$dest/LICENSE"
   echo "   identifier (changing it from \`com.opencode.rc\` is fine), then **Product > Archive** and"
   echo "   **Distribute App**."
   echo
-  echo "The app signs in through the system browser and returns on \`com.opencode.rc:/auth/done\`."
+  echo "The app signs in through its own sheet (not Safari), so a per-app VPN carries the sign-in. Its"
+  echo "callback is \`com.opencode.rc:/auth/done\`."
 } > "$dest/README.md"
 
 (cd "$work" && COPYFILE_DISABLE=1 tar czf "$out/$name.tgz" "$name")

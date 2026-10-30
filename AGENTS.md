@@ -138,7 +138,8 @@ only errors in `ui/` fail it.
 CI runs the API and UI unit tests (vitest) on Node 22. Check code that may need a newer Node
 with `npx -y node@22 node_modules/vitest/vitest.mjs run` in `api/` or `ui/`.
 
-The iOS/Android apps sign in through the system browser (local `SystemAuth` plugin, callback
+The iOS/Android apps sign in outside their WebView (local `SystemAuth` plugin: an in-app WKWebView sheet
+on iOS, a Custom Tab on Android; callback
 `com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server
 or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
 (schema: `config/schema.ts`; see `docs/ios-app.md`).

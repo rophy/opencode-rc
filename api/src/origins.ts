@@ -3,8 +3,8 @@ import { cors } from "hono/cors";
 
 export const APP_ORIGINS: readonly string[] = ["capacitor://localhost", "https://localhost"];
 
-// The mobile app's sign-in callback (RFC 8252 private-use scheme). The system browser
-// hands it to the app; the login code in its fragment is useless without the app's verifier.
+// The mobile app's sign-in callback (RFC 8252 private-use scheme). The app's sign-in sheet
+// (iOS) or the system browser (Android) hands it to the app; the login code in its fragment is useless without the app's verifier.
 export const APP_CALLBACK = "com.opencode.rc:/auth/done";
 
 // URL.origin is "null" for non-special schemes like capacitor:, so build it by hand.
@@ -59,7 +59,7 @@ export function validateReturnTo(
     return parsed.pathname + parsed.search;
   }
   const origin = originOf(withoutFragment);
-  // The app signs in through the system browser now; its WebView origins stay allowed for CORS only.
+  // The app signs in outside its WebView now; its WebView origins stay allowed for CORS only.
   if (!origin || APP_ORIGINS.includes(origin) || !isAllowed(origin)) return null;
   return withoutFragment;
 }
