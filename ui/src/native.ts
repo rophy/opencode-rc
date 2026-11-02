@@ -54,6 +54,8 @@ function emit(event: string, data: unknown) {
 ;(globalThis as { __rcNativeEmit?: typeof emit }).__rcNativeEmit = emit
 
 export function nativeOn(event: string, handler: Handler): () => void {
+  const port = androidPort()
+  if (port) wire(port)
   let set = handlers.get(event)
   if (!set) handlers.set(event, (set = new Set()))
   set.add(handler)

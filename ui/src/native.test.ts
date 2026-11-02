@@ -51,11 +51,10 @@ describe("native bridge", () => {
 
   it("delivers events from both shells", () => {
     const seen: unknown[] = []
-    const off = nativeOn("ws.open", (d) => seen.push(d))
-    ;(g.__rcNativeEmit as (e: string, d: unknown) => void)("ws.open", { id: "1" })
     const port = { postMessage: () => {}, onmessage: null as ((e: { data: string }) => void) | null }
     g.rcNativePort = port
-    void nativeCall("noop").catch(() => {})
+    const off = nativeOn("ws.open", (d) => seen.push(d))
+    ;(g.__rcNativeEmit as (e: string, d: unknown) => void)("ws.open", { id: "1" })
     port.onmessage!({ data: JSON.stringify({ event: "ws.open", data: { id: "2" } }) })
     off()
     ;(g.__rcNativeEmit as (e: string, d: unknown) => void)("ws.open", { id: "3" })
