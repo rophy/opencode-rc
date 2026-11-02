@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		143F8EBFF0F9064D1B831C75 /* BundleFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9C879EC490D95443F003ED /* BundleFiles.swift */; };
 		233E06C0D4ACC2B0985D02D4 /* ServerProxyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAD3DCDE47F8A42ABA0E82B1 /* ServerProxyTests.swift */; };
+		3064E0C5917FBE5A2E5ECAEA /* SignInTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B04F0494411A059D3423AF1F /* SignInTests.swift */; };
 		37132A4C1CA2CC8A3AED71E3 /* NavigationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D4D3479A5B647EBF4A4F63B /* NavigationPolicyTests.swift */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -24,6 +25,7 @@
 		BC872E09A4846D11C2D77BEC /* BridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4344CF1588AFB9F28888E3C0 /* BridgeTests.swift */; };
 		BDC1751F18659EFFC1E4FFFA /* WebSocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5618AC4C9709DC0DE0CC407D /* WebSocketBridge.swift */; };
 		C688AC044160546492862F9F /* WebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3457384C4416EC1E5672FA5B /* WebViewController.swift */; };
+		D6C40902DE816171AFB03C7D /* SignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB794F2F58473C955B2140E2 /* SignIn.swift */; };
 		D81EB1E8FDB75B3B54845478 /* BundleFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C556FEB7188230ABFF598B0 /* BundleFilesTests.swift */; };
 		EDF1D16EB0E55BE851367024 /* AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEDC032F33C5D4492F9A62A /* AppUITests.swift */; };
 		F1FF6462800E1524E8E49166 /* SchemeHandlerWebViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD6041191B798C205BF3858 /* SchemeHandlerWebViewTests.swift */; };
@@ -68,9 +70,11 @@
 		90F926D5DF49FA5D2464DDE0 /* AppSchemeHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSchemeHandler.swift; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		A400E55FB9982FD081D2F520 /* Bridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
+		B04F0494411A059D3423AF1F /* SignInTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignInTests.swift; sourceTree = "<group>"; };
 		BBA10A63AEBE1F904AE75126 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CAD3DCDE47F8A42ABA0E82B1 /* ServerProxyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerProxyTests.swift; sourceTree = "<group>"; };
 		F4D5FD6B9C5E7A26DF505EE7 /* AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB794F2F58473C955B2140E2 /* SignIn.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SignIn.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +148,7 @@
 				A400E55FB9982FD081D2F520 /* Bridge.swift */,
 				513C6D4F85F89F70413FF293 /* ServerProxy.swift */,
 				5618AC4C9709DC0DE0CC407D /* WebSocketBridge.swift */,
+				FB794F2F58473C955B2140E2 /* SignIn.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -157,6 +162,7 @@
 				CAD3DCDE47F8A42ABA0E82B1 /* ServerProxyTests.swift */,
 				2BD6041191B798C205BF3858 /* SchemeHandlerWebViewTests.swift */,
 				675485DCA1D9423AB4DFA2F4 /* WebSocketBridgeTests.swift */,
+				B04F0494411A059D3423AF1F /* SignInTests.swift */,
 			);
 			name = AppTests;
 			path = AppTests;
@@ -304,6 +310,7 @@
 				ACD21C72B9D187D05F6A3765 /* Bridge.swift in Sources */,
 				6C27C8C349EB3B10E6AA4B4B /* ServerProxy.swift in Sources */,
 				BDC1751F18659EFFC1E4FFFA /* WebSocketBridge.swift in Sources */,
+				D6C40902DE816171AFB03C7D /* SignIn.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -317,6 +324,7 @@
 				233E06C0D4ACC2B0985D02D4 /* ServerProxyTests.swift in Sources */,
 				F1FF6462800E1524E8E49166 /* SchemeHandlerWebViewTests.swift in Sources */,
 				825EA0997BF14A430DF2C4D6 /* WebSocketBridgeTests.swift in Sources */,
+				3064E0C5917FBE5A2E5ECAEA /* SignInTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

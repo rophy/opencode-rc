@@ -52,6 +52,15 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             sockets.close(id: args["id"] as? String ?? "", code: args["code"] as? Int ?? 1000, reason: args["reason"] as? String ?? "")
             reply(.success(nil))
         }
+        bridge.register("signIn") { args, reply in
+            guard let url = URL(string: args["url"] as? String ?? "") else {
+                reply(.failure(.failed("bad sign-in URL")))
+                return
+            }
+            SignIn.shared.start(url: url, callbackScheme: args["callbackScheme"] as? String ?? "") { result in
+                reply(result.map { ["url": $0] as Any? })
+            }
+        }
 
         let container = UIView()
         container.backgroundColor = .systemBackground

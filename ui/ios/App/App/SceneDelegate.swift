@@ -10,4 +10,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = WebViewController()
         window?.makeKeyAndVisible()
     }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts { SignIn.shared.handle(context.url) }
+    }
 }
