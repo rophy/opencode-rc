@@ -2,9 +2,9 @@ import { describe, it, expect, vi, afterEach } from "vitest"
 import { render, screen, cleanup, fireEvent } from "@solidjs/testing-library"
 
 const native = vi.hoisted(() => ({ value: false }))
-vi.mock("@capacitor/core", async (orig) => ({
-  ...(await orig<typeof import("@capacitor/core")>()),
-  Capacitor: { isNativePlatform: () => native.value },
+vi.mock("./native", async (o) => ({
+  ...(await o<typeof import("./native")>()),
+  isNativeApp: () => native.value,
 }))
 
 import { ProtocolScreen } from "./protocol-screen"

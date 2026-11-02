@@ -1,16 +1,14 @@
-import { Capacitor } from "@capacitor/core"
+import { NativeError, isNativeApp, nativeCall } from "./native"
 import { apiUrl, getBaseUrl } from "./server"
 import { sha256 } from "./sha256"
-import { SystemAuth } from "./system-auth"
 import { checkProtocol, withProtocol } from "./protocol"
 
 export const REFRESH_KEY = "opencode-rc-refresh"
 export const VERIFIER_KEY = "opencode-rc-login-verifier"
 const EARLY_REFRESH_MS = 30_000
 
-// The mobile app's sign-in callback; must match APP_CALLBACK in api/src/origins.ts.
+// The apps' sign-in callback scheme; the redirect URI comes from /auth/app-config.
 export const APP_CALLBACK_SCHEME = "com.opencode.rc"
-export const APP_CALLBACK = `${APP_CALLBACK_SCHEME}:/auth/done`
 
 export type LoginResult = "redirected" | "ok" | "cancelled" | "failed"
 
@@ -180,16 +178,6 @@ async function codeChallenge(verifier: string): Promise<string> {
   return base64url(await sha256(new TextEncoder().encode(verifier)))
 }
 
-function codeFromFragment(url: string): string | null {
-  const match = url.match(/#(?:.*&)?code=([^&]+)/)
-  if (!match) return null
-  try {
-    return decodeURIComponent(match[1])
-  } catch {
-    return null
-  }
-}
-
 async function exchangeCode(code: string, verifier: string): Promise<boolean> {
   try {
     const res = await postJson("/auth/token", { code, code_verifier: verifier })
@@ -201,29 +189,78 @@ async function exchangeCode(code: string, verifier: string): Promise<boolean> {
   }
 }
 
-// Native apps sign in outside the app's WebView (iOS: an in-app sign-in sheet; Android: a
-// Custom Tab): the WebView never leaves the app, so the verifier stays in memory.
+interface AppConfig {
+  authorizationEndpoint: string
+  clientId: string
+  redirectUri: string
+  prompt?: string
+}
+
+function randomString(bytes: number): string {
+  return base64url(crypto.getRandomValues(new Uint8Array(bytes)))
+}
+
+// The apps sign in as a public OIDC client in the system browser view (iOS
+// SFSafariViewController, Android Custom Tab), which loads only the IdP; the API exchanges the
+// code. The verifier, state and nonce never leave the app.
 async function nativeLogin(verifier: string, challenge: string): Promise<LoginResult> {
   if (!getBaseUrl()) return "failed"
-  let callback: string
+  let cfg: AppConfig
   try {
-    const result = await SystemAuth.start({
-      url: apiUrl(`/auth/start?return_to=${encodeURIComponent(APP_CALLBACK)}&code_challenge=${challenge}`),
+    const res = await fetch(apiUrl("/auth/app-config"))
+    if (!res.ok) return "failed"
+    cfg = (await res.json()) as AppConfig
+  } catch {
+    return "failed"
+  }
+  const state = randomString(16)
+  const nonce = randomString(16)
+  let authorize: URL
+  try {
+    authorize = new URL(cfg.authorizationEndpoint)
+  } catch {
+    return "failed"
+  }
+  const params: Record<string, string> = {
+    response_type: "code",
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    scope: "openid email profile",
+    state,
+    nonce,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  }
+  if (cfg.prompt) params.prompt = cfg.prompt
+  for (const [k, v] of Object.entries(params)) authorize.searchParams.set(k, v)
+
+  let callback: URL
+  try {
+    const result = await nativeCall<{ url: string }>("signIn", {
+      url: authorize.href,
       callbackScheme: APP_CALLBACK_SCHEME,
     })
-    callback = result.url
+    callback = new URL(result.url)
   } catch (err) {
-    return (err as { code?: string } | null)?.code === "cancelled" ? "cancelled" : "failed"
+    return err instanceof NativeError && err.code === "cancelled" ? "cancelled" : "failed"
   }
-  const code = codeFromFragment(callback)
+  if (callback.searchParams.get("state") !== state) return "failed"
+  const code = callback.searchParams.get("code")
   if (!code) return "failed"
-  return (await exchangeCode(code, verifier)) ? "ok" : "failed"
+  try {
+    const res = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce })
+    if (!res.ok) return "failed"
+    save((await res.json()) as TokenResponse)
+    return "ok"
+  } catch {
+    return "failed"
+  }
 }
 
 export async function login(): Promise<LoginResult> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)))
   const challenge = await codeChallenge(verifier)
-  if (Capacitor.isNativePlatform()) return nativeLogin(verifier, challenge)
+  if (isNativeApp()) return nativeLogin(verifier, challenge)
 
   saveVerifier(verifier)
   // Served by the server itself: return to a path. Otherwise (separate UI host): absolute URL.

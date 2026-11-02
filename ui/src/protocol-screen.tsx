@@ -1,11 +1,11 @@
 import { type Component, Show } from "solid-js"
-import { Capacitor } from "@capacitor/core"
+import { isNativeApp } from "./native"
 
 export const ProtocolScreen: Component<{
   state: "client_outdated" | "server_outdated"
   onChangeServer?: () => void
 }> = (props) => {
-  const native = Capacitor.isNativePlatform()
+  const native = isNativeApp()
   const message = () =>
     props.state === "server_outdated"
       ? "Your OpenCode RC server is older than this app supports. Ask your administrator to upgrade it."
