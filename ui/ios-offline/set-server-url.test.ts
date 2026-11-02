@@ -13,7 +13,6 @@ const CSP = `default-src 'self'; connect-src 'self' data: https://rc-placeholder
 let root: string
 const pub = (...p: string[]) => path.join(root, "App", "App", "public", ...p)
 const pbx = () => path.join(root, "App", "App.xcodeproj", "project.pbxproj")
-const capconfig = () => path.join(root, "App", "App", "capacitor.config.json")
 const run = (...args: string[]) => spawnSync("sh", [path.join(root, "set-server-url.sh"), ...args], { encoding: "utf8" })
 const bundleIds = () =>
   [...fs.readFileSync(pbx(), "utf8").matchAll(/PRODUCT_BUNDLE_IDENTIFIER = (.*);/g)].map((m) => m[1])
@@ -29,7 +28,6 @@ beforeEach(() => {
   fs.writeFileSync(pub("assets", "other.js"), "const x=1")
   fs.mkdirSync(path.dirname(pbx()))
   fs.copyFileSync(path.join(ios, "App.xcodeproj", "project.pbxproj"), pbx())
-  fs.copyFileSync(path.join(ios, "App", "capacitor.config.json"), capconfig())
   fs.copyFileSync(script, path.join(root, "set-server-url.sh"))
 })
 
@@ -72,11 +70,15 @@ describe("set-server-url.sh", () => {
   })
 
   it("sets the bundle id with the server", () => {
-    expect(bundleIds()).toEqual(["com.opencode.rc", "com.opencode.rc", "com.opencode.rc.uitests", "com.opencode.rc.uitests"])
+    expect(bundleIds()).toEqual([
+      "com.opencode.rc.tests", "com.opencode.rc", "com.opencode.rc", "com.opencode.rc.tests", "com.opencode.rc.uitests", "com.opencode.rc.uitests",
+    ])
     const r = run("--bundle-id", "com.corp.open-code", "https://rc.example.com")
     expect(r.status, r.stderr).toBe(0)
-    expect(bundleIds()).toEqual(['"com.corp.open-code"', '"com.corp.open-code"', '"com.corp.open-code.uitests"', '"com.corp.open-code.uitests"'])
-    expect(JSON.parse(fs.readFileSync(capconfig(), "utf8")).appId).toBe("com.corp.open-code")
+    expect(bundleIds()).toEqual([
+      '"com.corp.open-code.tests"', '"com.corp.open-code"', '"com.corp.open-code"',
+      '"com.corp.open-code.tests"', '"com.corp.open-code.uitests"', '"com.corp.open-code.uitests"',
+    ])
     expect(fs.readFileSync(pub("index.html"), "utf8")).toContain("https://rc.example.com wss://rc.example.com;")
   })
 
@@ -84,15 +86,26 @@ describe("set-server-url.sh", () => {
     expect(run("--bundle-id", "com.corp.a").status).toBe(0)
     const r = run("--bundle-id", "com.corp.b")
     expect(r.status, r.stderr).toBe(0)
-    expect(bundleIds()).toEqual(['"com.corp.b"', '"com.corp.b"', '"com.corp.b.uitests"', '"com.corp.b.uitests"'])
-    expect(JSON.parse(fs.readFileSync(capconfig(), "utf8")).appId).toBe("com.corp.b")
+    expect(bundleIds()).toEqual([
+      '"com.corp.b.tests"', '"com.corp.b"', '"com.corp.b"', '"com.corp.b.tests"', '"com.corp.b.uitests"', '"com.corp.b.uitests"',
+    ])
     expect(fs.readFileSync(pub("index.html"), "utf8")).toContain("rc-placeholder.invalid")
   })
 
   it("sets the bundle id after the server", () => {
     expect(run("https://rc.example.com").status).toBe(0)
     expect(run("--bundle-id", "com.corp.a").status).toBe(0)
-    expect(bundleIds()[0]).toBe('"com.corp.a"')
+    expect(bundleIds()[1]).toBe('"com.corp.a"')
+  })
+
+  it("gives the unit tests <id>.tests", () => {
+    expect(run("--bundle-id", "com.corp.opencode").status).toBe(0)
+    expect(bundleIds()).toContain('"com.corp.opencode.tests"')
+    expect(bundleIds()).toContain('"com.corp.opencode.uitests"')
+  })
+
+  it("rejects an id that ends in .tests", () => {
+    expect(run("--bundle-id", "com.corp.tests").status).toBe(2)
   })
 
   it.each(["", "opencode", "com.corp.", ".com.corp", "com..corp", "com.corp.open code", "com.corp_x", "com.corp/x", "com.corp.uitests"])(

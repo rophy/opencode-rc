@@ -2,7 +2,7 @@
 # Presets the opencode-rc server in this iOS bundle: replaces the build's placeholder
 # (https://rc-placeholder.invalid) with your server's origin in the bundled web UI, including
 # the Content-Security-Policy, which then allows connections only to that server.
-# --bundle-id sets the app's bundle identifier (the UI tests get <id>.uitests).
+# --bundle-id sets the app's bundle identifier (the test targets get <id>.tests and <id>.uitests).
 # Run before building in Xcode:
 #   ./set-server-url.sh [--bundle-id com.corp.opencode] https://rc.corp.example.com
 #   ./set-server-url.sh --bundle-id com.corp.opencode     (bundle id only)
@@ -25,8 +25,8 @@ done
 if [ "$set_bundle_id" = yes ]; then
   # Apple allows letters, digits, "-" and "." in reverse-DNS form.
   case "$bundle_id" in
-    # The UI tests take <id>.uitests, so an id of that form would be read back as theirs.
-    ""|*[!A-Za-z0-9.-]*|.*|*.|*..*|*.uitests) bundle_id_ok=no ;;
+    # The test targets take <id>.tests and <id>.uitests, so an id of that form would be read back as theirs.
+    ""|*[!A-Za-z0-9.-]*|.*|*.|*..*|*.uitests|*.tests) bundle_id_ok=no ;;
     *.*) bundle_id_ok=yes ;;
     *) bundle_id_ok=no ;;
   esac
@@ -51,7 +51,6 @@ fi
 
 cd "$(dirname "$0")/App"
 pbx=App.xcodeproj/project.pbxproj
-capconfig=App/capacitor.config.json
 
 # Check everything before changing anything.
 if [ -n "$url" ]; then
@@ -63,16 +62,14 @@ if [ -n "$url" ]; then
 fi
 if [ "$set_bundle_id" = yes ]; then
   grep -q 'PRODUCT_BUNDLE_IDENTIFIER = ' "$pbx" || { echo "no bundle identifier in $pbx" >&2; exit 1; }
-  grep -q '"appId":' "$capconfig" || { echo "no appId in $capconfig" >&2; exit 1; }
 fi
 
 if [ "$set_bundle_id" = yes ]; then
   ID="$bundle_id" perl -pi -e '
     s{PRODUCT_BUNDLE_IDENTIFIER = "?([^";]*)"?;}{
-      "PRODUCT_BUNDLE_IDENTIFIER = \"" . ($1 =~ /\.uitests$/ ? "$ENV{ID}.uitests" : $ENV{ID}) . "\";"
+      "PRODUCT_BUNDLE_IDENTIFIER = \"" . ($1 =~ /(\.uitests|\.tests)$/ ? "$ENV{ID}$1" : $ENV{ID}) . "\";"
     }ge;
   ' "$pbx"
-  ID="$bundle_id" perl -pi -e 's{("appId":\s*)"[^"]*"}{$1"$ENV{ID}"}' "$capconfig"
   echo "bundle id set to $bundle_id"
 fi
 
