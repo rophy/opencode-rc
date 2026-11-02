@@ -81,6 +81,11 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         }
     }
 
+    // A new page load restarts the JS socket ids; the old page's sockets go.
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        sockets.closeAll()
+    }
+
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         decisionHandler(handle(action.request.url, isMainFrame: action.targetFrame?.isMainFrame ?? true))

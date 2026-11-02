@@ -6,7 +6,8 @@ final class WebSocketBridge: NSObject, URLSessionWebSocketDelegate {
     private let proxy: ServerProxy
     private let emit: (String, [String: Any]) -> Void
     private lazy var session = URLSession(configuration: ServerProxy.defaultConfiguration, delegate: self, delegateQueue: .main)
-    private var sockets: [String: URLSessionWebSocketTask] = [:]
+    // JS id → task. Ids restart at every page load, so a navigation drops all sockets (closeAll).
+    private(set) var sockets: [String: URLSessionWebSocketTask] = [:]
     private var ids: [Int: String] = [:]
 
     init(proxy: ServerProxy, emit: @escaping (String, [String: Any]) -> Void) {
@@ -22,6 +23,10 @@ final class WebSocketBridge: NSObject, URLSessionWebSocketDelegate {
     func open(id: String, url: String, protocols: [String]) throws {
         guard let server = proxy.server, let target = URL(string: url), WebSocketBridge.allowed(target, server: server) else {
             throw BridgeError.failed("socket not allowed")
+        }
+        if let old = sockets.removeValue(forKey: id) {
+            ids[old.taskIdentifier] = nil
+            old.cancel(with: .goingAway, reason: nil)
         }
         let task = protocols.isEmpty ? session.webSocketTask(with: target) : session.webSocketTask(with: target, protocols: protocols)
         sockets[id] = task
@@ -48,6 +53,14 @@ final class WebSocketBridge: NSObject, URLSessionWebSocketDelegate {
         finish(task, code: code, reason: reason, clean: true)
         task.cancel(with: URLSessionWebSocketTask.CloseCode(rawValue: code) ?? .normalClosure,
                     reason: reason.data(using: .utf8))
+    }
+
+    /// The page that owned the sockets is gone: cancel them all, with no events.
+    func closeAll() {
+        let tasks = Array(sockets.values)
+        sockets.removeAll()
+        ids.removeAll()
+        for task in tasks { task.cancel(with: .goingAway, reason: nil) }
     }
 
     private func receive(_ id: String, _ task: URLSessionWebSocketTask) {
@@ -85,7 +98,7 @@ final class WebSocketBridge: NSObject, URLSessionWebSocketDelegate {
 
     private func finish(_ task: URLSessionTask, code: Int, reason: String, clean: Bool) {
         guard let id = ids.removeValue(forKey: task.taskIdentifier) else { return }
-        sockets[id] = nil
+        if sockets[id] === task { sockets[id] = nil }
         emit("ws.close", ["id": id, "code": code, "reason": reason, "wasClean": clean])
     }
 }

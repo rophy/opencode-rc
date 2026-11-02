@@ -66,4 +66,40 @@ final class WebSocketBridgeTests: XCTestCase {
         settle(0.2)
         XCTAssertEqual(events, [])
     }
+
+    func testOpeningAnIdAgainDropsTheOldSocketSilently() throws {
+        var events: [(String, [String: Any])] = []
+        let bridge = try refusedBridge { e, d in events.append((e, d)) }
+        try bridge.open(id: "1", url: "ws://127.0.0.1:1/x", protocols: [])
+        let first = try XCTUnwrap(bridge.sockets["1"])
+        try bridge.open(id: "1", url: "ws://127.0.0.1:1/x", protocols: [])
+        let second = try XCTUnwrap(bridge.sockets["1"])
+        XCTAssertFalse(first === second)
+        // A late completion of the first task: no event, and the second socket stays.
+        bridge.urlSession(URLSession.shared, task: first, didCompleteWithError: URLError(.cancelled))
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertTrue(bridge.sockets["1"] === second)
+        settle(1)
+        // Only the second socket ends (connection refused): one error, one close.
+        XCTAssertEqual(events.map(\.0), ["ws.error", "ws.close"])
+        XCTAssertNil(bridge.sockets["1"])
+        XCTAssertEqual(first.state, .completed) // cancel(with:) is asynchronous
+    }
+
+    func testCloseAllCancelsEverySocketWithNoEvents() throws {
+        var events: [String] = []
+        let bridge = try refusedBridge { e, _ in events.append(e) }
+        try bridge.open(id: "a", url: "ws://127.0.0.1:1/x", protocols: [])
+        try bridge.open(id: "b", url: "ws://127.0.0.1:1/y", protocols: [])
+        let tasks = Array(bridge.sockets.values)
+        bridge.closeAll()
+        XCTAssertTrue(bridge.sockets.isEmpty)
+        for task in tasks {
+            bridge.urlSession(URLSession.shared, task: task, didCompleteWithError: URLError(.cancelled))
+            bridge.urlSession(URLSession.shared, task: task, didCompleteWithError: nil)
+        }
+        settle(1)
+        XCTAssertEqual(events, [])
+        XCTAssertEqual(tasks.map(\.state), [.completed, .completed]) // cancel(with:) is asynchronous
+    }
 }
