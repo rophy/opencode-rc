@@ -10,18 +10,20 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         c.httpShouldSetCookies = false
         c.httpCookieAcceptPolicy = .never
         c.requestCachePolicy = .reloadIgnoringLocalCacheData
-        // SSE streams stay open; these are idle limits, as long as a WebView's.
+        // SSE streams stay open: a request fails after 24 h with no data, and any request after 7 days.
         c.timeoutIntervalForRequest = 24 * 3600
         c.timeoutIntervalForResource = 7 * 24 * 3600
         return c
     }
     private static let dropped: Set<String> = ["origin", "host", "cookie", "content-length"]
+    // URLSession has already decoded the body and read its framing.
+    private static let droppedResponse: Set<String> = ["content-encoding", "content-length", "transfer-encoding"]
 
     private(set) var server: URL?
     private lazy var session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
     private let configuration: URLSessionConfiguration
-    private var schemeTasks: [Int: WKURLSchemeTask] = [:]   // URLSessionTask id → scheme task
-    private var stopped = Set<ObjectIdentifier>()
+    // URLSessionTask id → scheme task and its URLSession task; removed on stop, so later callbacks are ignored.
+    private var tasks: [Int: (scheme: WKURLSchemeTask, data: URLSessionDataTask)] = [:]
 
     init(configuration: URLSessionConfiguration = ServerProxy.defaultConfiguration) {
         self.configuration = configuration
@@ -49,27 +51,34 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         headers.filter { !dropped.contains($0.key.lowercased()) }
     }
 
+    static func responseHeaders(_ headers: [AnyHashable: Any]) -> [String: String] {
+        var out: [String: String] = [:]
+        for (k, v) in headers {
+            if let k = k as? String, let v = v as? String, !droppedResponse.contains(k.lowercased()) { out[k] = v }
+        }
+        return out
+    }
+
     func start(_ task: WKURLSchemeTask) {
         guard let url = task.request.url, let server, let target = ServerProxy.target(for: url, server: server) else {
             fail(task, status: 502)
             return
         }
-        var request = URLRequest(url: target)
+        var request = URLRequest(url: target, timeoutInterval: configuration.timeoutIntervalForRequest)
         request.httpMethod = task.request.httpMethod ?? "GET"
         for (k, v) in ServerProxy.forwardedHeaders(task.request.allHTTPHeaderFields ?? [:]) {
             request.setValue(v, forHTTPHeaderField: k)
         }
         request.httpBody = ServerProxy.body(of: task.request)
         let dataTask = session.dataTask(with: request)
-        schemeTasks[dataTask.taskIdentifier] = task
+        tasks[dataTask.taskIdentifier] = (task, dataTask)
         dataTask.resume()
     }
 
     func stop(_ task: WKURLSchemeTask) {
-        stopped.insert(ObjectIdentifier(task))
-        for (id, t) in schemeTasks where t === task {
-            schemeTasks[id] = nil
-            session.getAllTasks { $0.first { $0.taskIdentifier == id }?.cancel() }
+        for (id, t) in tasks where t.scheme === task {
+            tasks[id] = nil
+            t.data.cancel()
         }
     }
 
@@ -89,8 +98,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
     }
 
     private func live(_ id: Int) -> WKURLSchemeTask? {
-        guard let task = schemeTasks[id], !stopped.contains(ObjectIdentifier(task)) else { return nil }
-        return task
+        tasks[id]?.scheme
     }
 
     private func fail(_ task: WKURLSchemeTask, status: Int) {
@@ -107,7 +115,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         completionHandler(nil)
         task.cancel()
         if let schemeTask = live(task.taskIdentifier) {
-            schemeTasks[task.taskIdentifier] = nil
+            tasks[task.taskIdentifier] = nil
             fail(schemeTask, status: 502)
         }
     }
@@ -119,8 +127,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
             completionHandler(.cancel)
             return
         }
-        var headers: [String: String] = [:]
-        for (k, v) in http.allHeaderFields { if let k = k as? String, let v = v as? String { headers[k] = v } }
+        let headers = ServerProxy.responseHeaders(http.allHeaderFields)
         schemeTask.didReceive(HTTPURLResponse(url: url, statusCode: http.statusCode, httpVersion: "HTTP/1.1", headerFields: headers)!)
         completionHandler(.allow)
     }
@@ -131,7 +138,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let schemeTask = live(task.taskIdentifier) else { return }
-        schemeTasks[task.taskIdentifier] = nil
+        tasks[task.taskIdentifier] = nil
         if let error { schemeTask.didFailWithError(error) } else { schemeTask.didFinish() }
     }
 }
