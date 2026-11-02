@@ -11,7 +11,9 @@
     "dev:v2": "OPENCODE_MAJOR=2 vite",
     "test": "vitest run",
     "typecheck": "bun build/typecheck.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:ios": "bun build/sync-mobile.ts ios",
+    "sync:android": "bun build/sync-mobile.ts android"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",
