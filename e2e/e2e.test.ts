@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { API_URL, UI_URL, GATEWAY_URL, OIDC_URL, SESSION_ID, SESSION_ID_V2, PROTOCOL, waitFor, TokenSession, postJson, loginCode, loginAs, upgradeStatus } from "./helpers.js";
 
 describe("opencode-rc e2e", () => {
@@ -896,5 +896,57 @@ describe("1.x provider responses have no API keys", () => {
     expect(config.model).toBe("openai/gpt-4o");
     expect(config.provider?.openai).toBeDefined();
     expect("options" in config.provider!.openai).toBe(false);
+  });
+});
+
+describe("app sign-in", () => {
+  async function appCode(verifier: string): Promise<URL> {
+    const cfg = await (await fetch(`${API_URL}/auth/app-config`)).json();
+    expect(cfg.clientId).toBe("opencode-rc-app");
+    expect(cfg.redirectUri).toBe("com.opencode.rc:/auth/callback");
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    const res = await fetch(`${OIDC_URL}/authorize/callback`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        sub: "user1",
+        client_id: cfg.clientId,
+        redirect_uri: cfg.redirectUri,
+        state: "st",
+        nonce: "n1",
+        scope: "openid email profile",
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+      }),
+      redirect: "manual",
+    });
+    const location = new URL(res.headers.get("location")!);
+    expect(location.protocol).toBe("com.opencode.rc:");
+    expect(location.searchParams.get("state")).toBe("st");
+    return location;
+  }
+
+  it("signs in as the app's public client", async () => {
+    const verifier = randomBytes(32).toString("base64url");
+    const location = await appCode(verifier);
+    const res = await postJson("/auth/app-token", {
+      code: location.searchParams.get("code"),
+      code_verifier: verifier,
+      nonce: "n1",
+    });
+    expect(res.status).toBe(200);
+    const { access_token } = await res.json();
+    const me = await fetch(`${API_URL}/api/me`, { headers: { authorization: `Bearer ${access_token}` } });
+    expect(me.status).toBe(200);
+  });
+
+  it("rejects a wrong verifier", async () => {
+    const location = await appCode(randomBytes(32).toString("base64url"));
+    const res = await postJson("/auth/app-token", {
+      code: location.searchParams.get("code"),
+      code_verifier: randomBytes(32).toString("base64url"),
+      nonce: "n1",
+    });
+    expect(res.status).toBe(400);
   });
 });

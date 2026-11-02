@@ -125,6 +125,9 @@ oidcMock:
     cli:
       id: opencode-rc-cli
       redirectUris: ["http://127.0.0.1/callback"]  # no port: matches any loopback port (RFC 8252)
+    app:
+      id: opencode-rc-app
+      redirectUris: ["com.opencode.rc:/auth/callback"]
   users:
     - sub: user1
       email: alice@example.com
@@ -163,6 +166,9 @@ oidc:
   clientId: ""
   # Empty: oidcMock.clients.cli.id when the mock is enabled, else opencode-rc-cli.
   cliClientId: ""
+  # Public client of the mobile apps (PKCE, redirect URI com.opencode.rc:/auth/callback).
+  # Empty: oidcMock.clients.app.id when the mock is enabled, else app sign-in is off.
+  appClientId: ""
   # ID token claim that identifies a user and owns their sessions. Web and CLI logins
   # must get the same value; use oid for Entra ID, where sub differs per client.
   userClaim: sub

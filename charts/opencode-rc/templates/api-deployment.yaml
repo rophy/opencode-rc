@@ -63,6 +63,8 @@ spec:
               value: {{ include "opencode-rc.redirectUri" . | quote }}
             - name: OIDC_CLI_CLIENT_ID
               value: {{ include "opencode-rc.oidcCliClientId" . | quote }}
+            - name: OIDC_APP_CLIENT_ID
+              value: {{ include "opencode-rc.oidcAppClientId" . | quote }}
             - name: OIDC_USER_CLAIM
               value: {{ .Values.oidc.userClaim | default "sub" | quote }}
             - name: TOKEN_SECRET

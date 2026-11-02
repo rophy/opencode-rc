@@ -26,6 +26,13 @@ data:
           - {{ . }}
         {{- end }}
     {{- end }}
+    {{- with .Values.oidcMock.clients.app }}
+      - id: {{ .id }}
+        redirect_uris:
+        {{- range .redirectUris }}
+          - {{ . }}
+        {{- end }}
+    {{- end }}
     users:
       {{- toYaml .Values.oidcMock.users | nindent 6 }}
 {{- end }}

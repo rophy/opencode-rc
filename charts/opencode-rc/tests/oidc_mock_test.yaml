@@ -174,3 +174,12 @@ tests:
       - matchRegex:
           path: data["oidc-config.yaml"]
           pattern: "- https://api.example.com/auth/callback\n"
+
+  - it: registers the app's public client with its redirect URI
+    template: templates/oidc-mock-configmap.yaml
+    set:
+      oidcMock.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["oidc-config.yaml"]
+          pattern: "- id: opencode-rc-app\\n\\s+redirect_uris:\\n\\s+- com.opencode.rc:/auth/callback"

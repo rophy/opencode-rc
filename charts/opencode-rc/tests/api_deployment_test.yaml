@@ -699,6 +699,33 @@ tests:
           path: spec.template.spec.containers[0].env
           content: {name: OIDC_CLI_CLIENT_ID, value: corp-cli}
 
+  - it: sets OIDC_APP_CLIENT_ID from oidc.appClientId
+    set:
+      oidcMock.enabled: false
+      oidc.issuer: https://idp.example.com
+      oidc.appClientId: corp-app
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_APP_CLIENT_ID, value: corp-app}
+
+  - it: uses the mock's app client when the mock is enabled
+    set:
+      oidcMock.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_APP_CLIENT_ID, value: opencode-rc-app}
+
+  - it: leaves app sign-in off without an app client
+    set:
+      oidcMock.enabled: false
+      oidc.issuer: https://idp.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: OIDC_APP_CLIENT_ID, value: ""}
+
   - it: uses built-in client ids with the mock disabled
     set:
       oidcMock.enabled: false
