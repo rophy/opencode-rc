@@ -8,6 +8,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     let proxy = ServerProxy()
     var webView: WKWebView!
     private lazy var schemeHandler = AppSchemeHandler(root: Bundle.main.bundleURL.appendingPathComponent("public"), proxy: proxy)
+    private lazy var sockets = WebSocketBridge(proxy: proxy, emit: { [weak bridge] e, d in bridge?.emit(e, d) })
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -31,6 +32,25 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             } catch {
                 reply(.failure(.failed("bad server origin")))
             }
+        }
+        bridge.register("wsOpen") { [unowned self] args, reply in
+            do {
+                try sockets.open(id: args["id"] as? String ?? "", url: args["url"] as? String ?? "",
+                                 protocols: args["protocols"] as? [String] ?? [])
+                reply(.success(nil))
+            } catch let error as BridgeError {
+                reply(.failure(error))
+            } catch {
+                reply(.failure(.failed("socket failed")))
+            }
+        }
+        bridge.register("wsSend") { [unowned self] args, reply in
+            sockets.send(id: args["id"] as? String ?? "", text: args["text"] as? String, base64: args["base64"] as? String)
+            reply(.success(nil))
+        }
+        bridge.register("wsClose") { [unowned self] args, reply in
+            sockets.close(id: args["id"] as? String ?? "", code: args["code"] as? Int ?? 1000, reason: args["reason"] as? String ?? "")
+            reply(.success(nil))
         }
 
         let container = UIView()
