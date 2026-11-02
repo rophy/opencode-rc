@@ -20,6 +20,24 @@ final class BundleFilesTests: XCTestCase {
         XCTAssertEqual(resolve("/v2/s/abc"), "/bundle/public/v2/index.html")
     }
 
+    func testRoutesWithATrailingSlashGetTheBuildsIndex() {
+        XCTAssertEqual(resolve("/s/abc/"), "/bundle/public/index.html")
+        XCTAssertEqual(resolve("/v2/s/abc/"), "/bundle/public/v2/index.html")
+    }
+
+    func testDirectoriesAreNotFiles() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("assets"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("v2/s"), withIntermediateDirectories: true)
+        try Data().write(to: dir.appendingPathComponent("index.html"))
+        try Data().write(to: dir.appendingPathComponent("v2/index.html"))
+        let base = dir.standardizedFileURL.path
+        XCTAssertEqual(BundleFiles.resolve(path: "/assets", root: dir)?.path, base + "/index.html")
+        XCTAssertEqual(BundleFiles.resolve(path: "/v2", root: dir)?.path, base + "/v2/index.html")
+        XCTAssertEqual(BundleFiles.resolve(path: "/v2/s", root: dir)?.path, base + "/v2/index.html")
+    }
+
     func testMissingFilesWithAnExtensionAre404() {
         XCTAssertNil(resolve("/assets/missing.js"))
     }

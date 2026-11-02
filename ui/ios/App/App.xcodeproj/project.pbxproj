@@ -22,7 +22,6 @@
 		C688AC044160546492862F9F /* WebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3457384C4416EC1E5672FA5B /* WebViewController.swift */; };
 		D81EB1E8FDB75B3B54845478 /* BundleFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C556FEB7188230ABFF598B0 /* BundleFilesTests.swift */; };
 		EDF1D16EB0E55BE851367024 /* AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEDC032F33C5D4492F9A62A /* AppUITests.swift */; };
-		F8E31EDFDA3B462B8EF09BFC /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 97A88EDD64A42C69F87C81ED /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,7 +58,6 @@
 		8349F569FE8E91825B1BAB9A /* NavigationPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationPolicy.swift; sourceTree = "<group>"; };
 		90F926D5DF49FA5D2464DDE0 /* AppSchemeHandler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppSchemeHandler.swift; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		97A88EDD64A42C69F87C81ED /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A400E55FB9982FD081D2F520 /* Bridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
 		BBA10A63AEBE1F904AE75126 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4D5FD6B9C5E7A26DF505EE7 /* AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,7 +68,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F8E31EDFDA3B462B8EF09BFC /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,7 +103,6 @@
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
 				1AFCCB7E60DAC66A22FD849B /* AppUITests */,
-				5D36CF9D7F61C1D0320A411F /* Frameworks */,
 				7245633AFE5B1EC2B8037660 /* AppTests */,
 			);
 			sourceTree = "<group>";
@@ -140,14 +136,6 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		5D36CF9D7F61C1D0320A411F /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				A295B692F3B923B8B91C8D57 /* iOS */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		7245633AFE5B1EC2B8037660 /* AppTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -157,14 +145,6 @@
 			);
 			name = AppTests;
 			path = AppTests;
-			sourceTree = "<group>";
-		};
-		A295B692F3B923B8B91C8D57 /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				97A88EDD64A42C69F87C81ED /* Foundation.framework */,
-			);
-			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
