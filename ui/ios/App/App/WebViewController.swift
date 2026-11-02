@@ -5,8 +5,9 @@ import WebKit
 /// in the safe area; external links open outside the app (NavigationPolicy).
 final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     let bridge = Bridge()
+    let proxy = ServerProxy()
     var webView: WKWebView!
-    private lazy var schemeHandler = AppSchemeHandler(root: Bundle.main.bundleURL.appendingPathComponent("public"))
+    private lazy var schemeHandler = AppSchemeHandler(root: Bundle.main.bundleURL.appendingPathComponent("public"), proxy: proxy)
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -21,6 +22,16 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         if #available(iOS 16.4, *) { webView.isInspectable = true }
         #endif
         bridge.webView = webView
+        bridge.register("setServer") { [proxy] args, reply in
+            do {
+                try proxy.setServer(args["origin"] as? String ?? "")
+                reply(.success(nil))
+            } catch let error as BridgeError {
+                reply(.failure(error))
+            } catch {
+                reply(.failure(.failed("bad server origin")))
+            }
+        }
 
         let container = UIView()
         container.backgroundColor = .systemBackground
