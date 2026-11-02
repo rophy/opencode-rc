@@ -27,7 +27,7 @@ if (typeof Object.groupBy !== "function") {
 
 import { render } from "solid-js/web"
 import { createResource, createSignal, Match, Show, Switch } from "solid-js"
-import { fetchMe, fetchSessions, isPreConfigured, type UserInfo } from "./api"
+import { fetchMe, fetchSessions, getBaseUrl, isPreConfigured, type UserInfo } from "./api"
 import { completeLogin, onLoggedOut } from "./auth"
 import { UserBar } from "./user-bar"
 import { SessionPicker } from "./session-picker"
@@ -40,7 +40,6 @@ import { accessRecheck } from "./access-recheck"
 import { BASE } from "./build-info"
 import { nativePlatform } from "./native"
 import { installNativeTransport } from "./native-transport"
-import { getBaseUrl } from "./api"
 
 // iOS: server traffic goes through the shell (native-transport.ts). Before anything patches fetch.
 if (nativePlatform() === "ios") installNativeTransport({ getServer: getBaseUrl })

@@ -53,6 +53,21 @@ describe("installNativeTransport", () => {
     expect(await req.text()).toBe("hello")
   })
 
+  it("sends only the origin to setServer and keeps the base path in the request", async () => {
+    installNativeTransport({ getServer: () => `${SERVER}/rc` })
+    await fetch(`${SERVER}/rc/api/me`)
+    expect(postMessage).toHaveBeenCalledWith({ method: "setServer", args: { origin: SERVER } })
+    expect(new URL((fetchSpy.mock.calls[0][0] as Request).url).pathname).toBe(`${SERVER_PREFIX}/rc/api/me`)
+  })
+
+  it("applies init over a Request input", async () => {
+    await fetch(new Request(`${SERVER}/x`), { method: "POST", headers: { x: "1" }, body: "b" })
+    const req = fetchSpy.mock.calls[0][0] as Request
+    expect(req.method).toBe("POST")
+    expect(req.headers.get("x")).toBe("1")
+    expect(await req.text()).toBe("b")
+  })
+
   it("sets the server once until it changes", async () => {
     await fetch("https://rc.example.com/a")
     await fetch("https://rc.example.com/b")

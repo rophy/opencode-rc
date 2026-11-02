@@ -53,9 +53,12 @@ export function installNativeTransport(opts: { getServer: () => string }): void 
   let sentServer: string | null = null
   const syncServer = async () => {
     const server = opts.getServer()
-    if (!server || server === sentServer) return
-    await nativeCall("setServer", { origin: server })
-    sentServer = server
+    if (!server) return
+    // Only protocol//host: the request path (base path included) is appended by the shell.
+    const origin = hostOf(new URL(server))
+    if (origin === sentServer) return
+    await nativeCall("setServer", { origin })
+    sentServer = origin
   }
   const map = (input: string) => transportUrl(input, opts.getServer(), pageBase())
 
@@ -65,7 +68,7 @@ export function installNativeTransport(opts: { getServer: () => string }): void 
     const local = map(raw)
     if (!local) return originalFetch(input, init)
     await syncServer()
-    const source = input instanceof Request ? input : new Request(new URL(raw, `${pageBase()}/`).href, init)
+    const source = new Request(input instanceof Request ? input : new URL(raw, `${pageBase()}/`).href, init)
     const hasBody = source.method !== "GET" && source.method !== "HEAD"
     // Buffered, as in proxy-fetch.ts: WebKit does not stream request bodies.
     const body = hasBody ? await source.clone().arrayBuffer() : undefined
@@ -74,7 +77,7 @@ export function installNativeTransport(opts: { getServer: () => string }): void 
         method: source.method,
         headers: source.headers,
         body,
-        signal: init?.signal ?? source.signal,
+        signal: source.signal,
         redirect: source.redirect,
       }),
     )
