@@ -38,6 +38,12 @@ import { ProtocolScreen } from "./protocol-screen"
 import { NoAccessScreen } from "./no-access-screen"
 import { accessRecheck } from "./access-recheck"
 import { BASE } from "./build-info"
+import { nativePlatform } from "./native"
+import { installNativeTransport } from "./native-transport"
+import { getBaseUrl } from "./api"
+
+// iOS: server traffic goes through the shell (native-transport.ts). Before anything patches fetch.
+if (nativePlatform() === "ios") installNativeTransport({ getServer: getBaseUrl })
 import { mismatchRedirect } from "./opencode-version"
 import { bounceTarget, restoredPath } from "./build-route"
 import { SessionView } from "#session-view"
