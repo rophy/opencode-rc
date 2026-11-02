@@ -1,13 +1,13 @@
 import type { MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 
-export const APP_ORIGINS: readonly string[] = ["capacitor://localhost", "https://localhost"];
+export const APP_ORIGINS: readonly string[] = ["opencode-rc://localhost", "https://localhost"];
 
-// The mobile app's sign-in callback (RFC 8252 private-use scheme). The app's sign-in sheet
-// (iOS) or the system browser (Android) hands it to the app; the login code in its fragment is useless without the app's verifier.
-export const APP_CALLBACK = "com.opencode.rc:/auth/done";
+// The mobile apps' sign-in redirect URI (RFC 8252 private-use scheme), registered at the IdP for
+// the apps' public client. The system browser view hands it to the app.
+export const APP_REDIRECT_URI = "com.opencode.rc:/auth/callback";
 
-// URL.origin is "null" for non-special schemes like capacitor:, so build it by hand.
+// URL.origin is "null" for non-special schemes like opencode-rc:, so build it by hand.
 export function originOf(url: string): string | null {
   try {
     const u = new URL(url);
@@ -42,8 +42,6 @@ export function validateReturnTo(
 ): string | null {
   if (!returnTo) return "/";
   if (hasUnsafeChars(returnTo)) return null;
-  // Check for the app callback exactly (no fragment, query, or path additions)
-  if (returnTo === APP_CALLBACK) return APP_CALLBACK;
   const withoutFragment = returnTo.split("#")[0];
   if (withoutFragment.startsWith("/")) {
     let parsed: URL;

@@ -14,7 +14,7 @@ import {
   type AccessClaims,
 } from "./token.js";
 import type { TokenStore } from "./token-store.js";
-import { validateReturnTo, APP_CALLBACK } from "./origins.js";
+import { validateReturnTo, APP_REDIRECT_URI } from "./origins.js";
 import { requireClientProtocol } from "./protocol.js";
 
 export type AuthEnv = {
@@ -81,6 +81,18 @@ async function readField(c: Context, field: string): Promise<string | null> {
   return stringField(await readBody(c), field);
 }
 
+// The user of a verified ID token; null when it lacks the configured user claim.
+// Sessions are owned by an IdP-assigned ID; the email is only for display and logs.
+function userFromIdToken(idClaims: Record<string, unknown>, userClaim: string): AccessClaims | null {
+  const uid = idClaims[userClaim];
+  if (typeof uid !== "string" || !uid) return null;
+  return {
+    uid,
+    email: typeof idClaims.email === "string" ? idClaims.email : "",
+    name: typeof idClaims.name === "string" ? idClaims.name : "",
+  };
+}
+
 export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDeps) {
   const app = new Hono();
   const authCookie = { path: "/auth", maxAge: 300, httpOnly: true, sameSite: "Lax" as const, secure: config.secureCookies };
@@ -95,6 +107,78 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       ...(config.oidcAuthorizationEndpoint ? { authorizationEndpoint: config.oidcAuthorizationEndpoint } : {}),
     }),
   );
+
+  // The mobile apps sign in as a public client with PKCE in the system browser view, which loads
+  // only the IdP; the app then hands the code to /auth/app-token. Off without OIDC_APP_CLIENT_ID.
+  app.get("/auth/app-config", (c) => {
+    if (!config.oidcAppClientId) return c.json({ error: "not_found" }, 404);
+    return c.json({
+      authorizationEndpoint: provider.discovery.authorization_endpoint,
+      clientId: config.oidcAppClientId,
+      redirectUri: APP_REDIRECT_URI,
+      ...(config.appLoginPrompt ? { prompt: config.appLoginPrompt } : {}),
+    });
+  });
+
+  app.post("/auth/app-token", requireClientProtocol(), async (c) => {
+    if (!config.oidcAppClientId) return c.json({ error: "not_found" }, 404);
+    const body = await readBody(c);
+    const code = stringField(body, "code");
+    const verifier = stringField(body, "code_verifier");
+    const nonce = stringField(body, "nonce");
+    if (!code || !verifier || !nonce) return c.json({ error: "invalid_grant" }, 400);
+
+    let tokenRes: Response;
+    try {
+      tokenRes = await fetch(provider.discovery.token_endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: config.oidcAppClientId,
+          code,
+          code_verifier: verifier,
+          redirect_uri: APP_REDIRECT_URI,
+        }),
+      });
+    } catch (err) {
+      console.error("app sign-in: token endpoint unreachable:", err);
+      return c.json({ error: "unavailable" }, 503);
+    }
+    if (!tokenRes.ok) {
+      console.error(`app sign-in: code exchange failed: ${tokenRes.status}`);
+      return c.json({ error: "invalid_grant" }, 400);
+    }
+    const idToken = ((await tokenRes.json().catch(() => ({}))) as { id_token?: unknown }).id_token;
+    if (typeof idToken !== "string" || !idToken) {
+      console.error("app sign-in: no id_token in response");
+      return c.json({ error: "invalid_grant" }, 400);
+    }
+    let idClaims: Record<string, unknown>;
+    try {
+      idClaims = (await verifyToken(provider, idToken, config.oidcAppClientId)) as typeof idClaims;
+    } catch (err) {
+      console.error("app sign-in: ID token verification failed:", err);
+      return c.json({ error: "invalid_grant" }, 400);
+    }
+    if (idClaims.nonce !== nonce) {
+      console.error("app sign-in: nonce mismatch");
+      return c.json({ error: "invalid_grant" }, 400);
+    }
+    const claims = userFromIdToken(idClaims, config.oidcUserClaim);
+    if (!claims) {
+      console.error(`app sign-in: ID token has no ${config.oidcUserClaim} claim`);
+      return c.json({ error: "invalid_grant" }, 400);
+    }
+    try {
+      const session = await tokens.createChain(claims);
+      console.log(`login: user=${claims.uid} email=${claims.email} name=${claims.name} client=app`);
+      return tokenResponse(c, config, session.claims, session.refreshToken);
+    } catch (err) {
+      console.error("app sign-in: token store failed:", err);
+      return c.json({ error: "unavailable" }, 503);
+    }
+  });
 
   app.get("/auth/start", (c) => {
     const returnTo = validateReturnTo(c.req.query("return_to"), isAllowedOrigin);
@@ -114,7 +198,6 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       scope: "openid email profile",
       state,
     });
-    if (returnTo === APP_CALLBACK && config.appLoginPrompt) params.set("prompt", config.appLoginPrompt);
     return c.redirect(`${provider.discovery.authorization_endpoint}?${params}`);
   });
 
@@ -168,17 +251,11 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       return c.text("invalid id_token", 401);
     }
 
-    // Sessions are owned by an IdP-assigned ID; the email is only for display and logs.
-    const uid = idClaims[config.oidcUserClaim];
-    if (typeof uid !== "string" || !uid) {
+    const claims = userFromIdToken(idClaims, config.oidcUserClaim);
+    if (!claims) {
       console.error(`ID token has no ${config.oidcUserClaim} claim`);
       return c.text("invalid id_token", 401);
     }
-    const claims: AccessClaims = {
-      uid,
-      email: typeof idClaims.email === "string" ? idClaims.email : "",
-      name: typeof idClaims.name === "string" ? idClaims.name : "",
-    };
 
     let loginCode: string;
     try {

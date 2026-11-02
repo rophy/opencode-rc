@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
-import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware, APP_CALLBACK } from "./origins.js";
+import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware } from "./origins.js";
 
 const isAllowed = makeOriginCheck("https://rc.example.com", ["https://dev.example.com/"]);
 
 describe("originOf", () => {
-  it("handles http(s) and capacitor URLs", () => {
+  it("handles http(s) and app-scheme URLs", () => {
     expect(originOf("https://rc.example.com/a?b#c")).toBe("https://rc.example.com");
     expect(originOf("http://localhost:5173/")).toBe("http://localhost:5173");
-    expect(originOf("capacitor://localhost/s/x/")).toBe("capacitor://localhost");
+    expect(originOf("opencode-rc://localhost/s/x/")).toBe("opencode-rc://localhost");
   });
 
   it("returns null for junk", () => {
@@ -19,7 +19,7 @@ describe("originOf", () => {
 describe("makeOriginCheck", () => {
   it("allows server, app and extra origins", () => {
     expect(isAllowed("https://rc.example.com")).toBe(true);
-    expect(isAllowed("capacitor://localhost")).toBe(true);
+    expect(isAllowed("opencode-rc://localhost")).toBe(true);
     expect(isAllowed("https://localhost")).toBe(true);
     expect(isAllowed("https://dev.example.com")).toBe(true);
   });
@@ -81,24 +81,15 @@ describe("validateReturnTo", () => {
     expect(validateReturnTo("javascript:alert(1)", isAllowed)).toBeNull();
   });
 
-  it("accepts exactly the mobile app callback", () => {
-    expect(APP_CALLBACK).toBe("com.opencode.rc:/auth/done");
-    expect(validateReturnTo("com.opencode.rc:/auth/done", isAllowed)).toBe("com.opencode.rc:/auth/done");
+  it("rejects the mobile app callbacks as return_to", () => {
     for (const bad of [
+      "com.opencode.rc:/auth/done",
+      "com.opencode.rc:/auth/callback",
       "com.opencode.rc:/auth/done/x",
-      "com.opencode.rc:/auth/done?x=1",
-      "com.opencode.rc:/auth/done#x",
       "com.opencode.rc://auth/done",
-      "com.opencode.rcx:/auth/done",
-      "COM.OPENCODE.RC:/auth/done",
-      "other.app:/auth/done",
     ]) {
       expect(validateReturnTo(bad, isAllowed)).toBeNull();
     }
-  });
-
-  it("returns the app callback unchanged, not normalized as a path", () => {
-    expect(validateReturnTo(APP_CALLBACK, isAllowed)).toBe(APP_CALLBACK);
   });
 
   it("treats a path-looking variant of the app callback as a normal same-origin path", () => {
@@ -106,10 +97,10 @@ describe("validateReturnTo", () => {
   });
 
   it("no longer accepts the app's WebView origins as return_to", () => {
-    expect(validateReturnTo("capacitor://localhost/", isAllowed)).toBeNull();
+    expect(validateReturnTo("opencode-rc://localhost/", isAllowed)).toBeNull();
     expect(validateReturnTo("https://localhost/s/x/", isAllowed)).toBeNull();
     // They stay allowed for CORS.
-    expect(isAllowed("capacitor://localhost")).toBe(true);
+    expect(isAllowed("opencode-rc://localhost")).toBe(true);
     expect(isAllowed("https://localhost")).toBe(true);
   });
 });
@@ -123,13 +114,13 @@ describe("corsMiddleware", () => {
     const res = await app.request("/x", {
       method: "OPTIONS",
       headers: {
-        origin: "capacitor://localhost",
+        origin: "opencode-rc://localhost",
         "access-control-request-method": "POST",
         "access-control-request-headers": "authorization,content-type,x-opencode-directory",
       },
     });
     expect(res.status).toBe(204);
-    expect(res.headers.get("access-control-allow-origin")).toBe("capacitor://localhost");
+    expect(res.headers.get("access-control-allow-origin")).toBe("opencode-rc://localhost");
     expect(res.headers.get("access-control-allow-headers")?.toLowerCase()).toContain("authorization");
     expect(res.headers.get("access-control-allow-credentials")).toBeNull();
   });

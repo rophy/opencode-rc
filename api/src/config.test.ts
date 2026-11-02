@@ -34,6 +34,7 @@ beforeEach(() => {
   delete process.env.TLS_INSECURE_SKIP_VERIFY;
   delete process.env.OIDC_CLIENT_SECRET;
   delete process.env.OIDC_CLI_CLIENT_ID;
+  delete process.env.OIDC_APP_CLIENT_ID;
   delete process.env.OIDC_USER_CLAIM;
   delete process.env.OIDC_ISSUER_OVERRIDE;
   delete process.env.OIDC_AUTHORIZATION_ENDPOINT;
@@ -98,11 +99,17 @@ describe("loadConfig", () => {
     expect(loadConfig().oidcUserClaim).toBe("oid");
   });
 
+  it("reads the app OIDC client id", () => {
+    process.env.OIDC_APP_CLIENT_ID = "opencode-rc-app";
+    expect(loadConfig().oidcAppClientId).toBe("opencode-rc-app");
+  });
+
   it("defaults optional fields", () => {
     const config = loadConfig();
     expect(config.gatewayUrl).toBe("");
     expect(config.oidcClientSecret).toBe("");
     expect(config.oidcCliClientId).toBe("");
+    expect(config.oidcAppClientId).toBe("");
     expect(config.oidcUserClaim).toBe("sub");
     expect(config.oidcIssuerOverride).toBe("");
     expect(config.oidcAuthorizationEndpoint).toBe("");

@@ -24,6 +24,7 @@ const config: Config = {
   oidcClientId: "test",
   oidcClientSecret: "",
   oidcCliClientId: "",
+  oidcAppClientId: "",
   oidcUserClaim: "sub",
   oidcRedirectUri: "https://rc.example.com/auth/callback",
   oidcIssuerOverride: "",
@@ -168,13 +169,13 @@ describe("authMiddleware", () => {
 describe("/auth/start", () => {
   it("redirects to the IdP and stores state, return_to and the code challenge", async () => {
     const res = await app.request(
-      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
+      `/auth/start?return_to=%2Fs%2Fx%2F&code_challenge=${challenge}`,
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/^https:\/\/idp\.example\.com\/authorize\?/);
     const cookies = res.headers.getSetCookie().join("\n");
     expect(cookies).toContain("orc_state=");
-    expect(cookies).toContain("orc_return=com.opencode.rc%3A%2Fauth%2Fdone");
+    expect(cookies).toContain("orc_return=%2Fs%2Fx%2F");
     expect(cookies).toMatch(new RegExp(`orc_challenge=${challenge}; Max-Age=300; Path=/auth; HttpOnly`));
   });
 
@@ -198,31 +199,15 @@ describe("/auth/start", () => {
     expect(res.status).toBe(400);
   });
 
-  // RFC 8252 section 8.6: the app callback scheme cannot identify the app, so the IdP
-  // must make the user interact; an impersonating app cannot complete a login silently.
-  it("asks the IdP to prompt the user for app logins", async () => {
+  it("rejects the old app callback as return_to", async () => {
     const res = await app.request(
-      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
+      `/auth/start?return_to=${encodeURIComponent("com.opencode.rc:/auth/done")}&code_challenge=${challenge}`,
     );
-    expect(new URL(res.headers.get("location")!).searchParams.get("prompt")).toBe("select_account");
+    expect(res.status).toBe(400);
   });
 
-  it("leaves web logins without a prompt", async () => {
-    const res = await app.request(`/auth/start?return_to=%2Fs%2Fx%2F&code_challenge=${challenge}`);
-    expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
-  });
-
-  it("sends no prompt when the app login prompt is disabled", async () => {
-    const a = new Hono();
-    a.route("/", authRoutes({
-      config: { ...config, appLoginPrompt: "" },
-      provider,
-      tokens,
-      isAllowedOrigin: makeOriginCheck("https://rc.example.com", []),
-    }));
-    const res = await a.request(
-      `/auth/start?return_to=com.opencode.rc%3A%2Fauth%2Fdone&code_challenge=${challenge}`,
-    );
+  it("never sends a prompt", async () => {
+    const res = await app.request(`/auth/start?return_to=%2F&code_challenge=${challenge}`);
     expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
   });
 
@@ -237,19 +222,6 @@ describe("/auth/start", () => {
 describe("/auth/callback", () => {
   const callback = (cookies: string) =>
     app.request("/auth/callback?state=st&code=idp-code", { headers: { cookie: cookies } });
-
-  it("redirects to the mobile app callback", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    const res = await callback(
-      `orc_state=st; orc_return=com.opencode.rc%3A%2Fauth%2Fdone; orc_challenge=${challenge}`,
-    );
-    expect(res.status).toBe(302);
-    const location = res.headers.get("location")!;
-    expect(location).toMatch(/^com\.opencode\.rc:\/auth\/done#code=/);
-    const code = decodeURIComponent(location.split("#code=")[1]);
-    const ok = await post("/auth/token", { code, code_verifier: verifier });
-    expect(ok.status).toBe(200);
-  });
 
   it("redirects to an absolute web origin", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
@@ -415,5 +387,117 @@ describe("/auth/refresh and /auth/logout", () => {
     });
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "unavailable" });
+  });
+});
+
+describe("app sign-in", () => {
+  const appConfig: Config = { ...config, oidcAppClientId: "opencode-rc-app" };
+  const useConfig = (cfg: Config) => {
+    app = new Hono<AuthEnv>();
+    app.route("/", authRoutes({ config: cfg, provider, tokens, isAllowedOrigin: () => false }));
+    app.get("/protected", authMiddleware(cfg), (c) => c.json({ userId: c.get("userId") }));
+  };
+  const idClaims = { sub: "alice", email: "alice@example.com", name: "Alice", nonce: "n1" };
+
+  it("GET /auth/app-config returns the public client", async () => {
+    useConfig(appConfig);
+    const res = await app.request("/auth/app-config");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      authorizationEndpoint: "https://idp.example.com/authorize",
+      clientId: "opencode-rc-app",
+      redirectUri: "com.opencode.rc:/auth/callback",
+      prompt: "select_account",
+    });
+  });
+
+  it("GET /auth/app-config omits prompt when it is disabled", async () => {
+    useConfig({ ...appConfig, appLoginPrompt: "" });
+    expect(await (await app.request("/auth/app-config")).json()).not.toHaveProperty("prompt");
+  });
+
+  it("answers 404 without an app client", async () => {
+    useConfig(config);
+    expect((await app.request("/auth/app-config")).status).toBe(404);
+    expect((await post("/auth/app-token", { code: "c", code_verifier: "v", nonce: "n1" })).status).toBe(404);
+  });
+
+  it("exchanges the code as a public client and issues tokens", async () => {
+    useConfig(appConfig);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    vi.mocked(verifyToken).mockResolvedValueOnce(idClaims);
+
+    const res = await post("/auth/app-token", { code: "idp-code", code_verifier: verifier, nonce: "n1" });
+    expect(res.status).toBe(200);
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://idp.example.com/token");
+    const form = new URLSearchParams(String(init.body));
+    expect(Object.fromEntries(form)).toEqual({
+      grant_type: "authorization_code",
+      client_id: "opencode-rc-app",
+      code: "idp-code",
+      code_verifier: verifier,
+      redirect_uri: "com.opencode.rc:/auth/callback",
+    });
+    expect(verifyToken).toHaveBeenCalledWith(provider, "id", "opencode-rc-app");
+
+    const body = await res.json();
+    const me = await app.request("/protected", { headers: { authorization: `Bearer ${body.access_token}` } });
+    expect(await me.json()).toEqual({ userId: "alice" });
+    expect(body.refresh_token).toBeTruthy();
+  });
+
+  it("rejects a nonce mismatch", async () => {
+    useConfig(appConfig);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    vi.mocked(verifyToken).mockResolvedValueOnce({ ...idClaims, nonce: "other" });
+    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_grant" });
+  });
+
+  it("rejects a failed code exchange", async () => {
+    useConfig(appConfig);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ error: "invalid_grant" }, { status: 400 }));
+    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+  });
+
+  it("rejects an ID token that fails verification", async () => {
+    useConfig(appConfig);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    vi.mocked(verifyToken).mockRejectedValueOnce(new Error("bad signature"));
+    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+  });
+
+  it("rejects an ID token without the user claim", async () => {
+    useConfig({ ...appConfig, oidcUserClaim: "oid" });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
+    vi.mocked(verifyToken).mockResolvedValueOnce(idClaims);
+    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+  });
+
+  it("rejects missing fields without calling the IdP", async () => {
+    useConfig(appConfig);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    for (const body of [{ code_verifier: verifier, nonce: "n1" }, { code: "c", nonce: "n1" }, { code: "c", code_verifier: verifier }])
+      expect((await post("/auth/app-token", body)).status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 when the IdP cannot be reached", async () => {
+    useConfig(appConfig);
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(503);
+  });
+
+  it("requires the protocol header", async () => {
+    useConfig(appConfig);
+    const res = await app.request("/auth/app-token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "c", code_verifier: verifier, nonce: "n1" }),
+    });
+    expect(res.status).not.toBe(200);
   });
 });
