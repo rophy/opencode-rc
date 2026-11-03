@@ -63,8 +63,11 @@ Status: Implemented
 
 Same on both platforms.
 
-- At document start, the shell injects a script that defines `window.rcNative`:
-  `call(method, args): Promise<unknown>` and `on(event, handler)` for native → JS events.
+- The shells inject no script. iOS exposes a `WKScriptMessageHandlerWithReply` named
+  `rcNative` (`window.webkit.messageHandlers.rcNative`; `postMessage` returns a promise, errors
+  arrive as `"<code>: <message>"`, events call `window.__rcNativeEmit`). Android exposes a
+  web message listener object `window.rcNativePort`. `ui/src/native.ts` wraps both as
+  `nativeCall(method, args)` and `nativeOn(event, handler)`.
 - JS → native: `{ id, method, args }`. Native → JS: `{ id, result }` or
   `{ id, error: { code, message } }`; each id gets exactly one reply. Events:
   `{ event, data }`.
@@ -85,19 +88,23 @@ Methods:
 
 ### JS side (`ui/src/`)
 
-`native.ts` replaces `@capacitor/core`: `isNativeApp()` (true when `window.rcNative`
-exists), `nativeCall`, `nativeOn`. `auth.ts`, `protocol-screen.tsx` and `proxy-fetch.ts`
+`native.ts` replaces `@capacitor/core`: `isNativeApp()` (true when
+`window.webkit.messageHandlers.rcNative` or `window.rcNativePort` exists), `nativePlatform()`,
+`nativeCall`, `nativeOn`. `auth.ts`, `protocol-screen.tsx` and `proxy-fetch.ts`
 use it; `system-auth.ts` is removed. `ui/package.json` drops `@capacitor/core`,
 `@capacitor/cli`, `@capacitor/ios`, `@capacitor/android`.
 
 On iOS (native networking):
 
-- The UI's server origin is `opencode-rc://localhost/__server`. `getBaseUrl()` keeps the
-  real server for display and settings; `apiUrl()` and the proxy targets use the local prefix.
-  All API requests, including `EventSource`, are same-origin.
-- At startup and whenever the server changes, JS calls `setServer` with the real origin.
-- `ProxiedWebSocket` (`proxy-fetch.ts`) uses `wsOpen`/`wsSend`/`wsClose` instead of the
-  browser `WebSocket`. Binary frames are base64 in both directions.
+- `getBaseUrl()` and `apiUrl()` keep the real server. At startup (`entry.tsx`, iOS only),
+  `native-transport.ts` patches `fetch`, `XMLHttpRequest`, `EventSource` and `WebSocket`
+  globally, before the proxy patches (`proxy-fetch.ts`): a request to the server's origin goes
+  to `opencode-rc://localhost/__server/<path>` instead, so all API requests, `EventSource`
+  included, are same-origin. Other URLs pass through unchanged.
+- Before the first request to a server, and when the server changes, JS calls `setServer`
+  with the real origin.
+- The patched `WebSocket` uses `wsOpen`/`wsSend`/`wsClose` instead of the browser
+  `WebSocket`; `ProxiedWebSocket` builds on it. Binary frames are base64 in both directions.
 - The CSP (`ui/csp.ts`) for the iOS build has `connect-src 'self'`.
 
 On Android, networking stays as today (WebView `fetch`/`WebSocket` to the real server).
@@ -112,6 +119,8 @@ On Android, networking stays as today (WebView `fetch`/`WebSocket` to the real s
   `didReceive(_ data:)` as it arrives, so SSE streams. `webView(_:stop:)` cancels the task
   (`AbortController`). No server set, or a redirect to another origin → 502 with no body.
   Cookies: none (an ephemeral session; the API uses bearer tokens).
+  `/__server` never loads as a document: `NavigationPolicy` cancels main-frame and subframe
+  navigations to it.
 - Anything else → the bundle in `App/public/`: a path with no extension that matches no file →
   `index.html`; a missing file with an extension → 404; a path that resolves outside `public/`
   → 404; MIME type from a fixed table by extension (html, js, mjs, css, json, map, svg, png,
@@ -212,7 +221,7 @@ unit-tested on both platforms.
   callback → 400).
 - **vitest (ui):** `native.ts` (ids, one reply per call, events, no bridge → not native);
   app sign-in (URL parameters, state mismatch, `error` callback, cancel, token exchange);
-  iOS proxy origin in `apiUrl` and `proxy-fetch.ts`; `ProxiedWebSocket` on the native backend;
+  iOS transport (`native-transport.ts`: URL mapping, patched fetch/XHR/EventSource/WebSocket);
   CSP per build; `sync-mobile.ts`.
 - **iOS `AppTests`:** bundle serving (MIME, SPA fallback, 404, traversal); proxy (path and
   query mapping, header filtering, streaming chunks, cancel, wrong origin, no server) against a

@@ -3388,7 +3388,7 @@ To preset the server or disable features, build with `OPENCODE_RC_CONFIG=/path/t
 - Spec: `Status: Implemented`.
 
 Run: `git grep -n "cap sync\|Capacitor\|capacitor" -- ':!docs/superpowers' ':!**/bun.lock'` → prints nothing (or only the new origin explanation if worded with "Capacitor"; reword it).
-Run: `git diff main --stat` and `git diff main | grep -nE "jsgr|rophyinc|192\.168|\.local/"` → nothing.
+Run: `git diff main --stat`, then grep the diff for the private host names listed in LOCAL.md, for private IP addresses and for `.local/` → nothing.
 
 - [ ] **Step 2: Full verification**
 

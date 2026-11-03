@@ -33,8 +33,8 @@ On corporate devices with a per-app VPN, Safari traffic is not carried by the ap
 IdP host must be reachable from Safari (in the VPN's Safari Domains). The API host need not be.
 
 Residual risk: a malicious app on the device can start its own login with its own
-verifier and register to receive the callback (on Android another app can register the same
-custom scheme), the general weakness of private-use callback schemes (RFC 8252 section 8.6).
+verifier and register to receive the callback (on iOS and on Android another app can register
+the same custom scheme; PKCE makes a code it steals from this app's login useless), the general weakness of private-use callback schemes (RFC 8252 section 8.6).
 To keep such a login from completing silently, the API asks the IdP to prompt the user on app
 logins (OIDC `prompt`, chart `auth.appLoginPrompt`, default `select_account`, applied through
 `/auth/app-config`); check that your IdP honors it. Claimed https redirects (Associated Domains /
@@ -81,7 +81,7 @@ tag yet), `.github/workflows/ios.yml` tags it `ios/<version>` and calls
 
 Each holds `/bundle/opencode-rc-ios-<version>-<preset>.tgz`: the Xcode project with the web
 UI built in. It has no package dependencies, so it builds with Xcode only and no internet. Presets are `config/presets/<preset>.json`; `default` is built with no config.
-Before publishing, CI builds each bundle runs `AppUITests` on it
+Before publishing, CI builds each bundle, runs `AppUITests` on it
 (a launch check for presets with a server) and builds it for devices
 (`ui/ios-offline/verify.sh`). A published image is never replaced.
 Run the workflow by hand to bundle an existing tag or a new preset.
