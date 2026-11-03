@@ -6,17 +6,24 @@ import UIKit
 /// com.opencode.rc:/auth/callback, which iOS hands to SceneDelegate, which calls handle(_:).
 /// Every start gets exactly one completion: the callback, cancelled (Done, swipe-down, a newer
 /// sign-in) or failed (bad URL, nothing to present from).
+///
+/// Only one present or dismiss runs at a time. A start during one only replaces the wanted view;
+/// when the transition ends, sync() closes what is up and shows the current view, if any.
 final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
-    /// Shows the view; false when there is nothing to present from.
-    typealias Present = (UIViewController) -> Bool
-    /// Closes the view, then calls the completion.
+    /// Shows the view, then calls back with true; with false when it cannot be shown.
+    typealias Present = (UIViewController, @escaping (Bool) -> Void) -> Void
+    /// Closes the view (at once if it is not up), then calls back.
     typealias Dismiss = (UIViewController, @escaping () -> Void) -> Void
 
     private let present: Present
     private let dismiss: Dismiss
     private var completion: ((Result<String, BridgeError>) -> Void)?
     private var callbackScheme = ""
+    /// The view of the pending sign-in.
     private var view: SFSafariViewController?
+    /// The view on screen.
+    private var shown: UIViewController?
+    private var busy = false
 
     init(present: @escaping Present, dismiss: @escaping Dismiss) {
         self.present = present
@@ -24,13 +31,8 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
     }
 
     func start(url: URL, callbackScheme: String, completion: @escaping (Result<String, BridgeError>) -> Void) {
-        // The pending sign-in is answered now; its view goes before the new one is shown, since
-        // UIKit does not present while a dismiss is running.
-        let old = view
-        view = nil
         finish(.failure(.cancelled("superseded by a new sign-in")))
         guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""), !callbackScheme.isEmpty else {
-            if let old { dismiss(old) {} }
             completion(.failure(.failed("bad sign-in URL")))
             return
         }
@@ -41,14 +43,7 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
         safari.dismissButtonStyle = .cancel
         safari.presentationController?.delegate = self
         view = safari
-        let show = { [weak self] in
-            guard let self, self.view === safari else { return } // answered while the old view closed
-            if !self.present(safari) {
-                self.view = nil
-                self.finish(.failure(.failed("cannot show sign-in")))
-            }
-        }
-        if let old { dismiss(old, show) } else { show() }
+        sync()
     }
 
     @discardableResult
@@ -68,19 +63,46 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
         closedByUser(presentationController.presentedViewController)
     }
 
+    // The view closed itself; only the current one ends the sign-in.
     private func closedByUser(_ controller: UIViewController) {
         guard let view, controller === view else { return }
-        self.view = nil
+        if shown === view { shown = nil }
         finish(.failure(.cancelled("sign-in cancelled")))
     }
 
     private func finish(_ result: Result<String, BridgeError>) {
         guard let completion else { return }
         self.completion = nil
-        if let view {
-            self.view = nil
-            dismiss(view) {}
-        }
+        view = nil
         completion(result)
+        sync()
+    }
+
+    /// Brings the screen to the wanted state, one transition at a time.
+    private func sync() {
+        guard !busy else { return }
+        if let shown, shown !== view {
+            busy = true
+            dismiss(shown) { [weak self] in
+                guard let self else { return }
+                busy = false
+                if self.shown === shown { self.shown = nil }
+                sync()
+            }
+            return
+        }
+        guard shown == nil, let view else { return }
+        busy = true
+        present(view) { [weak self] ok in
+            guard let self else { return }
+            busy = false
+            if ok {
+                shown = view
+            } else if self.view === view {
+                finish(.failure(.failed("cannot show sign-in")))
+                return
+            }
+            sync()
+        }
     }
 }

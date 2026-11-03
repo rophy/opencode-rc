@@ -10,19 +10,39 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     private lazy var schemeHandler = AppSchemeHandler(root: Bundle.main.bundleURL.appendingPathComponent("public"), proxy: proxy)
     private lazy var sockets = WebSocketBridge(proxy: proxy, emit: { [weak bridge] e, d in bridge?.emit(e, d) })
     /// Sign-in views are presented from this controller (or what it already shows), never from a
-    /// scene lookup that finds nothing while Control Center or a system alert is up.
+    /// scene lookup that finds nothing while Control Center or a system alert is up. Both wait for a
+    /// running transition (e.g. a JS alert closing), since UIKit refuses to present during one.
     private(set) lazy var signIn = SignIn(
-        present: { [weak self] view in
-            guard let self, self.viewIfLoaded?.window != nil else { return false }
-            var top: UIViewController = self
-            while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
-            top.present(view, animated: true)
-            return true
+        present: { [weak self] view, reply in
+            var answered = false
+            let done = { (ok: Bool) in if !answered { answered = true; reply(ok) } }
+            func attempt() {
+                guard let self, self.viewIfLoaded?.window != nil else { return done(false) }
+                var top: UIViewController = self
+                while let next = top.presentedViewController { top = next }
+                if WebViewController.afterTransition(of: top, attempt) { return }
+                top.present(view, animated: true) { done(true) }
+                // Refused (UIKit logs it and never calls the completion).
+                if view.presentingViewController == nil { done(false) }
+            }
+            attempt()
         },
         dismiss: { view, done in
-            guard view.presentingViewController != nil else { return done() }
-            view.dismiss(animated: true, completion: done)
+            func attempt() {
+                guard view.presentingViewController != nil else { return done() }
+                if WebViewController.afterTransition(of: view, attempt) { return }
+                view.dismiss(animated: true, completion: done)
+            }
+            attempt()
         })
+
+    /// Runs `then` once the controller's running transition ends; false when none runs.
+    private static func afterTransition(of controller: UIViewController, _ then: @escaping () -> Void) -> Bool {
+        guard controller.isBeingPresented || controller.isBeingDismissed,
+              let coordinator = controller.transitionCoordinator else { return false }
+        coordinator.animate(alongsideTransition: nil) { _ in DispatchQueue.main.async(execute: then) }
+        return true
+    }
 
     override func loadView() {
         let config = WKWebViewConfiguration()
