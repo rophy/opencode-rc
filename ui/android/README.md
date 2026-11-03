@@ -1,7 +1,7 @@
 # OpenCode RC — Android
 
 This branch contains a pre-built Android project for the OpenCode RC Android app, with the
-web app and Capacitor's Android library included. It is auto-generated from the `main`
+web app included. It is auto-generated from the `main`
 branch by CI — do not edit directly.
 
 The build is generic: users enter the server. To preset the server or disable features,

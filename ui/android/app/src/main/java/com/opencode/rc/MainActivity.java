@@ -1,35 +1,103 @@
 package com.opencode.rc;
 
+import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Message;
 import android.view.ViewGroup;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
-import com.getcapacitor.BridgeActivity;
+import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collections;
 
-public class MainActivity extends BridgeActivity {
+/** The app: one WebView showing the bundled web UI from https://localhost (assets/public). */
+public class MainActivity extends AppCompatActivity {
+    private WebView webView;
+    private SignIn signIn;
+
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        registerPlugin(SystemAuthPlugin.class);
+        setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-    }
 
-    @Override
-    protected void load() {
-        super.load();
+        FrameLayout root = new FrameLayout(this);
+        webView = new WebView(this);
+        root.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
 
-        // Replaces Capacitor's SystemBars listener: the WebView sits between the system bars,
-        // and above the keyboard while it is open, so the page (and its composer) shrinks to
-        // the visible area. Edge-to-edge apps (Android 15+) are not resized for the keyboard.
-        WebView webView = getBridge().getWebView();
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setSupportMultipleWindows(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+
+        WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
+                .setDomain("localhost")
+                .addPathHandler("/", this::serveBundle)
+                .build();
+
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assets.shouldInterceptRequest(request.getUrl());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return !handle(request.getUrl().toString(), request.isForMainFrame());
+            }
+        });
+        // target=_blank and window.open: never a second WebView; open the URL outside.
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                WebView probe = new WebView(MainActivity.this);
+                probe.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                        handle(request.getUrl().toString(), true);
+                        v.destroy();
+                        return true;
+                    }
+                });
+                ((WebView.WebViewTransport) resultMsg.obj).setWebView(probe);
+                resultMsg.sendToTarget();
+                return true;
+            }
+        });
+
+        signIn = new SignIn(this);
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            WebViewCompat.addWebMessageListener(webView, Bridge.NAME,
+                    Collections.singleton(NavigationPolicy.ORIGIN), new Bridge(signIn));
+        }
+
+        // The WebView sits between the system bars, and above the keyboard while it is open, so the
+        // page (and its composer) shrinks to the visible area.
         ViewCompat.setOnApplyWindowInsetsListener(getWindow().getDecorView(), (view, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            ViewGroup.MarginLayoutParams lp =
-                    (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) webView.getLayoutParams();
             lp.topMargin = bars.top;
             lp.bottomMargin = Math.max(bars.bottom, ime.bottom);
             lp.leftMargin = bars.left;
@@ -37,5 +105,85 @@ public class MainActivity extends BridgeActivity {
             webView.setLayoutParams(lp);
             return WindowInsetsCompat.CONSUMED;
         });
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+
+        webView.loadUrl(NavigationPolicy.ORIGIN + "/");
+    }
+
+    /** True when the WebView may load the URL; otherwise it is opened outside or dropped. */
+    private boolean handle(String url, boolean isMainFrame) {
+        switch (NavigationPolicy.decide(url, isMainFrame)) {
+            case ALLOW:
+                return true;
+            case OPEN_EXTERNALLY:
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                } catch (ActivityNotFoundException ignored) {
+                    // No app for this link.
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private WebResourceResponse serveBundle(String path) {
+        String file = BundlePaths.resolve("/" + path, name -> {
+            try (InputStream in = getAssets().open(name)) {
+                return true;
+            } catch (IOException e) {
+                return false;
+            }
+        });
+        if (file == null) return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", Collections.emptyMap(), null);
+        try {
+            return new WebResourceResponse(mimeType(file), null, getAssets().open(file));
+        } catch (IOException e) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", Collections.emptyMap(), null);
+        }
+    }
+
+    private static String mimeType(String file) {
+        String ext = file.substring(file.lastIndexOf('.') + 1).toLowerCase();
+        switch (ext) {
+            case "html": return "text/html";
+            case "js": case "mjs": return "text/javascript";
+            case "css": return "text/css";
+            case "json": case "map": return "application/json";
+            case "svg": return "image/svg+xml";
+            case "png": return "image/png";
+            case "jpg": case "jpeg": return "image/jpeg";
+            case "ico": return "image/x-icon";
+            case "webp": return "image/webp";
+            case "woff": return "font/woff";
+            case "woff2": return "font/woff2";
+            case "ttf": return "font/ttf";
+            case "wasm": return "application/wasm";
+            case "txt": return "text/plain";
+            default: return "application/octet-stream";
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        signIn.onCallback(intent.getData());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        signIn.onResume();
     }
 }
