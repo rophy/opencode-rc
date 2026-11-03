@@ -27,11 +27,20 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             }
             attempt()
         },
-        dismiss: { view, done in
+        dismiss: { view, reply in
+            var answered = false
+            let done = { if !answered { answered = true; reply() } }
+            var tries = 0
             func attempt() {
-                guard view.presentingViewController != nil else { return done() }
+                // From the presenter: closes anything the Safari view put up too (e.g. a share sheet).
+                guard let presenter = view.presentingViewController else { return done() }
                 if WebViewController.afterTransition(of: view, attempt) { return }
-                view.dismiss(animated: true, completion: done)
+                presenter.dismiss(animated: true, completion: done)
+                // Refused (it starts at once when accepted): try once more, then give up.
+                if !view.isBeingDismissed && view.presentingViewController != nil {
+                    tries += 1
+                    if tries < 2 { DispatchQueue.main.async(execute: attempt) } else { done() }
+                }
             }
             attempt()
         })
@@ -40,7 +49,9 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     private static func afterTransition(of controller: UIViewController, _ then: @escaping () -> Void) -> Bool {
         guard controller.isBeingPresented || controller.isBeingDismissed,
               let coordinator = controller.transitionCoordinator else { return false }
-        coordinator.animate(alongsideTransition: nil) { _ in DispatchQueue.main.async(execute: then) }
+        if !coordinator.animate(alongsideTransition: nil, completion: { _ in DispatchQueue.main.async(execute: then) }) {
+            DispatchQueue.main.async(execute: then)
+        }
         return true
     }
 

@@ -10,9 +10,12 @@ final class SignInTests: XCTestCase {
     var onScreen: UIViewController?
     var transition: (() -> Void)?
     var canPresent = true
+    var losePresents = false // present starts but never reports its end
+    var timers: [() -> Void] = []
     lazy var signIn = SignIn(
         present: { view, done in
             guard self.canPresent else { return done(false) }
+            if self.losePresents { self.presented.append(view); return }
             if self.onScreen != nil || self.transition != nil {
                 XCTFail("presented while busy")
                 return done(false)
@@ -25,7 +28,9 @@ final class SignInTests: XCTestCase {
             XCTAssertNil(self.transition, "dismissed while busy")
             self.dismissed.append(view)
             self.transition = { self.onScreen = nil; done() }
-        })
+        },
+        watchdog: 10,
+        after: { delay, run in XCTAssertEqual(delay, 10); self.timers.append(run) })
 
     /// Ends the running transitions.
     func settle() {
@@ -149,5 +154,39 @@ final class SignInTests: XCTestCase {
         signIn.start(url: URL(string: "file:///etc/passwd")!, callbackScheme: "com.opencode.rc") { result = $0 }
         if case .failure(let e) = result { XCTAssertEqual(e.code, "failed") } else { XCTFail("not failed") }
         XCTAssertTrue(presented.isEmpty)
+    }
+
+    func testALostTransitionIsGivenUpByTheWatchdog() {
+        losePresents = true
+        let a = start("https://idp.example.com/a")
+        XCTAssertEqual(presented.count, 1)
+        losePresents = false
+        let b = start("https://idp.example.com/b")
+        XCTAssertEqual(codes(a()), ["cancelled"])
+        XCTAssertEqual(presented.count, 1) // still waiting for A's present
+        timers.forEach { $0() }
+        XCTAssertEqual(presented.count, 2)
+        settle()
+        XCTAssertTrue(onScreen === presented[1])
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertEqual(codes(b()), ["ok"])
+        XCTAssertEqual(codes(a()), ["cancelled"])
+    }
+
+    func testAnOldWatchdogDoesNotEndANewerTransition() {
+        let a = start("https://idp.example.com/a")
+        settle()
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!)) // A's dismiss starts
+        XCTAssertEqual(timers.count, 2)
+        timers[0]() // A's present watchdog: that transition already ended
+        let b = start("https://idp.example.com/b")
+        XCTAssertEqual(presented.count, 1) // B waits for A's dismiss ("presented while busy" otherwise)
+        settle()
+        XCTAssertEqual(presented.count, 2)
+        XCTAssertTrue(onScreen === presented[1])
+        timers.forEach { $0() } // all ended: no effect
+        XCTAssertEqual(presented.count, 2)
+        XCTAssertEqual(codes(a()), ["ok"])
+        XCTAssertTrue(b().isEmpty)
     }
 }
