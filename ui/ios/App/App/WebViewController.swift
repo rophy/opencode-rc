@@ -177,25 +177,38 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
-        if !presentDialog(alert) { completionHandler() }
+        showAlert(message, completion: completionHandler)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
-        if !presentDialog(alert) { completionHandler(false) }
+        showConfirm(message, completion: completionHandler)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        showPrompt(prompt, defaultText: defaultText, completion: completionHandler)
+    }
+
+    // The panels without WebKit's frame argument: tests cannot make a WKFrameInfo.
+    func showAlert(_ message: String, completion: @escaping () -> Void) {
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completion() })
+        if !presentDialog(alert) { completion() }
+    }
+
+    func showConfirm(_ message: String, completion: @escaping (Bool) -> Void) {
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completion(false) })
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completion(true) })
+        if !presentDialog(alert) { completion(false) }
+    }
+
+    func showPrompt(_ prompt: String, defaultText: String?, completion: @escaping (String?) -> Void) {
         let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
         alert.addTextField { $0.text = defaultText }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(nil) })
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(alert.textFields?.first?.text) })
-        if !presentDialog(alert) { completionHandler(nil) }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completion(nil) })
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completion(alert.textFields?.first?.text) })
+        if !presentDialog(alert) { completion(nil) }
     }
 }
