@@ -139,7 +139,7 @@ function App(props: { loginExpired: boolean }) {
   )
 }
 
-// Capacitor's root index.html fallback loads the 1.x build for /v2/ paths (see build-route.ts).
+// The mobile shells' root index.html fallback loads the 1.x build for /v2/ paths (see build-route.ts).
 const bounce = bounceTarget(BASE, location)
 const restored = bounce ? null : restoredPath(BASE, location)
 if (bounce) location.replace(bounce)

@@ -1,7 +1,7 @@
 name: iOS offline bundle
 
 # Publishes ghcr.io/<repo>/ios:<version>-<preset>: the Xcode project of an ios/<version> tag
-# with Capacitor included, so it builds without internet. The app source comes from the tag;
+# that builds without internet. The app source comes from the tag;
 # the bundle tools and presets come from this workflow's commit.
 on:
   workflow_call:
@@ -135,7 +135,7 @@ jobs:
           cd src/ui && bun install --frozen-lockfile && bun run build
 
       - name: Sync iOS project
-        run: cd src/ui && npx cap sync ios
+        run: cd src/ui && bun run sync:ios
 
       - name: Bundle
         env:

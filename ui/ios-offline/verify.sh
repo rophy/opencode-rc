@@ -26,7 +26,6 @@ trap cleanup EXIT
 preset=no
 tar xzf "$tgz" -C "$work"
 dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d)
-[ -d "$dir/capacitor-swift-pm" ] || fail "no capacitor-swift-pm/"
 
 [ -f "$dir/set-server-url.sh" ] || fail "no set-server-url.sh"
 if grep -rq rc-placeholder.invalid "$dir/App/App/public"; then
@@ -49,7 +48,7 @@ fi
 [ -n "$UDID" ] && [ "$UDID" != null ] || fail "no iPhone Simulator available"
 
 cd "$dir/App"
-# A new package folder: anything SwiftPM would fetch must come from the bundle.
+# A new package folder, to see that SwiftPM fetches nothing.
 if [ "$preset" = no ]; then
   xcodebuild test -project App.xcodeproj -scheme App -configuration Debug \
     -destination "id=$UDID" -derivedDataPath "$work/dd" -clonedSourcePackagesDirPath "$work/spm" \
@@ -80,12 +79,13 @@ else
   kill -0 "$pid" 2>/dev/null || fail "$bundle_id (pid $pid) is not running 20 s after launch"
 fi
 
+# The project has no Swift packages: SwiftPM must not have fetched anything.
 state="$work/spm/workspace-state.json"
-[ -f "$state" ] || fail "no $state"
-jq -e '(.object.dependencies | length > 0)
-  and all(.object.dependencies[]; .packageRef.kind == "fileSystem")
-  and all(.object.artifacts[]; .source.type == "local")' "$state" >/dev/null \
-  || { cat "$state" >&2; fail "a package or artifact is not local"; }
+if [ -f "$state" ]; then
+  jq -e '(.object.dependencies | length == 0) and (.object.artifacts | length == 0)' "$state" >/dev/null \
+    || { cat "$state" >&2; fail "a package or artifact was resolved"; }
+fi
+[ ! -d "$work/spm/checkouts" ] || fail "SwiftPM fetched packages"
 
 xcodebuild build -project App.xcodeproj -scheme App -configuration Release \
   -sdk iphoneos -destination "generic/platform=iOS" \

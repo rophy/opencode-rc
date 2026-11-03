@@ -73,9 +73,9 @@ jobs:
         run: cd ui && bun install --frozen-lockfile && bun run build
 
       - name: Sync iOS project
-        run: cd ui && npx cap sync ios
+        run: cd ui && bun run sync:ios
 
-      # Unsigned, in the Simulator: compiles the app and runs the launch smoke test (AppUITests).
+      # Unsigned, in the Simulator: compiles the app and runs AppTests and the launch test (AppUITests).
       - name: Build and test
         run: |
           UDID=$(xcrun simctl list devices available -j \

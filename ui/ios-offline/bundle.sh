@@ -1,7 +1,6 @@
 #!/bin/sh
 # Makes a self-contained iOS bundle: the synced Xcode project (ui/ios after the UI build and
-# `npx cap sync ios`) with capacitor-swift-pm included as a local package, so Xcode builds it
-# with no internet. Presets and the shipped files come from this script's repository, so it
+# `bun run sync:ios`), which Xcode builds with no internet. Presets and the shipped files come from this script's repository, so it
 # can bundle a project checked out at another commit.
 #   ui/ios-offline/bundle.sh <synced ui/ios dir> <preset> <out-dir>
 # <preset> is "default" (built with no config) or config/presets/<preset>.json.
@@ -23,7 +22,7 @@ if [ "$preset" != default ]; then
   config="$root/config/presets/$preset.json"
   [ -f "$config" ] || { echo "no preset: $config" >&2; exit 2; }
 fi
-[ -d "$ios/App/App/public" ] || fail "$ios/App/App/public is missing: build the UI and run npx cap sync ios first"
+[ -d "$ios/App/App/public" ] || fail "$ios/App/App/public is missing: build the UI and run bun run sync:ios first"
 
 # The synced web UI must be this preset's build: a placeholder server in both or in neither.
 placeholder=no
@@ -51,51 +50,10 @@ rsync -a \
   --exclude .build/ --exclude .swiftpm/ --exclude /App/build/ --exclude /App/DerivedData/ \
   "$ios/" "$dest/"
 
-# capacitor-swift-pm: one exact-version dependency, two binary targets, nothing else.
-spm="$dest/App/CapApp-SPM/Package.swift"
-[ "$(grep -c '\.package(' "$spm")" = 1 ] || fail "expected one dependency in App/CapApp-SPM/Package.swift"
-capver=$(sed -n 's|.*\.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "\([0-9.]*\)").*|\1|p' "$spm")
-[ -n "$capver" ] || fail "App/CapApp-SPM/Package.swift does not depend on capacitor-swift-pm by exact version"
-raw="https://raw.githubusercontent.com/ionic-team/capacitor-swift-pm/$capver"
-cap="$dest/capacitor-swift-pm"
-mkdir "$cap"
-curl -fsSL "$raw/Package.swift" -o "$work/upstream.swift"
-curl -fsSL "$raw/LICENSE.md" -o "$cap/LICENSE.md"
-flat=$(tr -d ' \t\n' < "$work/upstream.swift")
-[ "$(printf %s "$flat" | grep -o '\.binaryTarget(' | wc -l | tr -d ' ')" = 2 ] || fail "capacitor-swift-pm $capver: expected two binary targets"
-case "$flat" in *'.target('*|*'.executableTarget('*) fail "capacitor-swift-pm $capver: has source targets" ;; esac
-for t in Capacitor Cordova; do
-  url=$(printf %s "$flat" | sed -n "s|.*\.binaryTarget(name:\"$t\",url:\"\([^\"]*\)\",checksum:\"[0-9a-f]*\").*|\1|p")
-  sum=$(printf %s "$flat" | sed -n "s|.*\.binaryTarget(name:\"$t\",url:\"[^\"]*\",checksum:\"\([0-9a-f]*\)\").*|\1|p")
-  [ -n "$url" ] && [ -n "$sum" ] || fail "capacitor-swift-pm $capver: no binary target $t"
-  curl -fsSL "$url" -o "$work/$t.zip"
-  got=$(shasum -a 256 "$work/$t.zip" | cut -d' ' -f1)
-  [ "$got" = "$sum" ] || fail "$t.xcframework.zip: checksum $got, expected $sum"
-  (cd "$cap" && unzip -q "$work/$t.zip")
-  [ -d "$cap/$t.xcframework" ] || fail "$t.zip has no $t.xcframework"
-done
-cat > "$cap/Package.swift" <<EOF
-// swift-tools-version:5.3
-
-import PackageDescription
-
-// capacitor-swift-pm $capver with its two binary targets as local frameworks (the release
-// zips, unzipped), so the app builds with no internet.
-let package = Package(
-    name: "capacitor-swift-pm",
-    products: [
-        .library(name: "Capacitor", targets: ["Capacitor"]),
-        .library(name: "Cordova", targets: ["Cordova"])
-    ],
-    dependencies: [],
-    targets: [
-        .binaryTarget(name: "Capacitor", path: "Capacitor.xcframework"),
-        .binaryTarget(name: "Cordova", path: "Cordova.xcframework")
-    ]
-)
-EOF
-perl -pi -e 's{\.package\(url: "https://github\.com/ionic-team/capacitor-swift-pm\.git", exact: "[0-9.]+"\)}{.package(path: "../../capacitor-swift-pm")}' "$spm"
-grep -q '\.package(path: "\.\./\.\./capacitor-swift-pm")' "$spm" || fail "could not point App/CapApp-SPM at the local package"
+# Builds offline: the project must have no Swift package dependencies.
+if grep -q 'XCRemoteSwiftPackageReference\|XCLocalSwiftPackageReference' "$dest/App/App.xcodeproj/project.pbxproj"; then
+  fail "App.xcodeproj has Swift package dependencies"
+fi
 
 cp "$root/LICENSE" "$dest/LICENSE"
 [ -z "$config" ] || cp "$config" "$dest/config.json"
@@ -105,8 +63,8 @@ cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
   echo "# OpenCode RC iOS $marketing ($build), preset $preset"
   echo
   echo "Xcode project for the OpenCode RC iOS app with everything it needs to build without"
-  echo "internet: the web UI is built in (\`App/App/public\`) and Capacitor $capver is included"
-  echo "(\`capacitor-swift-pm/\`, MIT, see its \`LICENSE.md\`). Keep the folder layout as it is."
+  echo "internet: the web UI is built in (\`App/App/public\`) and the project has no dependencies."
+  echo "Keep the folder layout as it is."
   echo
   if [ -n "$config" ]; then
     echo "Built with \`config.json\` (in this folder). The app only hides disabled features: disable"
@@ -131,7 +89,7 @@ cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
   fi
   echo
   echo "\`--bundle-id\` (optional) sets the app's bundle identifier, \`com.opencode.rc\` by default; the"
-  echo "UI tests get \`<id>.uitests\`. It can be run again to change it."
+  echo "test targets get \`<id>.tests\` and \`<id>.uitests\`. It can be run again to change it."
   echo
   echo "## 2. Build"
   echo

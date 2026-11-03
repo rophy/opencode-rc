@@ -16,14 +16,10 @@
     "sync:android": "bun build/sync-mobile.ts android"
   },
   "dependencies": {
-    "@capacitor/core": "^8.5.2",
     "@solidjs/router": "^0.15.4",
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.5.2",
-    "@capacitor/cli": "^8.5.2",
-    "@capacitor/ios": "^8.5.2",
     "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "^7.0.1",

@@ -78,7 +78,7 @@ jobs:
         run: cd ui && bun install --frozen-lockfile && bun run build
 
       - name: Sync Android project
-        run: cd ui && npx cap sync android
+        run: cd ui && bun run sync:android
 
       # Copy the synced project before Gradle writes its build output into it.
       - name: Prepare releases/android
@@ -88,16 +88,12 @@ jobs:
           cp -r ui/android/. /tmp/android-publish/
           cp LICENSE /tmp/android-publish/
           cd /tmp/android-publish
-          # Capacitor's Android library lives in node_modules; ship it with the project.
-          cp -r $GITHUB_WORKSPACE/ui/node_modules/@capacitor/android/capacitor capacitor-android
-          sed -i "s|new File('../node_modules/@capacitor/android/capacitor')|new File('capacitor-android')|" capacitor.settings.gradle
-          grep -q "new File('capacitor-android')" capacitor.settings.gradle
-          # Keep the files `cap sync` generated (web app, plugins, config).
-          sed -i '/^# Cordova plugins for Capacitor/,$d' .gitignore
+          # Keep the web app that `sync:android` copied in (the template ignores it).
+          sed -i '/^# Copied web assets/,$d' .gitignore
 
       # A compile check only; the APK is not published.
       - name: Build debug APK
-        run: cd ui/android && ./gradlew assembleDebug
+        run: cd ui/android && ./gradlew test assembleDebug
 
       - name: Publish to releases/android
         if: needs.version.outputs.new == 'true'

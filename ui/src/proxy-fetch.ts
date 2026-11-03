@@ -11,9 +11,9 @@ export interface ProxyOptions {
 const RC_PREFIXES = ["/auth/", "/gateway/", "/assets/", `${BASE}/assets/`]
 const RC_PATHS = ["/healthz", "/api/me"]
 
-// URL.origin is "null" for non-special schemes (e.g. capacitor:) per the WHATWG
+// URL.origin is "null" for non-special schemes (e.g. opencode-rc:) per the WHATWG
 // URL spec, so it can't be used to compare against pageOrigin/serverOrigin on
-// iOS (capacitor://localhost). Compare protocol+host instead.
+// iOS (opencode-rc://localhost). Compare protocol+host instead.
 function originOf(input: string): string {
   const url = new URL(input)
   return `${url.protocol}//${url.host}`
