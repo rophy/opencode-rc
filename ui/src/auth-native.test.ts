@@ -90,8 +90,14 @@ describe("app sign-in", () => {
     expect(await login()).toBe("failed")
   })
 
-  it("reports failed when the server has no app sign-in", async () => {
+  it("reports unsupported when the server has no app sign-in", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json({ error: "not_found" }, 404))
+    expect(await login()).toBe("unsupported")
+    expect(call).not.toHaveBeenCalled()
+  })
+
+  it("reports failed when the app config cannot be read", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json({ error: "boom" }, 500))
     expect(await login()).toBe("failed")
     expect(call).not.toHaveBeenCalled()
   })

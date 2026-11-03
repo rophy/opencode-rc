@@ -4,15 +4,18 @@ import { login } from "./auth"
 
 export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () => void; expired?: boolean }> = (props) => {
   const [failed, setFailed] = createSignal(false)
+  const [unsupported, setUnsupported] = createSignal(false)
   const [pending, setPending] = createSignal(false)
   const signIn = async () => {
     if (pending()) return
     setPending(true)
     setFailed(false)
+    setUnsupported(false)
     try {
       const result = await login()
       if (result === "ok") props.onLoggedIn?.()
       else if (result === "failed") setFailed(true)
+      else if (result === "unsupported") setUnsupported(true)
     } finally {
       setPending(false)
     }
@@ -36,6 +39,13 @@ export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () =>
 
         <Show when={failed()}>
           <p class="text-13-regular text-red-500 mb-4">Sign-in failed, try again</p>
+        </Show>
+
+        <Show when={unsupported()}>
+          <p class="text-13-regular text-red-500 mb-4">
+            This server is not set up for app sign-in. Ask your administrator to enable it
+            (OIDC_APP_CLIENT_ID).
+          </p>
         </Show>
 
         <button

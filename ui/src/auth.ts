@@ -10,7 +10,8 @@ const EARLY_REFRESH_MS = 30_000
 // The apps' sign-in callback scheme; the redirect URI comes from /auth/app-config.
 export const APP_CALLBACK_SCHEME = "com.opencode.rc"
 
-export type LoginResult = "redirected" | "ok" | "cancelled" | "failed"
+// "unsupported": the server has no app sign-in (its /auth/app-config answers 404).
+export type LoginResult = "redirected" | "ok" | "cancelled" | "failed" | "unsupported"
 
 export interface TokenResponse {
   access_token: string
@@ -208,6 +209,7 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
   let cfg: AppConfig
   try {
     const res = await fetch(apiUrl("/auth/app-config"))
+    if (res.status === 404) return "unsupported"
     if (!res.ok) return "failed"
     cfg = (await res.json()) as AppConfig
   } catch {

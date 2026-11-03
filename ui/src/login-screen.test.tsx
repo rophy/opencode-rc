@@ -94,6 +94,15 @@ describe("LoginScreen", () => {
     await vi.waitFor(() => expect(screen.getByText("Sign-in failed, try again")).toBeTruthy())
   })
 
+  it("tells the user when the server has no app sign-in", async () => {
+    vi.spyOn(auth, "login").mockResolvedValue("unsupported")
+    render(() => <LoginScreen onSettings={vi.fn()} />)
+    await fireEvent.click(screen.getByText("Sign in with OIDC"))
+    await vi.waitFor(() => expect(screen.getByText(/not set up for app sign-in/)).toBeTruthy())
+    expect(screen.getByText(/OIDC_APP_CLIENT_ID/)).toBeTruthy()
+    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
+  })
+
   it("ignores a second click while sign-in is in flight", async () => {
     let resolveLogin: (value: "ok" | "failed" | "cancelled") => void = () => {}
     const loginPromise = new Promise<"ok" | "failed" | "cancelled">((resolve) => {
