@@ -9,6 +9,20 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     var webView: WKWebView!
     private lazy var schemeHandler = AppSchemeHandler(root: Bundle.main.bundleURL.appendingPathComponent("public"), proxy: proxy)
     private lazy var sockets = WebSocketBridge(proxy: proxy, emit: { [weak bridge] e, d in bridge?.emit(e, d) })
+    /// Sign-in views are presented from this controller (or what it already shows), never from a
+    /// scene lookup that finds nothing while Control Center or a system alert is up.
+    private(set) lazy var signIn = SignIn(
+        present: { [weak self] view in
+            guard let self, self.viewIfLoaded?.window != nil else { return false }
+            var top: UIViewController = self
+            while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
+            top.present(view, animated: true)
+            return true
+        },
+        dismiss: { view, done in
+            guard view.presentingViewController != nil else { return done() }
+            view.dismiss(animated: true, completion: done)
+        })
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -52,12 +66,12 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             sockets.close(id: args["id"] as? String ?? "", code: args["code"] as? Int ?? 1000, reason: args["reason"] as? String ?? "")
             reply(.success(nil))
         }
-        bridge.register("signIn") { args, reply in
+        bridge.register("signIn") { [unowned self] args, reply in
             guard let url = URL(string: args["url"] as? String ?? "") else {
                 reply(.failure(.failed("bad sign-in URL")))
                 return
             }
-            SignIn.shared.start(url: url, callbackScheme: args["callbackScheme"] as? String ?? "") { result in
+            signIn.start(url: url, callbackScheme: args["callbackScheme"] as? String ?? "") { result in
                 reply(result.map { ["url": $0] as Any? })
             }
         }
