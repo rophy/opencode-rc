@@ -1,6 +1,6 @@
 # OpenCode RC — Android
 
-This branch contains a pre-built Android project for the OpenCode RC Android app, with the
+This branch contains a pre-built native Android project (one WebView) for the OpenCode RC Android app, with the
 web app included. It is auto-generated from the `main`
 branch by CI — do not edit directly.
 

@@ -155,6 +155,16 @@ The mock is configured by `oidcMock.*` only. Empty `oidc.*` values default to it
 
 For a real IdP, set `oidcMock.enabled=false`, `oidc.issuer` and `existingSecret`. Without `existingSecret` the chart renders a Secret from `secrets.*`, whose defaults are for development only.
 
+#### Mobile app sign-in
+
+The iOS and Android apps sign in as a public OIDC client with PKCE, in the system browser view (Safari view / Custom Tab), which loads only the IdP. Set `oidc.appClientId` (API env `OIDC_APP_CLIENT_ID`); empty turns app sign-in off. Register that client at your IdP as:
+
+- a public client (no secret), with PKCE (S256) required
+- redirect URI `com.opencode.rc:/auth/callback`
+- scopes `openid email profile`
+
+The API serves the client settings at `GET /auth/app-config` and exchanges the code at `POST /auth/app-token`. `auth.appLoginPrompt` (`APP_LOGIN_PROMPT`) applies to app sign-ins through `/auth/app-config`. On corporate iOS devices with a per-app VPN, the IdP host must be reachable from Safari (in the VPN's Safari Domains); the API host need not be.
+
 ### Access Control
 
 Everyone who signs in can connect their machine with the CLI. Whether they may list and open sessions in the UI can be decided by a webhook you run. With `authz.webhook.url` set, the API sends:

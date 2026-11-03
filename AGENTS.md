@@ -138,10 +138,14 @@ only errors in `ui/` fail it.
 CI runs the API and UI unit tests (vitest) on Node 22. Check code that may need a newer Node
 with `npx -y node@22 node_modules/vitest/vitest.mjs run` in `api/` or `ui/`.
 
-The iOS/Android apps sign in outside their WebView (local `SystemAuth` plugin: an in-app WKWebView sheet
-on iOS, a Custom Tab on Android; callback
-`com.opencode.rc:/auth/done`) and their WebView loads only the bundled app. To preset the server
-or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
+The iOS and Android apps are plain native shells around one WebView that loads only the bundled
+UI (iOS `opencode-rc://localhost`, Android `https://localhost`); other links open in the system
+browser. They sign in as a public OIDC client with PKCE in the system browser view (iOS
+SFSafariViewController, Android Custom Tab), which loads only the IdP; the IdP redirects to
+`com.opencode.rc:/auth/callback` and the API exchanges the code (`/auth/app-token`, needs
+`OIDC_APP_CLIENT_ID`). On iOS, all server traffic goes through native code (URLSession) so a per-app
+VPN carries it. Copy a build into the projects with `bun run sync:ios` / `bun run sync:android`.
+To preset the server or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
 (schema: `config/schema.ts`; see `docs/ios-app.md`).
 
 Override the opencode locations: `OPENCODE_ROOT=../path/to/opencode-1.x` and `OPENCODE_V2_ROOT=../path/to/opencode-2.x`
