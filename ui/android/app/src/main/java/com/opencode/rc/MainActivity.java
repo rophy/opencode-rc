@@ -92,8 +92,9 @@ public class MainActivity extends AppCompatActivity {
                         return true;
                     }
                 });
-                popups.add(probe);
-                probe.postDelayed(() -> destroyProbe(probe), 5000);
+                Runnable timeout = () -> destroyProbe(probe);
+                popups.put(probe, timeout);
+                main.postDelayed(timeout, 5000);
                 ((WebView.WebViewTransport) resultMsg.obj).setWebView(probe);
                 resultMsg.sendToTarget();
                 return true;
@@ -139,7 +140,8 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl(NavigationPolicy.ORIGIN + "/");
     }
 
-    private final java.util.Set<WebView> popups = new java.util.HashSet<>();
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final java.util.Map<WebView, Runnable> popups = new java.util.HashMap<>();
 
     private static WebResourceResponse blocked() {
         return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", Collections.emptyMap(),
@@ -148,8 +150,10 @@ public class MainActivity extends AppCompatActivity {
 
     /** Destroys a popup probe once, outside its own callback. */
     private void destroyProbe(WebView probe) {
-        if (!popups.remove(probe)) return;
-        probe.post(probe::destroy);
+        Runnable timeout = popups.remove(probe);
+        if (timeout == null) return;
+        main.removeCallbacks(timeout);
+        main.post(probe::destroy);
     }
 
     /** True when the WebView may load the URL; otherwise it is opened outside or dropped. */
