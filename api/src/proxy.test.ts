@@ -65,7 +65,7 @@ describe("proxy routes", () => {
       }),
     );
     const res = await makeApp("alice@example.com").request("/proxy/alice-dev/api/health?x=1", {
-      headers: { authorization: "Bearer tok", origin: "capacitor://localhost" },
+      headers: { authorization: "Bearer tok", origin: "opencode-rc://localhost" },
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("access-control-allow-origin")).toBeNull();

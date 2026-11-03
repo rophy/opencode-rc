@@ -171,13 +171,13 @@ describe("auth edge cases", () => {
     const res = await fetch(`${API_URL}/api/me`, {
       method: "OPTIONS",
       headers: {
-        origin: "capacitor://localhost",
+        origin: "opencode-rc://localhost",
         "access-control-request-method": "GET",
         "access-control-request-headers": "authorization",
       },
     });
     expect(res.status).toBe(204);
-    expect(res.headers.get("access-control-allow-origin")).toBe("capacitor://localhost");
+    expect(res.headers.get("access-control-allow-origin")).toBe("opencode-rc://localhost");
   });
 });
 

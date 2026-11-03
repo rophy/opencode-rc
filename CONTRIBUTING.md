@@ -137,12 +137,13 @@ cd ../.. && git add <submodule> && git commit -m "chore: bump opencode to <new-t
 | `OIDC_ISSUER` | Yes | OIDC provider issuer URL |
 | `OIDC_CLIENT_ID` | Yes | API OAuth client ID |
 | `OIDC_CLIENT_SECRET` | No | API OAuth client secret |
+| `OIDC_APP_CLIENT_ID` | No | Public OAuth client (PKCE) of the mobile apps, redirect URI `com.opencode.rc:/auth/callback`; empty turns app sign-in off |
 | `OIDC_REDIRECT_URI` | Yes | OAuth callback URL (`https://<host>/auth/callback`); its origin is always allowed |
 | `TOKEN_SECRET` | Yes | 64-char hex string (32 bytes), HMAC key for access tokens; must match the gateway. Falls back to `COOKIE_SECRET` |
 | `ACCESS_TOKEN_TTL` | No | Access token lifetime (default: `15m`; units `s`, `m`, `h`, `d`) |
 | `SESSION_TTL` | No | Absolute refresh-token chain lifetime from login (default: `7d`) |
 | `APP_LOGIN_PROMPT` | No | OIDC `prompt` for mobile app logins: `select_account` (default), `login`, `consent`, or empty for none |
-| `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS. The mobile app's WebView origins (`capacitor://localhost`, `https://localhost`) are always allowed for CORS only; the app signs in with the fixed `return_to` `com.opencode.rc:/auth/done` |
+| `ALLOWED_ORIGINS` | No | Comma-separated extra origins allowed for `return_to` and CORS. The mobile apps' origins (`opencode-rc://localhost`, `https://localhost`) are always allowed for CORS only; the apps sign in as a public client (`OIDC_APP_CLIENT_ID`, redirect `com.opencode.rc:/auth/callback`) |
 | `COOKIE_SECURE` | No | Set to `false` for HTTP; applies to the short-lived login cookies only (default: `true`) |
 | `REDIS_URL` | Yes | Redis connection URL |
 | `TLS_INSECURE_SKIP_VERIFY` | No | Set to `true` to skip TLS certificate verification |

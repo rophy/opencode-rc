@@ -3,7 +3,7 @@ import { proxyTarget, proxySocketUrl, installProxyFetch, installProxyWebSocket }
 
 const app = { pageOrigin: "https://localhost", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
 const web = { pageOrigin: "https://rc.example.com", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
-const capacitorApp = { pageOrigin: "capacitor://localhost", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
+const iosApp = { pageOrigin: "opencode-rc://localhost", serverOrigin: "https://rc.example.com", sessionId: "alice-dev" }
 
 const realFetch = globalThis.fetch
 const realWebSocket = globalThis.WebSocket
@@ -48,13 +48,13 @@ describe("proxyTarget", () => {
     )
   })
 
-  it("rewrites capacitor:// page-origin requests (iOS)", () => {
-    // URL.origin is "null" for non-special schemes like capacitor:, so this
+  it("rewrites opencode-rc:// page-origin requests (iOS)", () => {
+    // URL.origin is "null" for non-special schemes like opencode-rc:, so this
     // must be matched by protocol+host, not by comparing .origin directly.
-    expect(proxyTarget("/global/event", capacitorApp)).toBe(
+    expect(proxyTarget("/global/event", iosApp)).toBe(
       "https://rc.example.com/proxy/alice-dev/global/event",
     )
-    expect(proxyTarget("capacitor://localhost/global/event", capacitorApp)).toBe(
+    expect(proxyTarget("opencode-rc://localhost/global/event", iosApp)).toBe(
       "https://rc.example.com/proxy/alice-dev/global/event",
     )
   })

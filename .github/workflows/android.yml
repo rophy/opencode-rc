@@ -90,6 +90,7 @@ jobs:
           cd /tmp/android-publish
           # Keep the web app that `sync:android` copied in (the template ignores it).
           sed -i '/^# Copied web assets/,$d' .gitignore
+          ! grep -q 'assets/public' .gitignore
 
       # A compile check only; the APK is not published.
       - name: Build debug APK

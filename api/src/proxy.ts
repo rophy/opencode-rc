@@ -95,7 +95,7 @@ export function proxyHttp(): Handler<ProxyEnv> {
     headers.set("X-Opencode-Directory", meta.directory);
     headers.set("Authorization", `Bearer ${c.get("token")}`);
     headers.delete("host");
-    // The browser origin (e.g. capacitor://localhost) means nothing to opencode's own CORS check.
+    // The browser origin (e.g. opencode-rc://localhost) means nothing to opencode's own CORS check.
     headers.delete("origin");
     const rewrite = c.get("rewriteJson");
     // A rewritten response is read whole, so ask for it uncompressed. fetch decodes a

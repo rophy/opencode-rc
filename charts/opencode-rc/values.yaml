@@ -188,7 +188,7 @@ auth:
   # Absolute login lifetime; refresh never extends it
   sessionTTL: "7d"
   # Extra browser origins allowed for return_to and CORS, besides the server
-  # itself. The mobile app's WebView origins (capacitor://localhost,
+  # itself. The mobile app's WebView origins (opencode-rc://localhost,
   # https://localhost) are always allowed for CORS only.
   allowedOrigins: []
   # OIDC prompt sent to the IdP for mobile app logins: select_account, login, consent,
