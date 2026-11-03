@@ -30,4 +30,12 @@ final class NavigationPolicyTests: XCTestCase {
         XCTAssertEqual(decide("about:blank", main: false), .allow)
         XCTAssertEqual(decide("about:srcdoc", main: false), .allow)
     }
+
+    func testServerResponsesNeverLoadAsADocument() {
+        XCTAssertEqual(decide("opencode-rc://localhost/__server"), .cancel)
+        XCTAssertEqual(decide("opencode-rc://localhost/__server/api/me"), .cancel)
+        XCTAssertEqual(decide("opencode-rc://localhost/__server/proxy/x", main: false), .cancel)
+        XCTAssertEqual(decide("opencode-rc://localhost/%5F_server/x"), .cancel)
+        XCTAssertEqual(decide("opencode-rc://localhost/__serverless"), .allow)
+    }
 }

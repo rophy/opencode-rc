@@ -157,11 +157,29 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         return nil
     }
 
+    // WebKit's web content process can end while the app is in the background (memory pressure);
+    // the WebView then stays blank until it loads again.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webView.reload()
+    }
+
+    /// Shows a JS dialog from the top-most presented controller. False when it cannot be shown
+    /// (no window, a running transition, or UIKit refused it): the caller then answers WebKit at
+    /// once, since WebKit waits for every panel's completion handler.
+    private func presentDialog(_ alert: UIAlertController) -> Bool {
+        guard viewIfLoaded?.window != nil else { return false }
+        var top: UIViewController = self
+        while let next = top.presentedViewController { top = next }
+        if top.isBeingPresented || top.isBeingDismissed { return false }
+        top.present(alert, animated: true)
+        return alert.presentingViewController != nil
+    }
+
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
-        present(alert, animated: true)
+        if !presentDialog(alert) { completionHandler() }
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
@@ -169,7 +187,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(false) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
-        present(alert, animated: true)
+        if !presentDialog(alert) { completionHandler(false) }
     }
 
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
@@ -178,6 +196,6 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         alert.addTextField { $0.text = defaultText }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in completionHandler(nil) })
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(alert.textFields?.first?.text) })
-        present(alert, animated: true)
+        if !presentDialog(alert) { completionHandler(nil) }
     }
 }
