@@ -1,0 +1,1 @@
+import{Y as e,c as t,m as n,o as r,q as i}from"./store-FjN4ZeHF.js";function a(e,t,r,i){return e.addEventListener(t,r,i),n(e.removeEventListener.bind(e,t,r,i))}function o(n,o,s,c){let l=()=>{t(r(n)).forEach(e=>{e&&t(r(o)).forEach(t=>a(e,t,s,c))})};typeof n==`function`?i(l):e(l)}export{a as n,o as t};
