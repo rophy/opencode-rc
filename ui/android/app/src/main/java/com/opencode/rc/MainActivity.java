@@ -59,6 +59,13 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                // shouldOverrideUrlLoading is not called for POST navigations: block those here.
+                // Main frame only; XHR/fetch to the server must pass, and the page CSP covers
+                // foreign subframes (no reliable navigation signal for them).
+                if (request.isForMainFrame() && !request.getUrl().toString().startsWith(NavigationPolicy.ORIGIN + "/")
+                        && NavigationPolicy.decide(request.getUrl().toString(), true) != NavigationPolicy.Decision.ALLOW) {
+                    return blocked();
+                }
                 return assets.shouldInterceptRequest(request.getUrl());
             }
 
@@ -74,15 +81,27 @@ public class MainActivity extends AppCompatActivity {
                 WebView probe = new WebView(MainActivity.this);
                 probe.setWebViewClient(new WebViewClient() {
                     @Override
+                    public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest request) {
+                        return blocked();
+                    }
+
+                    @Override
                     public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
                         handle(request.getUrl().toString(), true);
-                        v.destroy();
+                        destroyProbe(v);
                         return true;
                     }
                 });
+                popups.add(probe);
+                probe.postDelayed(() -> destroyProbe(probe), 5000);
                 ((WebView.WebViewTransport) resultMsg.obj).setWebView(probe);
                 resultMsg.sendToTarget();
                 return true;
+            }
+
+            @Override
+            public void onCloseWindow(WebView window) {
+                destroyProbe(window);
             }
         });
 
@@ -112,13 +131,25 @@ public class MainActivity extends AppCompatActivity {
                 if (webView.canGoBack()) {
                     webView.goBack();
                 } else {
-                    setEnabled(false);
-                    getOnBackPressedDispatcher().onBackPressed();
+                    moveTaskToBack(true);
                 }
             }
         });
 
         webView.loadUrl(NavigationPolicy.ORIGIN + "/");
+    }
+
+    private final java.util.Set<WebView> popups = new java.util.HashSet<>();
+
+    private static WebResourceResponse blocked() {
+        return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", Collections.emptyMap(),
+                new java.io.ByteArrayInputStream(new byte[0]));
+    }
+
+    /** Destroys a popup probe once, outside its own callback. */
+    private void destroyProbe(WebView probe) {
+        if (!popups.remove(probe)) return;
+        probe.post(probe::destroy);
     }
 
     /** True when the WebView may load the URL; otherwise it is opened outside or dropped. */
@@ -169,6 +200,8 @@ public class MainActivity extends AppCompatActivity {
             case "woff": return "font/woff";
             case "woff2": return "font/woff2";
             case "ttf": return "font/ttf";
+            case "aac": return "audio/aac";
+            case "mp4": return "video/mp4";
             case "wasm": return "application/wasm";
             case "txt": return "text/plain";
             default: return "application/octet-stream";

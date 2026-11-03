@@ -17,9 +17,14 @@ public class BundlePathsTest {
     @Test public void fallsBackToTheBuildsIndex() {
         assertEquals("public/index.html", resolve("/s/abc"));
         assertEquals("public/v2/index.html", resolve("/v2/s/abc"));
+        assertEquals("public/index.html", resolve("/s/abc/"));
+        assertEquals("public/v2/index.html", resolve("/v2/s/abc/"));
+        assertEquals("public/v2/index.html", resolve("/v2"));
+        assertEquals("public/index.html", resolve("/assets"));
     }
     @Test public void rejectsMissingFilesAndTraversal() {
         assertNull(resolve("/assets/missing.js"));
+        assertNull(resolve("/v2/assets/missing.js"));
         assertNull(resolve("/../secret.txt"));
         assertNull(resolve("/assets/../../x.txt"));
     }

@@ -20,7 +20,7 @@ final class BundlePaths {
         String file = "public/" + (dir ? (rel.isEmpty() ? "" : rel + "/") + "index.html" : rel);
         if (exists.test(file)) return file;
         if (!dir && parts.get(parts.size() - 1).contains(".")) return null;
-        if (path.startsWith("/v2/") && exists.test("public/v2/index.html")) return "public/v2/index.html";
+        if (("/v2".equals(path) || path.startsWith("/v2/")) && exists.test("public/v2/index.html")) return "public/v2/index.html";
         return "public/index.html";
     }
 }
