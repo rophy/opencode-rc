@@ -12,7 +12,8 @@ import UIKit
 /// transition that never reports its end is given up after `watchdog` seconds, so it cannot block
 /// later sign-ins.
 final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
-    /// Shows the view, then calls back with true; with false when it cannot be shown.
+    /// Shows the view, then calls back with true (at once if it is already up); with false when it
+    /// cannot be shown.
     typealias Present = (UIViewController, @escaping (Bool) -> Void) -> Void
     /// Closes the view (at once if it is not up), then calls back.
     typealias Dismiss = (UIViewController, @escaping () -> Void) -> Void

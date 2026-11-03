@@ -11,16 +11,20 @@ final class SignInTests: XCTestCase {
     var transition: (() -> Void)?
     var canPresent = true
     var losePresents = false // present starts but never reports its end
+    var loseEnds = false // present shows the view but never reports its end
+    var lostEnds: [(Bool) -> Void] = []
     var timers: [() -> Void] = []
     lazy var signIn = SignIn(
         present: { view, done in
             guard self.canPresent else { return done(false) }
+            if view === self.onScreen { return done(true) } // already up, as the app's closure does
             if self.losePresents { self.presented.append(view); return }
             if self.onScreen != nil || self.transition != nil {
                 XCTFail("presented while busy")
                 return done(false)
             }
             self.presented.append(view)
+            if self.loseEnds { self.onScreen = view; self.lostEnds.append(done); return }
             self.transition = { self.onScreen = view; done(true) }
         },
         dismiss: { view, done in
@@ -188,5 +192,28 @@ final class SignInTests: XCTestCase {
         XCTAssertEqual(presented.count, 2)
         XCTAssertEqual(codes(a()), ["ok"])
         XCTAssertTrue(b().isEmpty)
+    }
+
+    func testTheWatchdogDoesNotPresentAShownViewAgain() {
+        loseEnds = true
+        let a = start("https://idp.example.com/a")
+        XCTAssertEqual(presented.count, 1)
+        XCTAssertTrue(onScreen === presented[0])
+        loseEnds = false
+        timers.forEach { $0() } // gives up on A's present; A is still the wanted view
+        XCTAssertEqual(presented.count, 1) // not presented again
+        settle()
+        lostEnds.forEach { $0(true) } // the lost end arrives late: no effect
+        XCTAssertEqual(presented.count, 1)
+        XCTAssertTrue(a().isEmpty)
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        settle()
+        XCTAssertEqual(dismissed.count, 1) // A was recorded as shown, so it is closed
+        XCTAssertTrue(dismissed[0] === presented[0])
+        XCTAssertNil(onScreen)
+        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=d")!))
+        timers.forEach { $0() }
+        XCTAssertEqual(codes(a()), ["ok"])
+        XCTAssertEqual(presented.count, 1)
     }
 }

@@ -18,6 +18,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             let done = { (ok: Bool) in if !answered { answered = true; reply(ok) } }
             func attempt() {
                 guard let self, self.viewIfLoaded?.window != nil else { return done(false) }
+                // Already up (its first present's end was lost): presenting it over itself would throw.
+                if view.presentingViewController != nil { return done(true) }
                 var top: UIViewController = self
                 while let next = top.presentedViewController { top = next }
                 if WebViewController.afterTransition(of: top, attempt) { return }
