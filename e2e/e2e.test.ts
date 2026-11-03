@@ -936,7 +936,7 @@ describe("app sign-in", () => {
     });
     expect(res.status).toBe(200);
     const { access_token } = await res.json();
-    const me = await fetch(`${API_URL}/api/me`, { headers: { authorization: `Bearer ${access_token}` } });
+    const me = await fetch(`${API_URL}/api/me`, { headers: { authorization: `Bearer ${access_token}`, ...PROTOCOL } });
     expect(me.status).toBe(200);
   });
 
