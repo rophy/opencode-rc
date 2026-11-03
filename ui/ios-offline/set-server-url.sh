@@ -1,7 +1,6 @@
 #!/bin/sh
 # Presets the opencode-rc server in this iOS bundle: replaces the build's placeholder
-# (https://rc-placeholder.invalid) with your server's origin in the bundled web UI, including
-# the Content-Security-Policy, which then allows connections only to that server.
+# (https://rc-placeholder.invalid) with your server's origin in the bundled web UI.
 # --bundle-id sets the app's bundle identifier (the test targets get <id>.tests and <id>.uitests).
 # Run before building in Xcode:
 #   ./set-server-url.sh [--bundle-id com.corp.opencode] https://rc.corp.example.com

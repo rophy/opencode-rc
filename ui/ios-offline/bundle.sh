@@ -79,8 +79,7 @@ cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
     echo "    ./set-server-url.sh --bundle-id com.corp.opencode https://rc.corp.example.com"
     echo
     echo "Give the origin of your opencode-rc API (scheme, host, optional port; no path). The script"
-    echo "replaces the placeholder in \`App/App/public\`, including the Content-Security-Policy, which"
-    echo "then allows connections only to that server. The server can be set once: to change it later,"
+    echo "replaces the placeholder in \`App/App/public\`. The server can be set once: to change it later,"
     echo "start again from a fresh copy of this bundle."
   else
     echo "    ./set-server-url.sh --bundle-id com.corp.opencode"

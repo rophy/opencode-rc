@@ -32,7 +32,9 @@ if grep -rq rc-placeholder.invalid "$dir/App/App/public"; then
   preset=yes
   "$dir/set-server-url.sh" https://rc.example.com
   ! grep -rq rc-placeholder.invalid "$dir/App/App/public" || fail "placeholder left after set-server-url.sh"
-  grep -q "https://rc.example.com wss://rc.example.com" "$dir/App/App/public/index.html" || fail "CSP not updated"
+  grep -rq "https://rc.example.com" "$dir/App/App/public" || fail "server not set"
+  # The iOS CSP allows only the app itself: the shell forwards server requests.
+  ! grep -q rc.example.com "$dir/App/App/public/index.html" || fail "server in the CSP"
   ! "$dir/set-server-url.sh" https://other.example.com 2>/dev/null || fail "set-server-url.sh ran twice"
 else
   ! "$dir/set-server-url.sh" https://rc.example.com 2>/dev/null || fail "set-server-url.sh set a server with no placeholder"
