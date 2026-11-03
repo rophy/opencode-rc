@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Message;
 import android.view.ViewGroup;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -15,6 +16,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -31,6 +34,16 @@ import java.util.Collections;
 public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private SignIn signIn;
+    /** The page's pending file input; answered once, with null when nothing was picked. */
+    private ValueCallback<Uri[]> fileCallback;
+    private final ActivityResultLauncher<Intent> fileChooser = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                ValueCallback<Uri[]> callback = fileCallback;
+                fileCallback = null;
+                if (callback != null) {
+                    callback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.getResultCode(), result.getData()));
+                }
+            });
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -103,6 +116,20 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCloseWindow(WebView window) {
                 destroyProbe(window);
+            }
+
+            // <input type="file">: the system picker; the page gets what was picked, or null.
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                try {
+                    fileChooser.launch(params.createIntent());
+                } catch (ActivityNotFoundException e) {
+                    fileCallback = null;
+                    callback.onReceiveValue(null);
+                }
+                return true;
             }
         });
 
