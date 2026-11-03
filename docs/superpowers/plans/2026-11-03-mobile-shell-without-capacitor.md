@@ -19,7 +19,7 @@
 - iOS: no third-party dependencies, deployment target iOS 15.0 (unchanged). Android: AndroidX libraries only (`org.json:json` allowed as a test-only dependency).
 - No compatibility with the old origin, the old app sign-in path or Capacitor builds.
 - No version bumps (iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`, Android `versionName`/`versionCode`, API/UI/chart versions).
-- Committed text (code, comments, docs, commit messages) must not name private hosts, IPs, `.local/` files, or the Mac build host; no AI attribution. Commits are GPG-signed automatically; never disable signing.
+- Committed text (code, comments, docs, commit messages) must not name private hosts, IPs, local-only files, or private build hosts; no AI attribution. Commits are GPG-signed automatically; never disable signing.
 - Package managers: `bun` in `api/` and `ui/`; never `npm install` there.
 - Before any push: `make unit-test` and Node 22 vitest (`npx -y node@22 node_modules/vitest/vitest.mjs run` in `api/` and `ui/`). Pushing needs the user's explicit instruction.
 - iOS builds and tests run on the Mac build host (Xcode 16.4, `xcodeproj` Ruby gem installed): copy the worktree there, run `xcodebuild`, copy changed project files back. Use the simulator `iPhone 16 Pro`.
@@ -3388,7 +3388,7 @@ To preset the server or disable features, build with `OPENCODE_RC_CONFIG=/path/t
 - Spec: `Status: Implemented`.
 
 Run: `git grep -n "cap sync\|Capacitor\|capacitor" -- ':!docs/superpowers' ':!**/bun.lock'` → prints nothing (or only the new origin explanation if worded with "Capacitor"; reword it).
-Run: `git diff main --stat`, then grep the diff for the private host names listed in LOCAL.md, for private IP addresses and for `.local/` → nothing.
+Run: `git diff main --stat`, then grep the diff for the private host names listed in LOCAL.md, for private IP addresses and for local-only paths → nothing.
 
 - [ ] **Step 2: Full verification**
 
