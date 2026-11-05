@@ -26,6 +26,10 @@ RUN cd ui \
     && bun run web/security-headers.ts > /src/security-headers.conf
 
 FROM nginxinc/nginx-unprivileged:alpine
+# CVE-2026-111497 (brotli), CVE-2026-92388 and other curl CVEs: fixed in Alpine, not yet in the base.
+USER root
+RUN apk upgrade --no-cache brotli-libs curl libcurl
+USER 101
 COPY ui/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /src/security-headers.conf /etc/nginx/rc/security-headers.conf
 COPY --from=build /src/ui/dist /usr/share/nginx/html
