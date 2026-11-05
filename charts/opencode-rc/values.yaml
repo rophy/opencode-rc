@@ -60,7 +60,7 @@ ui:
   image:
     registry: ""
     repository: ghcr.io/rophy/opencode-rc/ui
-    tag: "0.9.0"
+    tag: "0.9.1"
     pullPolicy: IfNotPresent
   # Browser-facing URL of the UI (e.g. https://rc.example.com). Overrides the URL derived
   # from expose.*.

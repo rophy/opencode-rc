@@ -361,7 +361,7 @@ Images to mirror:
 | Image | Tag |
 |-------|-----|
 | `ghcr.io/rophy/opencode-rc/api` | `0.10.0` |
-| `ghcr.io/rophy/opencode-rc/ui` | `0.9.0` |
+| `ghcr.io/rophy/opencode-rc/ui` | `0.9.1` |
 | `ghcr.io/rophy/opencode-rc/gateway` | `0.8.0` |
 | `ghcr.io/rophy/oidc-mock` | `20260913-34fdbaf` |
 | `redis` | `7.4.11-alpine` |
