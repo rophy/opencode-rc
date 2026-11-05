@@ -240,8 +240,9 @@ Every key is optional and unknown keys are errors. Features (all enabled by defa
   affected.
 - `features.export.enabled: false` removes exporting a session as JSON from the UI. The export is
   built in the browser from what the UI already shows, so there is nothing for the API to reject.
-- `features.share.enabled: false` removes sharing from the UI and makes the API reject publishing
-  a session through opencode's share service with `403` (unsharing still works). It also rejects
+- `features.share.enabled: false` makes the API reject publishing a session through opencode's
+  share service with `403` (unsharing still works). The UI has no sharing (opencode 1.19.1
+  discontinued it). It also rejects
   config changes that share every new session or choose the share server (`share`, `autoshare`,
   `enterprise`), even while `config` is enabled. A dev machine whose opencode config has
   `"share": "auto"` still shares on its own; set `"share": "disabled"` there too.

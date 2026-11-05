@@ -71,10 +71,11 @@ describe.skipIf(!fs.existsSync(path.join(opencode, "packages/app")))("feature pa
     expect(commands).not.toContain('id: "session.export"')
   })
 
-  it("share: the UI treats sharing as disabled", () => {
+  // opencode 1.19.1 discontinued sharing and hides it in the UI itself: no patch needed.
+  it("share: the UI has no sharing", () => {
     const commands = patched("share", "packages/app/src/pages/session/use-session-commands.tsx")
-    expect(commands).not.toContain('if (sync().data.config.share === "disabled") return []')
+    expect(commands).not.toContain("share")
     const timeline = patched("share", "packages/app/src/pages/session/timeline/message-timeline.tsx")
-    expect(timeline).toContain("const shareEnabled = createMemo(() => false)")
+    expect(timeline).toContain("const shareEnabled = () => false")
   })
 })
