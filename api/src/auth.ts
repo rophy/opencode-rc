@@ -126,7 +126,12 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     const code = stringField(body, "code");
     const verifier = stringField(body, "code_verifier");
     const nonce = stringField(body, "nonce");
-    if (!code || !verifier || !nonce) return c.json({ error: "invalid_grant" }, 400);
+    // The app shows the reason, so a failed sign-in can be diagnosed on the device.
+    const rejected = (reason: string) => {
+      console.error(`app sign-in: ${reason}`);
+      return c.json({ error: "invalid_grant", error_description: reason }, 400);
+    };
+    if (!code || !verifier || !nonce) return rejected("missing code, code_verifier or nonce");
 
     let tokenRes: Response;
     try {
@@ -143,33 +148,24 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       });
     } catch (err) {
       console.error("app sign-in: token endpoint unreachable:", err);
-      return c.json({ error: "unavailable" }, 503);
+      return c.json({ error: "unavailable", error_description: "the server cannot reach the IdP token endpoint" }, 503);
     }
+    const tokenBody = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
     if (!tokenRes.ok) {
-      console.error(`app sign-in: code exchange failed: ${tokenRes.status}`);
-      return c.json({ error: "invalid_grant" }, 400);
+      const idpError = [tokenBody.error, tokenBody.error_description].filter((v) => typeof v === "string" && v).join(": ");
+      return rejected(`IdP token endpoint answered ${tokenRes.status}${idpError ? ` (${idpError})` : ""}`);
     }
-    const idToken = ((await tokenRes.json().catch(() => ({}))) as { id_token?: unknown }).id_token;
-    if (typeof idToken !== "string" || !idToken) {
-      console.error("app sign-in: no id_token in response");
-      return c.json({ error: "invalid_grant" }, 400);
-    }
+    const idToken = tokenBody.id_token;
+    if (typeof idToken !== "string" || !idToken) return rejected("IdP sent no ID token");
     let idClaims: Record<string, unknown>;
     try {
       idClaims = (await verifyToken(provider, idToken, config.oidcAppClientId)) as typeof idClaims;
     } catch (err) {
-      console.error("app sign-in: ID token verification failed:", err);
-      return c.json({ error: "invalid_grant" }, 400);
+      return rejected(`ID token not valid: ${err instanceof Error ? err.message : String(err)}`);
     }
-    if (idClaims.nonce !== nonce) {
-      console.error("app sign-in: nonce mismatch");
-      return c.json({ error: "invalid_grant" }, 400);
-    }
+    if (idClaims.nonce !== nonce) return rejected("ID token nonce does not match");
     const claims = userFromIdToken(idClaims, config.oidcUserClaim);
-    if (!claims) {
-      console.error(`app sign-in: ID token has no ${config.oidcUserClaim} claim`);
-      return c.json({ error: "invalid_grant" }, 400);
-    }
+    if (!claims) return rejected(`ID token has no ${config.oidcUserClaim} claim`);
     try {
       const session = await tokens.createChain(claims);
       console.log(`login: user=${claims.uid} email=${claims.email} name=${claims.name} client=app`);

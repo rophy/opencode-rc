@@ -454,27 +454,38 @@ describe("app sign-in", () => {
     vi.mocked(verifyToken).mockResolvedValueOnce({ ...idClaims, nonce: "other" });
     const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "invalid_grant" });
+    expect(await res.json()).toEqual({ error: "invalid_grant", error_description: "ID token nonce does not match" });
   });
 
   it("rejects a failed code exchange", async () => {
     useConfig(appConfig);
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ error: "invalid_grant" }, { status: 400 }));
-    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ error: "invalid_client", error_description: "client is confidential" }, { status: 401 }),
+    );
+    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "invalid_grant",
+      error_description: "IdP token endpoint answered 401 (invalid_client: client is confidential)",
+    });
   });
 
   it("rejects an ID token that fails verification", async () => {
     useConfig(appConfig);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
     vi.mocked(verifyToken).mockRejectedValueOnce(new Error("bad signature"));
-    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error_description).toBe("ID token not valid: bad signature");
   });
 
   it("rejects an ID token without the user claim", async () => {
     useConfig({ ...appConfig, oidcUserClaim: "oid" });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
     vi.mocked(verifyToken).mockResolvedValueOnce(idClaims);
-    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(400);
+    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error_description).toBe("ID token has no oid claim");
   });
 
   it("rejects missing fields without calling the IdP", async () => {
