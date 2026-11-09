@@ -11,7 +11,12 @@ const EARLY_REFRESH_MS = 30_000
 export const APP_CALLBACK_SCHEME = "com.opencode.rc"
 
 // "unsupported": the server has no app sign-in (its /auth/app-config answers 404).
-export type LoginResult = "redirected" | "ok" | "cancelled" | "failed" | "unsupported"
+// { failed }: why app sign-in failed, for the user.
+export type LoginResult = "redirected" | "ok" | "cancelled" | "unsupported" | { failed: string }
+
+// The iOS shell answers 502 with this header when it cannot reach the server; the body is the
+// reason (ui/ios/App/App/ServerProxy.swift).
+export const PROXY_ERROR_HEADER = "X-OpenCode-RC-Proxy-Error"
 
 export interface TokenResponse {
   access_token: string
@@ -197,6 +202,14 @@ interface AppConfig {
   prompt?: string
 }
 
+function urlOrNull(value: unknown): URL | null {
+  try {
+    return typeof value === "string" ? new URL(value) : null
+  } catch {
+    return null
+  }
+}
+
 function randomString(bytes: number): string {
   return base64url(crypto.getRandomValues(new Uint8Array(bytes)))
 }
@@ -205,24 +218,34 @@ function randomString(bytes: number): string {
 // SFSafariViewController, Android Custom Tab), which loads only the IdP; the API exchanges the
 // code. The verifier, state and nonce never leave the app.
 async function nativeLogin(verifier: string, challenge: string): Promise<LoginResult> {
-  if (!getBaseUrl()) return "failed"
-  let cfg: AppConfig
-  try {
-    const res = await fetch(apiUrl("/auth/app-config"))
-    if (res.status === 404) return "unsupported"
-    if (!res.ok) return "failed"
-    cfg = (await res.json()) as AppConfig
-  } catch {
-    return "failed"
+  const base = getBaseUrl()
+  if (!base) return { failed: "No server is set. Open Server settings." }
+  const host = new URL(base).host
+  const unreachable = (reason?: string): LoginResult => ({
+    failed: `Cannot reach ${host}${reason ? ` (${reason})` : ""}. Check the network or VPN.`,
+  })
+  // A server answer that is not OK: the shell's own 502, or the server's error and description.
+  const answered = async (res: Response, what: string): Promise<LoginResult> => {
+    if (res.headers.has(PROXY_ERROR_HEADER)) return unreachable((await res.text().catch(() => "")) || undefined)
+    const body = (await res.json().catch(() => null)) as { error?: unknown; error_description?: unknown } | null
+    const detail = [body?.error, body?.error_description].filter((v) => typeof v === "string" && v).join(": ")
+    return { failed: `${what}: ${host} answered HTTP ${res.status}${detail ? ` (${detail})` : ""}.` }
   }
+
+  let res: Response
+  try {
+    res = await fetch(apiUrl("/auth/app-config"))
+  } catch {
+    return unreachable()
+  }
+  if (res.status === 404) return "unsupported"
+  if (!res.ok) return answered(res, "Cannot read the sign-in settings")
+  // E.g. the server URL is the UI host, which answers with its page.
+  const cfg = (await res.json().catch(() => null)) as AppConfig | null
+  const authorize = cfg && urlOrNull(cfg.authorizationEndpoint)
+  if (!cfg || !authorize) return { failed: `${host} is not an opencode-rc API server. Check the server URL.` }
   const state = randomString(16)
   const nonce = randomString(16)
-  let authorize: URL
-  try {
-    authorize = new URL(cfg.authorizationEndpoint)
-  } catch {
-    return "failed"
-  }
   const params: Record<string, string> = {
     response_type: "code",
     client_id: cfg.clientId,
@@ -244,18 +267,24 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
     })
     callback = new URL(result.url)
   } catch (err) {
-    return err instanceof NativeError && err.code === "cancelled" ? "cancelled" : "failed"
+    if (err instanceof NativeError && err.code === "cancelled") return "cancelled"
+    return { failed: `Cannot open the sign-in page${err instanceof Error && err.message ? ` (${err.message})` : ""}.` }
   }
-  if (callback.searchParams.get("state") !== state) return "failed"
+  if (callback.searchParams.get("state") !== state) return { failed: "The sign-in reply does not match this sign-in." }
+  const error = callback.searchParams.get("error")
+  if (error) {
+    const description = callback.searchParams.get("error_description")
+    return { failed: `The identity provider refused sign-in: ${error}${description ? `: ${description}` : ""}.` }
+  }
   const code = callback.searchParams.get("code")
-  if (!code) return "failed"
+  if (!code) return { failed: "The identity provider sent no sign-in code." }
   try {
-    const res = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce })
-    if (!res.ok) return "failed"
-    save((await res.json()) as TokenResponse)
+    const tokenRes = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce })
+    if (!tokenRes.ok) return answered(tokenRes, "The server did not accept the sign-in")
+    save((await tokenRes.json()) as TokenResponse)
     return "ok"
   } catch {
-    return "failed"
+    return unreachable()
   }
 }
 

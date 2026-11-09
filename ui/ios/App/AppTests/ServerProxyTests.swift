@@ -24,7 +24,7 @@ final class FakeSchemeTask: NSObject, WKURLSchemeTask {
 }
 
 /// /hang answers headers and never finishes; /out redirects to another origin; /same redirects to /target
-/// on the same origin; anything else answers its path.
+/// on the same origin; /down fails before a response; /drop fails after the headers; anything else answers its path.
 final class StubProtocol: URLProtocol {
     static var stopped: ((String) -> Void)?   // called with the path; also when a load ends normally
     static var lastRequest: URLRequest?
@@ -40,11 +40,13 @@ final class StubProtocol: URLProtocol {
         switch url.path {
         case "/out": redirect("https://other.example.com/target")
         case "/same": redirect("https://rc.example.com/target")
+        case "/down": client?.urlProtocol(self, didFailWithError: URLError(.cannotFindHost))
         default:
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
                                            headerFields: ["Content-Type": "text/event-stream"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             if url.path == "/hang" { return }
+            if url.path == "/drop" { client?.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost)); return }
             client?.urlProtocol(self, didLoad: Data(url.path.utf8))
             client?.urlProtocolDidFinishLoading(self)
         }
@@ -99,9 +101,28 @@ final class ServerProxyTests: XCTestCase {
         let proxy = ServerProxy()
         let task = FakeSchemeTask("opencode-rc://localhost/__server/x")
         proxy.start(task)
-        XCTAssertEqual((task.response as? HTTPURLResponse)?.statusCode, 502)
-        XCTAssertTrue(task.finished)
-        XCTAssertTrue(task.chunks.isEmpty)
+        assertProxyError(task, "no server set")
+    }
+
+    private func assertProxyError(_ task: FakeSchemeTask, _ reason: String, file: StaticString = #filePath, line: UInt = #line) {
+        let response = task.response as? HTTPURLResponse
+        XCTAssertEqual(response?.statusCode, 502, file: file, line: line)
+        XCTAssertEqual(response?.value(forHTTPHeaderField: ServerProxy.errorHeader), "1", file: file, line: line)
+        XCTAssertEqual(String(decoding: task.chunks.reduce(Data(), +), as: UTF8.self), reason, file: file, line: line)
+        XCTAssertTrue(task.finished, file: file, line: line)
+        XCTAssertNil(task.error, file: file, line: line)
+    }
+
+    func testAnswersANetworkErrorWithItsReason() {
+        let task = run(stubbedProxy(), "/down")
+        assertProxyError(task, URLError(.cannotFindHost).localizedDescription)
+    }
+
+    func testFailsTheLoadOnAnErrorAfterTheResponse() {
+        let task = run(stubbedProxy(), "/drop")
+        XCTAssertEqual((task.response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertNotNil(task.error)
+        XCTAssertFalse(task.finished)
     }
 
     func testDropsResponseHeadersURLSessionHasHandled() {
@@ -155,9 +176,7 @@ final class ServerProxyTests: XCTestCase {
 
     func testRefusesACrossOriginRedirect() {
         let task = run(stubbedProxy(), "/out")
-        XCTAssertEqual((task.response as? HTTPURLResponse)?.statusCode, 502)
-        XCTAssertTrue(task.finished)
-        XCTAssertTrue(task.chunks.isEmpty)
+        assertProxyError(task, "the server redirected to another origin")
     }
 
     func testFollowsASameOriginRedirect() {

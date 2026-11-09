@@ -8,7 +8,7 @@ vi.mock("./native", async (importOriginal) => ({
 }))
 
 import { NativeError } from "./native"
-import { REFRESH_KEY, login, resetAuthState } from "./auth"
+import { PROXY_ERROR_HEADER, REFRESH_KEY, login, resetAuthState } from "./auth"
 import { resetConfig } from "./server"
 import { resetProtocolState } from "./protocol"
 
@@ -84,10 +84,10 @@ describe("app sign-in", () => {
     expect(await login()).toBe("cancelled")
   })
 
-  it("reports failed on a bridge error", async () => {
+  it("reports the bridge error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
-    call.mockRejectedValue(new NativeError("failed", "no browser"))
-    expect(await login()).toBe("failed")
+    call.mockRejectedValue(new NativeError("failed", "cannot show sign-in"))
+    expect(await login()).toEqual({ failed: "Cannot open the sign-in page (cannot show sign-in)." })
   })
 
   it("reports unsupported when the server has no app sign-in", async () => {
@@ -96,35 +96,76 @@ describe("app sign-in", () => {
     expect(call).not.toHaveBeenCalled()
   })
 
-  it("reports failed when the app config cannot be read", async () => {
+  it("reports the status when the app config cannot be read", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json({ error: "boom" }, 500))
-    expect(await login()).toBe("failed")
+    expect(await login()).toEqual({
+      failed: "Cannot read the sign-in settings: rc.example.com answered HTTP 500 (boom).",
+    })
     expect(call).not.toHaveBeenCalled()
   })
 
-  it("reports failed on a state mismatch without exchanging the code", async () => {
+  it("reports a server that is not the API", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("<!doctype html>", { status: 200 }))
+    expect(await login()).toEqual({ failed: "rc.example.com is not an opencode-rc API server. Check the server URL." })
+    expect(call).not.toHaveBeenCalled()
+  })
+
+  it("reports a server that cannot be reached", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Load failed"))
+    expect(await login()).toEqual({ failed: "Cannot reach rc.example.com. Check the network or VPN." })
+  })
+
+  it("reports the iOS shell's reason when it cannot reach the server", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("The request timed out.", { status: 502, headers: { [PROXY_ERROR_HEADER]: "1" } }),
+    )
+    expect(await login()).toEqual({
+      failed: "Cannot reach rc.example.com (The request timed out.). Check the network or VPN.",
+    })
+  })
+
+  it("reports a state mismatch without exchanging the code", async () => {
     idpReturns({ code: "abc" }, { keepState: false })
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
-    expect(await login()).toBe("failed")
+    expect(await login()).toEqual({ failed: "The sign-in reply does not match this sign-in." })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("reports failed when the IdP returns an error", async () => {
-    idpReturns({ error: "access_denied" })
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
-    expect(await login()).toBe("failed")
+  it("reports the IdP's error and description", async () => {
+    idpReturns({ error: "unauthorized_client", error_description: "Client not enabled for PKCE" })
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
+    expect(await login()).toEqual({
+      failed: "The identity provider refused sign-in: unauthorized_client: Client not enabled for PKCE.",
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("reports failed when the code exchange is rejected", async () => {
+  it("reports a callback with no code", async () => {
+    idpReturns({})
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
+    expect(await login()).toEqual({ failed: "The identity provider sent no sign-in code." })
+  })
+
+  it("reports why the code exchange was rejected", async () => {
     idpReturns({ code: "abc" })
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(json(appConfig))
-      .mockResolvedValueOnce(json({ error: "invalid_grant" }, 400))
-    expect(await login()).toBe("failed")
+      .mockResolvedValueOnce(json({ error: "invalid_grant", error_description: "ID token: nonce mismatch" }, 400))
+    expect(await login()).toEqual({
+      failed: "The server did not accept the sign-in: rc.example.com answered HTTP 400 (invalid_grant: ID token: nonce mismatch).",
+    })
   })
 
-  it("reports failed without a configured server", async () => {
+  it("reports a code exchange the server could not reach", async () => {
+    idpReturns({ code: "abc" })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json(appConfig))
+      .mockRejectedValueOnce(new TypeError("Load failed"))
+    expect(await login()).toEqual({ failed: "Cannot reach rc.example.com. Check the network or VPN." })
+  })
+
+  it("reports a missing server", async () => {
     localStorage.removeItem("opencode-rc-endpoint")
-    expect(await login()).toBe("failed")
+    expect(await login()).toEqual({ failed: "No server is set. Open Server settings." })
   })
 })

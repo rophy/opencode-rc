@@ -3,19 +3,19 @@ import { isPreConfigured } from "./api"
 import { login } from "./auth"
 
 export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () => void; expired?: boolean }> = (props) => {
-  const [failed, setFailed] = createSignal(false)
+  const [failed, setFailed] = createSignal<string | null>(null)
   const [unsupported, setUnsupported] = createSignal(false)
   const [pending, setPending] = createSignal(false)
   const signIn = async () => {
     if (pending()) return
     setPending(true)
-    setFailed(false)
+    setFailed(null)
     setUnsupported(false)
     try {
       const result = await login()
       if (result === "ok") props.onLoggedIn?.()
-      else if (result === "failed") setFailed(true)
       else if (result === "unsupported") setUnsupported(true)
+      else if (typeof result === "object") setFailed(result.failed)
     } finally {
       setPending(false)
     }
@@ -34,15 +34,19 @@ export const LoginScreen: Component<{ onSettings: () => void; onLoggedIn?: () =>
         </p>
 
         <Show when={props.expired}>
-          <p class="text-13-regular text-red-500 mb-4">Sign-in expired, try again</p>
+          <p class="text-13-regular text-v2-state-fg-danger mb-4">Sign-in expired, try again</p>
         </Show>
 
         <Show when={failed()}>
-          <p class="text-13-regular text-red-500 mb-4">Sign-in failed, try again</p>
+          {(reason) => (
+            <p class="text-13-regular text-v2-state-fg-danger mb-4 break-words">
+              Sign-in failed. {reason()}
+            </p>
+          )}
         </Show>
 
         <Show when={unsupported()}>
-          <p class="text-13-regular text-red-500 mb-4">
+          <p class="text-13-regular text-v2-state-fg-danger mb-4">
             This server is not set up for app sign-in. Ask your administrator to enable it
             (OIDC_APP_CLIENT_ID).
           </p>

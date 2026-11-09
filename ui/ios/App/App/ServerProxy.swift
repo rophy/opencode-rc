@@ -3,8 +3,11 @@ import WebKit
 /// Forwards opencode-rc://localhost/__server/<path> to the configured server with URLSession and
 /// streams the response back chunk by chunk, so SSE works. URLSession traffic is the app's own, so
 /// a per-app VPN carries it. Only the one server origin is reachable; no cookies (bearer tokens).
+/// A request the proxy cannot carry gets a 502 with `errorHeader`, and the reason as the body
+/// (ui/src/auth.ts shows it at sign-in); WebKit would give JS only "Load failed".
 final class ServerProxy: NSObject, URLSessionDataDelegate {
     static let prefix = "/__server"
+    static let errorHeader = "X-OpenCode-RC-Proxy-Error"
     static var defaultConfiguration: URLSessionConfiguration {
         let c = URLSessionConfiguration.ephemeral
         c.httpShouldSetCookies = false
@@ -24,6 +27,8 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
     private let configuration: URLSessionConfiguration
     // URLSessionTask id → scheme task and its URLSession task; removed on stop, so later callbacks are ignored.
     private var tasks: [Int: (scheme: WKURLSchemeTask, data: URLSessionDataTask)] = [:]
+    // URLSessionTask ids whose response went to WebKit: a later error can only end the load.
+    private var responded: Set<Int> = []
 
     init(configuration: URLSessionConfiguration = ServerProxy.defaultConfiguration) {
         self.configuration = configuration
@@ -61,7 +66,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
 
     func start(_ task: WKURLSchemeTask) {
         guard let url = task.request.url, let server, let target = ServerProxy.target(for: url, server: server) else {
-            fail(task, status: 502)
+            fail(task, reason: "no server set")
             return
         }
         var request = URLRequest(url: target, timeoutInterval: configuration.timeoutIntervalForRequest)
@@ -101,9 +106,13 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         tasks[id]?.scheme
     }
 
-    private func fail(_ task: WKURLSchemeTask, status: Int) {
+    private func fail(_ task: WKURLSchemeTask, reason: String) {
         guard let url = task.request.url else { return }
-        task.didReceive(HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Length": "0"])!)
+        let body = Data(reason.utf8)
+        task.didReceive(HTTPURLResponse(url: url, statusCode: 502, httpVersion: "HTTP/1.1", headerFields: [
+            ServerProxy.errorHeader: "1", "Content-Type": "text/plain; charset=utf-8", "Content-Length": String(body.count),
+        ])!)
+        task.didReceive(body)
         task.didFinish()
     }
 
@@ -116,7 +125,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         task.cancel()
         if let schemeTask = live(task.taskIdentifier) {
             tasks[task.taskIdentifier] = nil
-            fail(schemeTask, status: 502)
+            fail(schemeTask, reason: "the server redirected to another origin")
         }
     }
 
@@ -129,6 +138,7 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
         }
         let headers = ServerProxy.responseHeaders(http.allHeaderFields)
         schemeTask.didReceive(HTTPURLResponse(url: url, statusCode: http.statusCode, httpVersion: "HTTP/1.1", headerFields: headers)!)
+        responded.insert(dataTask.taskIdentifier)
         completionHandler(.allow)
     }
 
@@ -137,8 +147,13 @@ final class ServerProxy: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let started = responded.remove(task.taskIdentifier) != nil
         guard let schemeTask = live(task.taskIdentifier) else { return }
         tasks[task.taskIdentifier] = nil
-        if let error { schemeTask.didFailWithError(error) } else { schemeTask.didFinish() }
+        if let error {
+            if started { schemeTask.didFailWithError(error) } else { fail(schemeTask, reason: error.localizedDescription) }
+        } else {
+            schemeTask.didFinish()
+        }
     }
 }

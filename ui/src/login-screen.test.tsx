@@ -84,14 +84,16 @@ describe("LoginScreen", () => {
     render(() => <LoginScreen onSettings={vi.fn()} onLoggedIn={onLoggedIn} />)
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
     await vi.waitFor(() => expect(onLoggedIn).toHaveBeenCalledOnce())
-    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
+    expect(screen.queryByText(/Sign-in failed/)).toBeNull()
   })
 
-  it("shows an error when sign-in fails", async () => {
-    vi.spyOn(auth, "login").mockResolvedValue("failed")
+  it("shows why sign-in failed", async () => {
+    vi.spyOn(auth, "login").mockResolvedValue({ failed: "Cannot reach rc.example.com. Check the network or VPN." })
     render(() => <LoginScreen onSettings={vi.fn()} />)
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
-    await vi.waitFor(() => expect(screen.getByText("Sign-in failed, try again")).toBeTruthy())
+    await vi.waitFor(() =>
+      expect(screen.getByText("Sign-in failed. Cannot reach rc.example.com. Check the network or VPN.")).toBeTruthy(),
+    )
   })
 
   it("tells the user when the server has no app sign-in", async () => {
@@ -100,12 +102,12 @@ describe("LoginScreen", () => {
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
     await vi.waitFor(() => expect(screen.getByText(/not set up for app sign-in/)).toBeTruthy())
     expect(screen.getByText(/OIDC_APP_CLIENT_ID/)).toBeTruthy()
-    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
+    expect(screen.queryByText(/Sign-in failed/)).toBeNull()
   })
 
   it("ignores a second click while sign-in is in flight", async () => {
-    let resolveLogin: (value: "ok" | "failed" | "cancelled") => void = () => {}
-    const loginPromise = new Promise<"ok" | "failed" | "cancelled">((resolve) => {
+    let resolveLogin: (value: auth.LoginResult) => void = () => {}
+    const loginPromise = new Promise<auth.LoginResult>((resolve) => {
       resolveLogin = resolve
     })
     const loginSpy = vi.spyOn(auth, "login").mockReturnValue(loginPromise)
@@ -124,6 +126,6 @@ describe("LoginScreen", () => {
     await fireEvent.click(screen.getByText("Sign in with OIDC"))
     await Promise.resolve()
     expect(onLoggedIn).not.toHaveBeenCalled()
-    expect(screen.queryByText("Sign-in failed, try again")).toBeNull()
+    expect(screen.queryByText(/Sign-in failed/)).toBeNull()
   })
 })

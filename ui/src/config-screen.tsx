@@ -69,7 +69,7 @@ export const ConfigScreen: Component<{ onSave: () => void; onCancel?: () => void
         />
 
         {error() && (
-          <p class="mt-2 text-[12px] text-red-500">{error()}</p>
+          <p class="mt-2 text-[12px] text-v2-state-fg-danger">{error()}</p>
         )}
 
         <div class="mt-4 flex gap-3">
