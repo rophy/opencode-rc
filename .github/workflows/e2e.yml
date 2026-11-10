@@ -82,9 +82,13 @@ jobs:
 
       - name: Pre-load external images into kind
         run: |
+          # Load an amd64-only archive: with Docker's containerd image store, `docker pull` keeps one
+          # platform, and `kind load docker-image` imports all platforms of the image index.
           for img in ghcr.io/copilotkit/aimock:1.42.0 nginx:1.27-alpine; do
-            docker pull "$img"
-            kind load docker-image "$img" --name opencode-rc-e2e
+            docker pull --platform linux/amd64 "$img"
+            docker save --platform linux/amd64 -o /tmp/image.tar "$img"
+            kind load image-archive /tmp/image.tar --name opencode-rc-e2e
+            rm /tmp/image.tar
           done
 
       - name: Build and deploy
