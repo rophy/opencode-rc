@@ -77,13 +77,14 @@ function fresh(): string | null {
   return access && access.expiresAt - Date.now() > EARLY_REFRESH_MS ? access.token : null
 }
 
-async function postJson(path: string, body: unknown): Promise<Response> {
+async function postJson(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   const res = await fetch(
     apiUrl(path),
     withProtocol({
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
+      signal,
     }),
   )
   await checkProtocol(res)
@@ -210,6 +211,16 @@ function urlOrNull(value: unknown): URL | null {
   }
 }
 
+// App sign-in requests give up when the server does not answer in time: a VPN that drops packets
+// after the connection opens would otherwise keep them waiting (the iOS shell allows long requests).
+export const SIGN_IN_TIMEOUT_MS = 30_000
+
+function deadline() {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), SIGN_IN_TIMEOUT_MS)
+  return { signal: controller.signal, done: () => clearTimeout(timer) }
+}
+
 function randomString(bytes: number): string {
   return base64url(crypto.getRandomValues(new Uint8Array(bytes)))
 }
@@ -224,6 +235,7 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
   const unreachable = (reason?: string): LoginResult => ({
     failed: `Cannot reach ${host}${reason ? ` (${reason})` : ""}. Check the network or VPN.`,
   })
+  const noAnswer = (signal: AbortSignal) => (signal.aborted ? `no answer in ${SIGN_IN_TIMEOUT_MS / 1000} s` : undefined)
   // A server answer that is not OK: the shell's own 502, or the server's error and description.
   const answered = async (res: Response, what: string): Promise<LoginResult> => {
     if (res.headers.has(PROXY_ERROR_HEADER)) return unreachable((await res.text().catch(() => "")) || undefined)
@@ -232,16 +244,20 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
     return { failed: `${what}: ${host} answered HTTP ${res.status}${detail ? ` (${detail})` : ""}.` }
   }
 
-  let res: Response
+  const config = deadline()
+  let cfg: AppConfig | null
   try {
-    res = await fetch(apiUrl("/auth/app-config"))
+    const res = await fetch(apiUrl("/auth/app-config"), { signal: config.signal })
+    if (res.status === 404) return "unsupported"
+    if (!res.ok) return answered(res, "Cannot read the sign-in settings")
+    // E.g. the server URL is the UI host, which answers with its page.
+    cfg = (await res.json().catch(() => null)) as AppConfig | null
+    if (config.signal.aborted) return unreachable(noAnswer(config.signal))
   } catch {
-    return unreachable()
+    return unreachable(noAnswer(config.signal))
+  } finally {
+    config.done()
   }
-  if (res.status === 404) return "unsupported"
-  if (!res.ok) return answered(res, "Cannot read the sign-in settings")
-  // E.g. the server URL is the UI host, which answers with its page.
-  const cfg = (await res.json().catch(() => null)) as AppConfig | null
   const authorize = cfg && urlOrNull(cfg.authorizationEndpoint)
   if (!cfg || !authorize) return { failed: `${host} is not an opencode-rc API server. Check the server URL.` }
   const state = randomString(16)
@@ -278,13 +294,16 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
   }
   const code = callback.searchParams.get("code")
   if (!code) return { failed: "The identity provider sent no sign-in code." }
+  const token = deadline()
   try {
-    const tokenRes = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce })
+    const tokenRes = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce }, token.signal)
     if (!tokenRes.ok) return answered(tokenRes, "The server did not accept the sign-in")
     save((await tokenRes.json()) as TokenResponse)
     return "ok"
   } catch {
-    return unreachable()
+    return unreachable(noAnswer(token.signal))
+  } finally {
+    token.done()
   }
 }
 

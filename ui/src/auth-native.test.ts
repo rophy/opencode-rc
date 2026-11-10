@@ -8,7 +8,7 @@ vi.mock("./native", async (importOriginal) => ({
 }))
 
 import { NativeError } from "./native"
-import { PROXY_ERROR_HEADER, REFRESH_KEY, login, resetAuthState } from "./auth"
+import { PROXY_ERROR_HEADER, REFRESH_KEY, SIGN_IN_TIMEOUT_MS, login, resetAuthState } from "./auth"
 import { resetConfig } from "./server"
 import { resetProtocolState } from "./protocol"
 
@@ -29,6 +29,13 @@ function idpReturns(params: Record<string, string>, opts: { keepState?: boolean 
     const state = new URL(args.url).searchParams.get("state")!
     const q = new URLSearchParams({ ...(opts.keepState ? { state } : { state: "other" }), ...params })
     return { url: `com.opencode.rc:/auth/callback?${q}` }
+  })
+}
+
+// A request that never answers; it fails only when its signal aborts, as fetch does.
+function hangs(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return new Promise((_, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")))
   })
 }
 
@@ -124,6 +131,21 @@ describe("app sign-in", () => {
     })
   })
 
+  it("gives up on a server that does not answer", async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementationOnce(hangs)
+      const result = login()
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(SIGN_IN_TIMEOUT_MS)
+      expect(await result).toEqual({
+        failed: "Cannot reach rc.example.com (no answer in 30 s). Check the network or VPN.",
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("reports a state mismatch without exchanging the code", async () => {
     idpReturns({ code: "abc" }, { keepState: false })
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig))
@@ -162,6 +184,22 @@ describe("app sign-in", () => {
       .mockResolvedValueOnce(json(appConfig))
       .mockRejectedValueOnce(new TypeError("Load failed"))
     expect(await login()).toEqual({ failed: "Cannot reach rc.example.com. Check the network or VPN." })
+  })
+
+  it("gives up on a code exchange that gets no answer", async () => {
+    idpReturns({ code: "abc" })
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(json(appConfig)).mockImplementationOnce(hangs)
+      const result = login()
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+      await vi.advanceTimersByTimeAsync(SIGN_IN_TIMEOUT_MS)
+      expect(await result).toEqual({
+        failed: "Cannot reach rc.example.com (no answer in 30 s). Check the network or VPN.",
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("reports a missing server", async () => {
