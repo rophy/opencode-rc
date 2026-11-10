@@ -1,0 +1,1 @@
+var e=`/v2/assets/nope-08-COPo0uNf.aac`;export{e as default};

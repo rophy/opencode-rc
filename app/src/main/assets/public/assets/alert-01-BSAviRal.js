@@ -1,0 +1,1 @@
+var e=`/assets/alert-01-BuOD_o_q.aac`;export{e as default};

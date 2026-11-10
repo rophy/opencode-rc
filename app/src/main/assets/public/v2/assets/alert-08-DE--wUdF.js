@@ -1,0 +1,1 @@
+var e=`/v2/assets/alert-08-CZowNquU.aac`;export{e as default};
