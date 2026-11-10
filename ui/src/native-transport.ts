@@ -72,7 +72,7 @@ export function installNativeTransport(opts: { getServer: () => string }): void 
     const hasBody = source.method !== "GET" && source.method !== "HEAD"
     // Buffered, as in proxy-fetch.ts: WebKit does not stream request bodies.
     const body = hasBody ? await source.clone().arrayBuffer() : undefined
-    return originalFetch(
+    const sent = originalFetch(
       new Request(`${pageBase()}${local}`, {
         method: source.method,
         headers: source.headers,
@@ -81,6 +81,15 @@ export function installNativeTransport(opts: { getServer: () => string }): void 
         redirect: source.redirect,
       }),
     )
+    // WebKit does not reject an app-scheme fetch whose signal aborts before the response starts,
+    // so reject it here, as fetch does elsewhere.
+    const signal = source.signal
+    return new Promise<Response>((resolve, reject) => {
+      const abort = () => reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"))
+      if (signal.aborted) return abort()
+      signal.addEventListener("abort", abort, { once: true })
+      sent.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort))
+    })
   }
 
   const proto = XMLHttpRequest.prototype

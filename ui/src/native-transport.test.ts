@@ -68,6 +68,15 @@ describe("installNativeTransport", () => {
     expect(await req.text()).toBe("b")
   })
 
+  it("rejects when the signal aborts before the response", async () => {
+    fetchSpy.mockImplementationOnce(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const res = fetch(`${SERVER}/x`, { signal: controller.signal })
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    controller.abort()
+    await expect(res).rejects.toMatchObject({ name: "AbortError" })
+  })
+
   it("sets the server once until it changes", async () => {
     await fetch("https://rc.example.com/a")
     await fetch("https://rc.example.com/b")
