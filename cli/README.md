@@ -24,6 +24,8 @@ The CLI will:
 
 Press `Ctrl+C` to stop.
 
+`opencode-rc --version` (or `-v`) prints the installed version.
+
 ## Configuration
 
 Create `~/.config/opencode/rc.json`:

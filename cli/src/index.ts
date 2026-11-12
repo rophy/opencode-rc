@@ -8,6 +8,7 @@ import { createShutdown } from "./shutdown.js";
 import { startServer, type LocalServer } from "./server.js";
 import { startTunnelWithReconnect } from "./tunnel.js";
 import { ProtocolError } from "./protocol.js";
+import { CLI_VERSION, wantsVersion } from "./version.js";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 
@@ -16,6 +17,11 @@ function generateSessionID(): string {
 }
 
 async function main() {
+  if (wantsVersion(process.argv.slice(2))) {
+    console.log(CLI_VERSION);
+    return;
+  }
+  console.log(`opencode-rc ${CLI_VERSION}`);
   const config = await loadConfig();
 
   // Check opencode first, so a missing or unsupported opencode is reported before signing in.
