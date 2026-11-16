@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { WebSocket } from "ws";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { API_URL, UI_URL, GATEWAY_URL, OIDC_URL, SESSION_ID, SESSION_ID_V2, PROTOCOL, waitFor, TokenSession, postJson, loginCode, loginAs, upgradeStatus } from "./helpers.js";
 
 describe("opencode-rc e2e", () => {
@@ -900,40 +900,13 @@ describe("1.x provider responses have no API keys", () => {
 });
 
 describe("app sign-in", () => {
-  async function appCode(verifier: string): Promise<URL> {
-    const cfg = await (await fetch(`${API_URL}/auth/app-config`)).json();
-    expect(cfg.clientId).toBe("opencode-rc-app");
-    expect(cfg.redirectUri).toBe("com.opencode.rc:/auth/callback");
-    const challenge = createHash("sha256").update(verifier).digest("base64url");
-    const res = await fetch(`${OIDC_URL}/authorize/callback`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        sub: "user1",
-        client_id: cfg.clientId,
-        redirect_uri: cfg.redirectUri,
-        state: "st",
-        nonce: "n1",
-        scope: "openid email profile",
-        code_challenge: challenge,
-        code_challenge_method: "S256",
-      }),
-      redirect: "manual",
-    });
-    const location = new URL(res.headers.get("location")!);
-    expect(location.protocol).toBe("com.opencode.rc:");
-    expect(location.searchParams.get("state")).toBe("st");
-    return location;
-  }
+  const APP_CALLBACK = "com.opencode.rc:/auth/done";
 
-  it("signs in as the app's public client", async () => {
-    const verifier = randomBytes(32).toString("base64url");
-    const location = await appCode(verifier);
-    const res = await postJson("/auth/app-token", {
-      code: location.searchParams.get("code"),
-      code_verifier: verifier,
-      nonce: "n1",
-    });
+  it("signs in through the server and returns to the app callback", async () => {
+    const { code, verifier, prompt, landing } = await loginCode("user1", APP_CALLBACK);
+    expect(`${landing.protocol}${landing.pathname}`).toBe(APP_CALLBACK);
+    expect(prompt).toBe("select_account");
+    const res = await postJson("/auth/token", { code, code_verifier: verifier });
     expect(res.status).toBe(200);
     const { access_token } = await res.json();
     const me = await fetch(`${API_URL}/api/me`, { headers: { authorization: `Bearer ${access_token}`, ...PROTOCOL } });
@@ -941,12 +914,12 @@ describe("app sign-in", () => {
   });
 
   it("rejects a wrong verifier", async () => {
-    const location = await appCode(randomBytes(32).toString("base64url"));
-    const res = await postJson("/auth/app-token", {
-      code: location.searchParams.get("code"),
-      code_verifier: randomBytes(32).toString("base64url"),
-      nonce: "n1",
-    });
+    const { code } = await loginCode("user1", APP_CALLBACK);
+    const res = await postJson("/auth/token", { code, code_verifier: randomBytes(32).toString("base64url") });
     expect(res.status).toBe(400);
+  });
+
+  it("has no public-client endpoints", async () => {
+    expect((await fetch(`${API_URL}/auth/app-config`)).status).toBe(404);
   });
 });

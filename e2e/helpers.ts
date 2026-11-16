@@ -61,14 +61,20 @@ export async function postJson(path: string, body: unknown): Promise<Response> {
 export interface LoginCode {
   code: string;
   verifier: string;
+  /** The prompt /auth/start asked the IdP for, if any. */
+  prompt: string | null;
+  /** Where /auth/callback sent the browser, with the code in its fragment. */
+  landing: URL;
 }
 
-export async function loginCode(sub: string): Promise<LoginCode> {
+// Signs in through /auth/start and the mock IdP; returnTo is the web page or the app callback.
+export async function loginCode(sub: string, returnTo = "/"): Promise<LoginCode> {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  const startRes = await fetch(`${API_URL}/auth/start?return_to=%2F&code_challenge=${challenge}`, {
-    redirect: "manual",
-  });
+  const startRes = await fetch(
+    `${API_URL}/auth/start?return_to=${encodeURIComponent(returnTo)}&code_challenge=${challenge}`,
+    { redirect: "manual" },
+  );
   expect(startRes.status).toBe(302);
   const cookies = cookieHeader(startRes);
   const url = new URL(startRes.headers.get("location")!);
@@ -96,7 +102,7 @@ export async function loginCode(sub: string): Promise<LoginCode> {
   const landing = new URL(webCallback.headers.get("location")!, API_URL);
   const code = new URLSearchParams(landing.hash.slice(1)).get("code");
   expect(code).toBeTruthy();
-  return { code: code!, verifier };
+  return { code: code!, verifier, prompt: url.searchParams.get("prompt"), landing };
 }
 
 export async function loginAs(sub: string): Promise<TokenSession> {

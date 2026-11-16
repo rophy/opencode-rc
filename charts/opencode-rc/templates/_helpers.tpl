@@ -192,14 +192,6 @@ opencode-rc-cli
 {{- end -}}
 {{- end -}}
 
-{{- define "opencode-rc.oidcAppClientId" -}}
-{{- if .Values.oidc.appClientId -}}
-{{- .Values.oidc.appClientId -}}
-{{- else if .Values.oidcMock.enabled -}}
-{{- .Values.oidcMock.clients.app.id -}}
-{{- end -}}
-{{- end -}}
-
 {{- define "opencode-rc.oidcClientSecret" -}}
 {{- if .Values.secrets.oidcClientSecret -}}
 {{- .Values.secrets.oidcClientSecret -}}
