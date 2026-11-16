@@ -111,7 +111,6 @@ The `existingSecret` must contain:
 | `oidc.issuer` | `""` | OIDC provider URL; required unless `oidcMock.enabled` |
 | `oidc.clientId` | `""` | Web client ID (confidential); empty: the mock's web client, else `opencode-rc` |
 | `oidc.cliClientId` | `""` | CLI client ID (public, PKCE); empty: the mock's CLI client, else `opencode-rc-cli` |
-| `oidc.appClientId` | `""` | Mobile app client ID (public, PKCE, redirect URI `com.opencode.rc:/auth/callback`); empty: the mock's app client, else app sign-in is off |
 | `oidc.userClaim` | `sub` | ID token claim that identifies a user; web and CLI logins must get the same value (use `oid` for Entra ID) |
 | `oidc.redirectUri` | auto-derived | OAuth callback URL; defaults to `<api public URL>/auth/callback` |
 | `auth.accessTokenTTL` | `15m` | Access token lifetime |
@@ -157,13 +156,7 @@ For a real IdP, set `oidcMock.enabled=false`, `oidc.issuer` and `existingSecret`
 
 #### Mobile app sign-in
 
-The iOS and Android apps sign in as a public OIDC client with PKCE, in the system browser view (Safari view / Custom Tab), which loads only the IdP. Set `oidc.appClientId` (API env `OIDC_APP_CLIENT_ID`); empty turns app sign-in off. Register that client at your IdP as:
-
-- a public client (no secret), with PKCE (S256) required
-- redirect URI `com.opencode.rc:/auth/callback`
-- scopes `openid email profile`
-
-The API serves the client settings at `GET /auth/app-config` and exchanges the code at `POST /auth/app-token`. `auth.appLoginPrompt` (`APP_LOGIN_PROMPT`) applies to app sign-ins through `/auth/app-config`. On corporate iOS devices with a per-app VPN, the IdP host must be reachable from Safari (in the VPN's Safari Domains); the API host need not be.
+The iOS and Android apps sign in through the API with the web client, as the browser UI does, so the IdP needs no extra client. The app opens `/auth/start` in its sign-in view (iOS: a WKWebView sheet in the app; Android: a Custom Tab). The API redirects to the IdP, gets the code at `/auth/callback`, and redirects to the app's callback `com.opencode.rc:/auth/done` with a one-time login code, which only the app's verifier can exchange. `auth.appLoginPrompt` (`APP_LOGIN_PROMPT`) sets the IdP prompt for app sign-ins. On iOS the sign-in sheet's traffic belongs to the app, so a per-app VPN carries it; neither the API host nor the IdP host must be in the VPN's Safari Domains.
 
 ### Access Control
 

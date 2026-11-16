@@ -140,11 +140,10 @@ with `npx -y node@22 node_modules/vitest/vitest.mjs run` in `api/` or `ui/`.
 
 The iOS and Android apps are plain native shells around one WebView that loads only the bundled
 UI (iOS `opencode-rc://localhost`, Android `https://localhost`); other links open in the system
-browser. They sign in as a public OIDC client with PKCE in the system browser view (iOS
-SFSafariViewController, Android Custom Tab), which loads only the IdP; the IdP redirects to
-`com.opencode.rc:/auth/callback` and the API exchanges the code (`/auth/app-token`, needs
-`OIDC_APP_CLIENT_ID`). On iOS, all server traffic goes through native code (URLSession) so a per-app
-VPN carries it. Copy a build into the projects with `bun run sync:ios` / `bun run sync:android`.
+browser. They sign in through the API's `/auth/start` with the web client, in a sign-in view (iOS: a
+WKWebView sheet in the app, so a per-app VPN carries it; Android: a Custom Tab); the API redirects
+to `com.opencode.rc:/auth/done` with a login code that only the app's verifier can exchange. On
+iOS, all server traffic goes through native code (URLSession) so a per-app VPN carries it. Copy a build into the projects with `bun run sync:ios` / `bun run sync:android`.
 To preset the server or disable features, build with `OPENCODE_RC_CONFIG=/path/to/config.json bun run build`
 (schema: `config/schema.ts`; see `docs/ios-app.md`).
 

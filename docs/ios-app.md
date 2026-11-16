@@ -20,28 +20,30 @@ The app holds an access token (15 min) and a refresh token (stored in `localStor
 
 ## Sign-In and Navigation
 
-The app signs in as a public OIDC client with PKCE, in the system browser view (iOS
-`SFSafariViewController`, Android Custom Tab). That view loads only the IdP; the IdP redirects
-to `com.opencode.rc:/auth/callback`, and the app sends the code and its verifier to the API
-(`POST /auth/app-token`). The client settings come from `GET /auth/app-config`. A callback
-stolen from this app's own login attempt is useless without the verifier.
+The app signs in through the API with the web client, as the browser UI does. It opens the
+API's `/auth/start` in a WKWebView sheet owned by the app. The API redirects to the IdP, receives
+the code at its https callback (`/auth/callback`), and redirects to `com.opencode.rc:/auth/done`
+with a one-time login code. The sheet stops that navigation and hands the URL to the app, which
+exchanges the login code with its verifier (`POST /auth/token`). A login code stolen from this app's
+login is useless without the verifier. The IdP needs no client for the app and never sees the
+custom scheme.
 
-Set up the IdP client and `oidc.appClientId` (API env `OIDC_APP_CLIENT_ID`) as described in the
-README ("Mobile app sign-in"). Without a client id, app sign-in is off.
+The sheet's traffic belongs to the app, so a per-app VPN carries it; Safari-based views
+(`SFSafariViewController`, `ASWebAuthenticationSession`) reach only the hosts in the VPN's Safari
+Domains. The sheet loads web pages only; it stops at the callback and never hands a link to another
+app. When a page cannot load, or the API answers with an error, the sheet closes and the app shows
+the reason. Android signs in the same way in a Custom Tab, which receives the callback through an
+intent filter.
 
-On corporate devices with a per-app VPN, Safari traffic is not carried by the app's VPN. The
-IdP host must be reachable from Safari (in the VPN's Safari Domains). The API host need not be.
+Trade-off: the sheet is an embedded web view, which RFC 8252 advises against for sign-in (the app
+could read what the user types, and some IdPs block embedded views). We use it because corporate
+IdPs may reject custom-scheme redirect URIs and per-app VPNs do not carry Safari traffic.
 
-Residual risk: a malicious app on the device can start its own login with its own
-verifier and register to receive the callback (on iOS and on Android another app can register
-the same custom scheme; PKCE makes a code it steals from this app's login useless), the general weakness of private-use callback schemes (RFC 8252 section 8.6).
-To keep such a login from completing silently, the API asks the IdP to prompt the user on app
-logins (OIDC `prompt`, chart `auth.appLoginPrompt`, default `select_account`, applied through
-`/auth/app-config`); check that your IdP honors it. Claimed https redirects (Associated Domains /
-App Links) would verify the app, but need a paid Apple team and, for intranet-only hosts, MDM
-managed mode; they are not planned.
+To keep a login from completing silently, the API asks the IdP to prompt the user on app logins
+(OIDC `prompt`, chart `auth.appLoginPrompt`, default `select_account`); check that your IdP honors
+it.
 
-The WebView loads only the bundled app; every other link opens in Safari (Android: the default
+The main WebView loads only the bundled app; every other link opens in Safari (Android: the default
 browser), and iOS link previews are off.
 
 ## Build-Time Config
