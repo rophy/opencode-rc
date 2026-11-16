@@ -5,7 +5,7 @@ import { verifyToken } from "./oidc.js";
 import { codeChallenge, randomToken, signAccessToken } from "./token.js";
 import { TokenStore } from "./token-store.js";
 import { MockRedis } from "./testing/mock-redis.js";
-import { makeOriginCheck } from "./origins.js";
+import { APP_CALLBACK, makeOriginCheck } from "./origins.js";
 import { PROTOCOL_HEADER } from "./protocol.js";
 import type { Config } from "./config.js";
 import type { OIDCProvider } from "./oidc.js";
@@ -24,7 +24,6 @@ const config: Config = {
   oidcClientId: "test",
   oidcClientSecret: "",
   oidcCliClientId: "",
-  oidcAppClientId: "",
   oidcUserClaim: "sub",
   oidcRedirectUri: "https://rc.example.com/auth/callback",
   oidcIssuerOverride: "",
@@ -199,14 +198,7 @@ describe("/auth/start", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejects the old app callback as return_to", async () => {
-    const res = await app.request(
-      `/auth/start?return_to=${encodeURIComponent("com.opencode.rc:/auth/done")}&code_challenge=${challenge}`,
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("never sends a prompt", async () => {
+  it("leaves web logins without a prompt", async () => {
     const res = await app.request(`/auth/start?return_to=%2F&code_challenge=${challenge}`);
     expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
   });
@@ -391,124 +383,84 @@ describe("/auth/refresh and /auth/logout", () => {
 });
 
 describe("app sign-in", () => {
-  const appConfig: Config = { ...config, oidcAppClientId: "opencode-rc-app" };
-  const useConfig = (cfg: Config) => {
-    app = new Hono<AuthEnv>();
-    app.route("/", authRoutes({ config: cfg, provider, tokens, isAllowedOrigin: () => false }));
-    app.get("/protected", authMiddleware(cfg), (c) => c.json({ userId: c.get("userId") }));
+  const start = () =>
+    app.request(`/auth/start?return_to=${encodeURIComponent(APP_CALLBACK)}&code_challenge=${challenge}`);
+  const appCookies = `orc_state=st; orc_return=${encodeURIComponent(APP_CALLBACK)}; orc_challenge=${challenge}`;
+  const callback = (query: string, cookies = appCookies) =>
+    app.request(`/auth/callback?${query}`, { headers: { cookie: cookies } });
+  const appError = (res: Response) => {
+    const location = res.headers.get("location")!;
+    expect(location.startsWith(`${APP_CALLBACK}#`)).toBe(true);
+    return Object.fromEntries(new URLSearchParams(location.split("#")[1]));
   };
-  const idClaims = { sub: "alice", email: "alice@example.com", name: "Alice", nonce: "n1" };
 
-  it("GET /auth/app-config returns the public client", async () => {
-    useConfig(appConfig);
-    const res = await app.request("/auth/app-config");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      authorizationEndpoint: "https://idp.example.com/authorize",
-      clientId: "opencode-rc-app",
-      redirectUri: "com.opencode.rc:/auth/callback",
-      prompt: "select_account",
-    });
+  it("starts at the IdP with the web client and stores the app callback", async () => {
+    const res = await start();
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get("location")!);
+    expect(location.searchParams.get("client_id")).toBe("test");
+    expect(location.searchParams.get("redirect_uri")).toBe("https://rc.example.com/auth/callback");
+    expect(res.headers.getSetCookie().join("\n")).toContain("orc_return=com.opencode.rc%3A%2Fauth%2Fdone");
   });
 
-  it("GET /auth/app-config omits prompt when it is disabled", async () => {
-    useConfig({ ...appConfig, appLoginPrompt: "" });
-    expect(await (await app.request("/auth/app-config")).json()).not.toHaveProperty("prompt");
+  // RFC 8252 section 8.6: the app callback scheme cannot identify the app, so the IdP
+  // must make the user interact; an impersonating app cannot complete a login silently.
+  it("asks the IdP to prompt the user", async () => {
+    const res = await start();
+    expect(new URL(res.headers.get("location")!).searchParams.get("prompt")).toBe("select_account");
   });
 
-  it("answers 404 without an app client", async () => {
-    useConfig(config);
-    expect((await app.request("/auth/app-config")).status).toBe(404);
-    expect((await post("/auth/app-token", { code: "c", code_verifier: "v", nonce: "n1" })).status).toBe(404);
+  it("sends no prompt when the app login prompt is disabled", async () => {
+    app = new Hono<AuthEnv>();
+    app.route("/", authRoutes({ config: { ...config, appLoginPrompt: "" }, provider, tokens, isAllowedOrigin: () => false }));
+    const res = await start();
+    expect(new URL(res.headers.get("location")!).searchParams.has("prompt")).toBe(false);
   });
 
-  it("exchanges the code as a public client and issues tokens", async () => {
-    useConfig(appConfig);
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    vi.mocked(verifyToken).mockResolvedValueOnce(idClaims);
-
-    const res = await post("/auth/app-token", { code: "idp-code", code_verifier: verifier, nonce: "n1" });
-    expect(res.status).toBe(200);
-
-    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://idp.example.com/token");
-    const form = new URLSearchParams(String(init.body));
-    expect(Object.fromEntries(form)).toEqual({
-      grant_type: "authorization_code",
-      client_id: "opencode-rc-app",
-      code: "idp-code",
-      code_verifier: verifier,
-      redirect_uri: "com.opencode.rc:/auth/callback",
-    });
-    expect(verifyToken).toHaveBeenCalledWith(provider, "id", "opencode-rc-app");
-
-    const body = await res.json();
-    const me = await app.request("/protected", { headers: { authorization: `Bearer ${body.access_token}` } });
-    expect(await me.json()).toEqual({ userId: "alice" });
-    expect(body.refresh_token).toBeTruthy();
-  });
-
-  it("rejects a nonce mismatch", async () => {
-    useConfig(appConfig);
+  it("redirects to the app callback with a code the app exchanges with its verifier", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    vi.mocked(verifyToken).mockResolvedValueOnce({ ...idClaims, nonce: "other" });
-    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "invalid_grant", error_description: "ID token nonce does not match" });
+    const res = await callback("state=st&code=idp-code");
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location")!;
+    expect(location).toMatch(/^com\.opencode\.rc:\/auth\/done#code=/);
+    const code = decodeURIComponent(location.split("#code=")[1]);
+    expect((await post("/auth/token", { code, code_verifier: verifier })).status).toBe(200);
   });
 
-  it("rejects a failed code exchange", async () => {
-    useConfig(appConfig);
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      Response.json({ error: "invalid_client", error_description: "client is confidential" }, { status: 401 }),
-    );
-    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: "invalid_grant",
-      error_description: "IdP token endpoint answered 401 (invalid_client: client is confidential)",
+  it("sends a state mismatch to the app", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    expect(appError(await callback("state=other&code=c"))).toEqual({
+      error: "invalid_request",
+      error_description: "invalid state",
     });
+    expect(spy).not.toHaveBeenCalled();
   });
 
-  it("rejects an ID token that fails verification", async () => {
-    useConfig(appConfig);
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    vi.mocked(verifyToken).mockRejectedValueOnce(new Error("bad signature"));
-    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
-    expect(res.status).toBe(400);
-    expect((await res.json()).error_description).toBe("ID token not valid: bad signature");
+  it("sends the IdP's refusal to the app", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    const res = await callback("state=st&error=access_denied&error_description=User%20not%20assigned");
+    expect(appError(res)).toEqual({
+      error: "access_denied",
+      error_description: "the identity provider refused sign-in: access_denied: User not assigned",
+    });
+    expect(spy).not.toHaveBeenCalled();
   });
 
-  it("rejects an ID token without the user claim", async () => {
-    useConfig({ ...appConfig, oidcUserClaim: "oid" });
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ id_token: "id" }));
-    vi.mocked(verifyToken).mockResolvedValueOnce(idClaims);
-    const res = await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" });
-    expect(res.status).toBe(400);
-    expect((await res.json()).error_description).toBe("ID token has no oid claim");
+  it("sends a failed code exchange to the app", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 400 }));
+    expect(appError(await callback("state=st&code=c")).error_description).toBe("authentication failed");
   });
 
-  it("rejects missing fields without calling the IdP", async () => {
-    useConfig(appConfig);
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    for (const body of [{ code_verifier: verifier, nonce: "n1" }, { code: "c", nonce: "n1" }, { code: "c", code_verifier: verifier }])
-      expect((await post("/auth/app-token", body)).status).toBe(400);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("answers 503 when the IdP cannot be reached", async () => {
-    useConfig(appConfig);
+  it("sends an unreachable token endpoint to the app", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
-    expect((await post("/auth/app-token", { code: "c", code_verifier: verifier, nonce: "n1" })).status).toBe(503);
+    expect(appError(await callback("state=st&code=c")).error_description).toBe(
+      "the server cannot reach the IdP token endpoint",
+    );
   });
 
-  it("requires the protocol header", async () => {
-    useConfig(appConfig);
-    const res = await app.request("/auth/app-token", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code: "c", code_verifier: verifier, nonce: "n1" }),
-    });
-    expect(res.status).not.toBe(200);
+  it("answers web logins with text, not a redirect", async () => {
+    const res = await callback("state=st&error=access_denied", `orc_state=st; orc_return=%2F; orc_challenge=${challenge}`);
+    expect(res.status).toBe(401);
+    expect(await res.text()).toBe("the identity provider refused sign-in: access_denied");
   });
 });

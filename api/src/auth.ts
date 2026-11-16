@@ -14,7 +14,7 @@ import {
   type AccessClaims,
 } from "./token.js";
 import type { TokenStore } from "./token-store.js";
-import { validateReturnTo, APP_REDIRECT_URI } from "./origins.js";
+import { validateReturnTo, APP_CALLBACK } from "./origins.js";
 import { requireClientProtocol } from "./protocol.js";
 
 export type AuthEnv = {
@@ -108,74 +108,6 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
     }),
   );
 
-  // The mobile apps sign in as a public client with PKCE in the system browser view, which loads
-  // only the IdP; the app then hands the code to /auth/app-token. Off without OIDC_APP_CLIENT_ID.
-  app.get("/auth/app-config", (c) => {
-    if (!config.oidcAppClientId) return c.json({ error: "not_found" }, 404);
-    return c.json({
-      authorizationEndpoint: provider.discovery.authorization_endpoint,
-      clientId: config.oidcAppClientId,
-      redirectUri: APP_REDIRECT_URI,
-      ...(config.appLoginPrompt ? { prompt: config.appLoginPrompt } : {}),
-    });
-  });
-
-  app.post("/auth/app-token", requireClientProtocol(), async (c) => {
-    if (!config.oidcAppClientId) return c.json({ error: "not_found" }, 404);
-    const body = await readBody(c);
-    const code = stringField(body, "code");
-    const verifier = stringField(body, "code_verifier");
-    const nonce = stringField(body, "nonce");
-    // The app shows the reason, so a failed sign-in can be diagnosed on the device.
-    const rejected = (reason: string) => {
-      console.error(`app sign-in: ${reason}`);
-      return c.json({ error: "invalid_grant", error_description: reason }, 400);
-    };
-    if (!code || !verifier || !nonce) return rejected("missing code, code_verifier or nonce");
-
-    let tokenRes: Response;
-    try {
-      tokenRes = await fetch(provider.discovery.token_endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: config.oidcAppClientId,
-          code,
-          code_verifier: verifier,
-          redirect_uri: APP_REDIRECT_URI,
-        }),
-      });
-    } catch (err) {
-      console.error("app sign-in: token endpoint unreachable:", err);
-      return c.json({ error: "unavailable", error_description: "the server cannot reach the IdP token endpoint" }, 503);
-    }
-    const tokenBody = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!tokenRes.ok) {
-      const idpError = [tokenBody.error, tokenBody.error_description].filter((v) => typeof v === "string" && v).join(": ");
-      return rejected(`IdP token endpoint answered ${tokenRes.status}${idpError ? ` (${idpError})` : ""}`);
-    }
-    const idToken = tokenBody.id_token;
-    if (typeof idToken !== "string" || !idToken) return rejected("IdP sent no ID token");
-    let idClaims: Record<string, unknown>;
-    try {
-      idClaims = (await verifyToken(provider, idToken, config.oidcAppClientId)) as typeof idClaims;
-    } catch (err) {
-      return rejected(`ID token not valid: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    if (idClaims.nonce !== nonce) return rejected("ID token nonce does not match");
-    const claims = userFromIdToken(idClaims, config.oidcUserClaim);
-    if (!claims) return rejected(`ID token has no ${config.oidcUserClaim} claim`);
-    try {
-      const session = await tokens.createChain(claims);
-      console.log(`login: user=${claims.uid} email=${claims.email} name=${claims.name} client=app`);
-      return tokenResponse(c, config, session.claims, session.refreshToken);
-    } catch (err) {
-      console.error("app sign-in: token store failed:", err);
-      return c.json({ error: "unavailable" }, 503);
-    }
-  });
-
   app.get("/auth/start", (c) => {
     const returnTo = validateReturnTo(c.req.query("return_to"), isAllowedOrigin);
     if (!returnTo) return c.json({ error: "invalid return_to" }, 400);
@@ -194,24 +126,37 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       scope: "openid email profile",
       state,
     });
+    if (returnTo === APP_CALLBACK && config.appLoginPrompt) params.set("prompt", config.appLoginPrompt);
     return c.redirect(`${provider.discovery.authorization_endpoint}?${params}`);
   });
 
   app.get("/auth/callback", async (c) => {
+    const returnTo = validateReturnTo(getCookie(c, "orc_return"), isAllowedOrigin) ?? "/";
+    // The app's sign-in view closes on its callback, so the app gets the reason to show.
+    const fail = (status: 400 | 401, reason: string) => {
+      if (returnTo !== APP_CALLBACK) return c.text(reason, status);
+      const params = new URLSearchParams({ error: status === 400 ? "invalid_request" : "access_denied", error_description: reason });
+      return c.redirect(`${APP_CALLBACK}#${params}`);
+    };
     const stateCookie = getCookie(c, "orc_state");
     const stateParam = c.req.query("state");
     if (!stateCookie || stateCookie !== stateParam) {
-      return c.text("invalid state", 400);
+      return fail(400, "invalid state");
     }
-    const returnTo = validateReturnTo(getCookie(c, "orc_return"), isAllowedOrigin) ?? "/";
     const challenge = getCookie(c, "orc_challenge");
     if (!isCodeChallenge(challenge)) {
-      return c.text("missing code challenge", 400);
+      return fail(400, "missing code challenge");
     }
 
+    const idpError = c.req.query("error");
+    if (idpError) {
+      const description = c.req.query("error_description");
+      console.error(`OIDC sign-in refused: ${idpError}${description ? `: ${description}` : ""}`);
+      return fail(401, `the identity provider refused sign-in: ${idpError}${description ? `: ${description}` : ""}`);
+    }
     const code = c.req.query("code");
     if (!code) {
-      return c.text("missing code", 400);
+      return fail(400, "missing code");
     }
 
     const tokenParams: Record<string, string> = {
@@ -224,19 +169,25 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       tokenParams.client_secret = config.oidcClientSecret;
     }
 
-    const tokenRes = await fetch(provider.discovery.token_endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(tokenParams),
-    });
+    let tokenRes: Response;
+    try {
+      tokenRes = await fetch(provider.discovery.token_endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(tokenParams),
+      });
+    } catch (err) {
+      console.error("OIDC token endpoint unreachable:", err);
+      return fail(401, "the server cannot reach the IdP token endpoint");
+    }
     if (!tokenRes.ok) {
       console.error(`OIDC token exchange failed: ${tokenRes.status}`);
-      return c.text("authentication failed", 401);
+      return fail(401, "authentication failed");
     }
 
-    const tokenData = (await tokenRes.json()) as { id_token?: string };
+    const tokenData = (await tokenRes.json().catch(() => ({}))) as { id_token?: string };
     if (!tokenData.id_token) {
-      return c.text("no id_token in response", 401);
+      return fail(401, "no id_token in response");
     }
 
     let idClaims: Record<string, unknown>;
@@ -244,13 +195,13 @@ export function authRoutes({ config, provider, tokens, isAllowedOrigin }: AuthDe
       idClaims = (await verifyToken(provider, tokenData.id_token, config.oidcClientId)) as typeof idClaims;
     } catch (err) {
       console.error("ID token verification failed:", err);
-      return c.text("invalid id_token", 401);
+      return fail(401, "invalid id_token");
     }
 
     const claims = userFromIdToken(idClaims, config.oidcUserClaim);
     if (!claims) {
       console.error(`ID token has no ${config.oidcUserClaim} claim`);
-      return c.text("invalid id_token", 401);
+      return fail(401, "invalid id_token");
     }
 
     let loginCode: string;

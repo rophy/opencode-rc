@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
-import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware } from "./origins.js";
+import { originOf, makeOriginCheck, validateReturnTo, corsMiddleware, APP_CALLBACK } from "./origins.js";
 
 const isAllowed = makeOriginCheck("https://rc.example.com", ["https://dev.example.com/"]);
 
@@ -81,12 +81,18 @@ describe("validateReturnTo", () => {
     expect(validateReturnTo("javascript:alert(1)", isAllowed)).toBeNull();
   });
 
-  it("rejects the mobile app callbacks as return_to", () => {
+  it("accepts exactly the mobile app callback", () => {
+    expect(APP_CALLBACK).toBe("com.opencode.rc:/auth/done");
+    expect(validateReturnTo("com.opencode.rc:/auth/done", isAllowed)).toBe("com.opencode.rc:/auth/done");
     for (const bad of [
-      "com.opencode.rc:/auth/done",
       "com.opencode.rc:/auth/callback",
       "com.opencode.rc:/auth/done/x",
       "com.opencode.rc://auth/done",
+      "com.opencode.rc:/auth/done?x=1",
+      "com.opencode.rc:/auth/done#x",
+      "com.opencode.rcx:/auth/done",
+      "COM.OPENCODE.RC:/auth/done",
+      "other.app:/auth/done",
     ]) {
       expect(validateReturnTo(bad, isAllowed)).toBeNull();
     }

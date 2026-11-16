@@ -3,9 +3,10 @@ import { cors } from "hono/cors";
 
 export const APP_ORIGINS: readonly string[] = ["opencode-rc://localhost", "https://localhost"];
 
-// The mobile apps' sign-in redirect URI (RFC 8252 private-use scheme), registered at the IdP for
-// the apps' public client. The system browser view hands it to the app.
-export const APP_REDIRECT_URI = "com.opencode.rc:/auth/callback";
+// The mobile apps' sign-in callback (RFC 8252 private-use scheme): /auth/callback redirects there
+// with the login code, which is useless without the app's verifier. The IdP never sees it; the
+// app's sign-in view (iOS sheet, Android Custom Tab) hands it to the app.
+export const APP_CALLBACK = "com.opencode.rc:/auth/done";
 
 // URL.origin is "null" for non-special schemes like opencode-rc:, so build it by hand.
 export function originOf(url: string): string | null {
@@ -42,6 +43,8 @@ export function validateReturnTo(
 ): string | null {
   if (!returnTo) return "/";
   if (hasUnsafeChars(returnTo)) return null;
+  // Check for the app callback exactly (no fragment, query, or path additions)
+  if (returnTo === APP_CALLBACK) return APP_CALLBACK;
   const withoutFragment = returnTo.split("#")[0];
   if (withoutFragment.startsWith("/")) {
     let parsed: URL;

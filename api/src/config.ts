@@ -4,8 +4,6 @@ export interface Config {
   oidcClientId: string;
   oidcClientSecret: string;
   oidcCliClientId: string;
-  /** Public OIDC client of the mobile apps ("" = app sign-in off) */
-  oidcAppClientId: string;
   /** ID token claim that identifies a user and owns their sessions */
   oidcUserClaim: string;
   oidcRedirectUri: string;
@@ -77,7 +75,6 @@ export function loadConfig(): Config {
     oidcClientId: requireEnv("OIDC_CLIENT_ID"),
     oidcClientSecret: process.env.OIDC_CLIENT_SECRET ?? "",
     oidcCliClientId: process.env.OIDC_CLI_CLIENT_ID ?? "",
-    oidcAppClientId: process.env.OIDC_APP_CLIENT_ID ?? "",
     oidcUserClaim: process.env.OIDC_USER_CLAIM || "sub",
     oidcRedirectUri: requireEnv("OIDC_REDIRECT_URI"),
     oidcIssuerOverride: process.env.OIDC_ISSUER_OVERRIDE ?? "",
