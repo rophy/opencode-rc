@@ -16,10 +16,10 @@ describe("native bridge", () => {
   })
 
   it("calls the iOS message handler and resolves with its reply", async () => {
-    const postMessage = vi.fn(async () => ({ url: "com.opencode.rc:/auth/callback?code=x" }))
+    const postMessage = vi.fn(async () => ({ url: "com.opencode.rc:/auth/done#code=x" }))
     g.webkit = { messageHandlers: { rcNative: { postMessage } } }
     expect(nativePlatform()).toBe("ios")
-    expect(await nativeCall("signIn", { url: "https://idp/" })).toEqual({ url: "com.opencode.rc:/auth/callback?code=x" })
+    expect(await nativeCall("signIn", { url: "https://idp/" })).toEqual({ url: "com.opencode.rc:/auth/done#code=x" })
     expect(postMessage).toHaveBeenCalledWith({ method: "signIn", args: { url: "https://idp/" } })
   })
 

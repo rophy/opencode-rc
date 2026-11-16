@@ -98,11 +98,9 @@ cp "$here/set-server-url.sh" "$dest/set-server-url.sh"
   echo "3. For devices: target **App** > **Signing & Capabilities**, set your team, then"
   echo "   **Product > Archive** and **Distribute App**."
   echo
-  echo "Sign-in opens the IdP in SFSafariViewController, which counts as Safari: on a per-app VPN the"
-  echo "IdP host must be in the VPN's Safari Domains (the API host need not be). The IdP needs a public"
-  echo "client with PKCE (S256) and the redirect URI \`com.opencode.rc:/auth/callback\` (whatever the"
-  echo "bundle identifier), set on the API as \`OIDC_APP_CLIENT_ID\`. All other app traffic goes through"
-  echo "the app (URLSession)."
+  echo "Sign-in opens the API's sign-in page in a WKWebView sheet in the app, so a per-app VPN carries"
+  echo "it, like all other app traffic (URLSession). The API signs in with its web client; the IdP needs"
+  echo "no client for the app."
 } > "$dest/README.md"
 
 (cd "$work" && COPYFILE_DISABLE=1 tar czf "$out/$name.tgz" "$name")

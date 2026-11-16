@@ -96,15 +96,6 @@ describe("LoginScreen", () => {
     )
   })
 
-  it("tells the user when the server has no app sign-in", async () => {
-    vi.spyOn(auth, "login").mockResolvedValue("unsupported")
-    render(() => <LoginScreen onSettings={vi.fn()} />)
-    await fireEvent.click(screen.getByText("Sign in with OIDC"))
-    await vi.waitFor(() => expect(screen.getByText(/not set up for app sign-in/)).toBeTruthy())
-    expect(screen.getByText(/OIDC_APP_CLIENT_ID/)).toBeTruthy()
-    expect(screen.queryByText(/Sign-in failed/)).toBeNull()
-  })
-
   it("ignores a second click while sign-in is in flight", async () => {
     let resolveLogin: (value: auth.LoginResult) => void = () => {}
     const loginPromise = new Promise<auth.LoginResult>((resolve) => {

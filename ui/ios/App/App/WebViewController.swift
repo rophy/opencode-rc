@@ -34,7 +34,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             let done = { if !answered { answered = true; reply() } }
             var tries = 0
             func attempt() {
-                // From the presenter: closes anything the Safari view put up too (e.g. a share sheet).
+                // From the presenter: closes anything the sign-in sheet put up too (e.g. a JS alert).
                 guard let presenter = view.presentingViewController else { return done() }
                 if WebViewController.afterTransition(of: view, attempt) { return }
                 presenter.dismiss(animated: true, completion: done)

@@ -1,17 +1,18 @@
-import SafariServices
 import UIKit
+import WebKit
 
-/// Sign-in in an SFSafariViewController (ui/src/auth.ts nativeLogin). It counts as Safari, so a
-/// per-app VPN's Safari Domains apply to it; only the IdP loads in it. The IdP redirects to
-/// com.opencode.rc:/auth/callback, which iOS hands to SceneDelegate, which calls handle(_:).
-/// Every start gets exactly one completion: the callback, cancelled (Done, swipe-down, a newer
-/// sign-in) or failed (bad URL, nothing to present from).
+/// Sign-in in a WKWebView sheet owned by the app (ui/src/auth.ts nativeLogin). Its traffic is the
+/// app's, so a per-app VPN carries it, unlike Safari-based views, which reach only the VPN's Safari
+/// Domains. The sheet opens the server's /auth/start; the server signs in at the IdP and redirects
+/// to the callback scheme, which the sheet stops and returns. Every start gets exactly one
+/// completion: the callback, cancelled (Cancel, swipe-down, a newer sign-in) or failed (bad URL, a
+/// page that cannot load, nothing to present from).
 ///
 /// Only one present or dismiss runs at a time. A start during one only replaces the wanted view;
 /// when the transition ends, sync() closes what is up and shows the current view, if any. A
 /// transition that never reports its end is given up after `watchdog` seconds, so it cannot block
 /// later sign-ins.
-final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
+final class SignIn: NSObject, UIAdaptivePresentationControllerDelegate {
     /// Shows the view, then calls back with true (at once if it is already up); with false when it
     /// cannot be shown.
     typealias Present = (UIViewController, @escaping (Bool) -> Void) -> Void
@@ -23,7 +24,7 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
     private var completion: ((Result<String, BridgeError>) -> Void)?
     private var callbackScheme = ""
     /// The view of the pending sign-in.
-    private var view: SFSafariViewController?
+    private var view: SignInSheet?
     /// The view on screen.
     private var shown: UIViewController?
     /// The transition in flight, if any.
@@ -50,14 +51,17 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
         }
         self.completion = completion
         self.callbackScheme = callbackScheme.lowercased()
-        let safari = SFSafariViewController(url: url)
-        safari.delegate = self
-        safari.dismissButtonStyle = .cancel
-        safari.presentationController?.delegate = self
-        view = safari
+        let sheet = SignInSheet(url: url, callbackScheme: self.callbackScheme)
+        sheet.onEvent = { [weak self, weak sheet] event in
+            guard let self, let sheet else { return }
+            self.sheet(sheet, reported: event)
+        }
+        sheet.presentationController?.delegate = self
+        view = sheet
         sync()
     }
 
+    /// Ends the pending sign-in with the callback URL.
     @discardableResult
     func handle(_ url: URL) -> Bool {
         guard completion != nil, url.scheme?.lowercased() == callbackScheme else { return false }
@@ -65,18 +69,19 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
         return true
     }
 
-    // Done button.
-    func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-        closedByUser(controller)
+    /// What a sheet saw; only the current one ends the sign-in.
+    func sheet(_ sheet: SignInSheet, reported event: SignInSheet.Event) {
+        guard sheet === view else { return }
+        switch event {
+        case .callback(let url): handle(url)
+        case .cancelled: finish(.failure(.cancelled("sign-in cancelled")))
+        case .failed(let reason): finish(.failure(.failed(reason)))
+        }
     }
 
-    // Swipe-down of the sheet.
+    // Swipe-down of the sheet: it is already closed.
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-        closedByUser(presentationController.presentedViewController)
-    }
-
-    // The view closed itself; only the current one ends the sign-in.
-    private func closedByUser(_ controller: UIViewController) {
+        let controller = presentationController.presentedViewController
         guard let view, controller === view else { return }
         if shown === view { shown = nil }
         finish(.failure(.cancelled("sign-in cancelled")))
@@ -137,5 +142,122 @@ final class SignIn: NSObject, SFSafariViewControllerDelegate, UIAdaptivePresenta
         guard inFlight == token else { return false }
         inFlight = nil
         return true
+    }
+}
+
+/// The sign-in page: a WKWebView in a navigation controller with a Cancel button. It loads web
+/// pages only (the server and whatever hosts the IdP uses), stops the navigation to the callback
+/// scheme, and reports a page that cannot load, so the app shows its error instead of the sheet.
+final class SignInSheet: UINavigationController, WKNavigationDelegate, WKUIDelegate {
+    enum Event {
+        case callback(URL)
+        case cancelled
+        case failed(String)
+    }
+
+    enum Decision: Equatable {
+        case allow, callback, cancel
+    }
+
+    var onEvent: ((Event) -> Void)?
+    private let startURL: URL
+    private let callbackScheme: String
+    private let page = UIViewController()
+    private var webView: WKWebView!
+
+    init(url: URL, callbackScheme: String) {
+        startURL = url
+        self.callbackScheme = callbackScheme
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .pageSheet
+        viewControllers = [page]
+        page.navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel, target: self, action: #selector(cancelTapped))
+        page.navigationItem.title = url.host
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    static func decide(url: URL?, callbackScheme: String) -> Decision {
+        guard let scheme = url?.scheme?.lowercased() else { return .cancel }
+        if scheme == callbackScheme { return .callback }
+        // Web pages only: never hand a link to another app from the sign-in sheet.
+        return ["https", "http", "about", "data", "blob"].contains(scheme) ? .allow : .cancel
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let config = WKWebViewConfiguration()
+        // The app's own store: the IdP session stays for later sign-ins in the app.
+        config.websiteDataStore = .default()
+        webView = WKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.allowsLinkPreview = false
+        #if DEBUG
+        if #available(iOS 16.4, *) { webView.isInspectable = true }
+        #endif
+        page.view = webView
+        webView.load(URLRequest(url: startURL))
+    }
+
+    @objc private func cancelTapped() {
+        onEvent?(.cancelled)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let url = action.request.url
+        switch SignInSheet.decide(url: url, callbackScheme: callbackScheme) {
+        case .allow:
+            decisionHandler(.allow)
+        case .callback:
+            decisionHandler(.cancel)
+            if let url { onEvent?(.callback(url)) }
+        case .cancel:
+            decisionHandler(.cancel)
+        }
+    }
+
+    // An error page from the server (e.g. a wrong server URL) ends the sign-in with its status.
+    // The IdP's own pages stay: the user may read them and cancel.
+    func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if response.isForMainFrame, let http = response.response as? HTTPURLResponse,
+           http.statusCode >= 400, http.url?.host == startURL.host {
+            decisionHandler(.cancel)
+            onEvent?(.failed("\(startURL.host ?? "the server") answered HTTP \(http.statusCode)"))
+            return
+        }
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        page.navigationItem.title = webView.url?.host
+    }
+
+    // Links that open a new window (target=_blank, window.open) load in the sheet.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if action.targetFrame == nil { webView.load(action.request) }
+        return nil
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+                 withError error: Error) {
+        failed(error)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        failed(error)
+    }
+
+    private func failed(_ error: Error) {
+        let nsError = error as NSError
+        // Our own cancel of the callback navigation, or a load replaced by another one.
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return }
+        if nsError.domain == WKErrorDomain && nsError.code == 102 { return } // frame load interrupted
+        let host = (nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL)?.host
+        onEvent?(.failed(host.map { "\($0): \(nsError.localizedDescription)" } ?? nsError.localizedDescription))
     }
 }

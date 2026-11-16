@@ -6,8 +6,9 @@ import android.net.Uri;
 import androidx.browser.customtabs.CustomTabsIntent;
 
 /**
- * Sign-in in a Custom Tab (RFC 8252); only the IdP loads in it. The IdP redirects to
- * com.opencode.rc:/auth/callback, which MainActivity receives as a new intent. Main thread only.
+ * Sign-in in a Custom Tab (RFC 8252). It opens the server's /auth/start; the server signs in at
+ * the IdP and redirects to com.opencode.rc:/auth/done, which MainActivity receives as a new
+ * intent. Main thread only.
  * If the OS kills the app while the tab is open, the callback finds no pending sign-in and is
  * ignored (the user signs in again).
  */

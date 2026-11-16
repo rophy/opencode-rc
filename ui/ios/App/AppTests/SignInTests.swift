@@ -1,4 +1,3 @@
-import SafariServices
 import XCTest
 @testable import App
 
@@ -54,28 +53,65 @@ final class SignInTests: XCTestCase {
 
     func testResolvesWithTheCallbackAndClosesTheView() {
         var result: Result<String, BridgeError>?
-        signIn.start(url: URL(string: "https://idp.example.com/authorize?x=1")!, callbackScheme: "com.opencode.rc") { result = $0 }
+        signIn.start(url: URL(string: "https://rc.example.com/auth/start?x=1")!, callbackScheme: "com.opencode.rc") { result = $0 }
         settle()
         XCTAssertEqual(presented.count, 1)
         XCTAssertFalse(signIn.handle(URL(string: "other.scheme:/x")!))
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c&state=s")!))
-        XCTAssertEqual(try? result?.get(), "com.opencode.rc:/auth/callback?code=c&state=s")
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
+        XCTAssertEqual(try? result?.get(), "com.opencode.rc:/auth/done#code=c")
         settle()
         XCTAssertEqual(dismissed.count, 1)
         XCTAssertTrue(dismissed[0] === presented[0])
         XCTAssertNil(onScreen)
-        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
     }
 
-    func testDoneButtonCancels() {
+    func sheet(_ i: Int) -> SignInSheet { presented[i] as! SignInSheet }
+
+    func testCancelButtonCancelsAndClosesTheSheet() {
         let a = start("https://idp.example.com/a")
         settle()
-        onScreen = nil // Safari closes itself
-        signIn.safariViewControllerDidFinish(presented[0] as! SFSafariViewController)
-        signIn.safariViewControllerDidFinish(presented[0] as! SFSafariViewController)
+        signIn.sheet(sheet(0), reported: .cancelled)
+        signIn.sheet(sheet(0), reported: .cancelled)
         settle()
         XCTAssertEqual(codes(a()), ["cancelled"])
-        XCTAssertTrue(dismissed.isEmpty)
+        XCTAssertEqual(dismissed.count, 1)
+        XCTAssertNil(onScreen)
+    }
+
+    func testTheSheetsCallbackResolves() {
+        let a = start("https://idp.example.com/a")
+        settle()
+        signIn.sheet(sheet(0), reported: .callback(URL(string: "com.opencode.rc:/auth/done#code=c")!))
+        settle()
+        XCTAssertEqual(try? a().first?.get(), "com.opencode.rc:/auth/done#code=c")
+        XCTAssertEqual(dismissed.count, 1)
+    }
+
+    func testAPageThatCannotLoadFailsWithItsReasonAndClosesTheSheet() {
+        let a = start("https://idp.example.com/a")
+        settle()
+        signIn.sheet(sheet(0), reported: .failed("rc.example.com: The Internet connection appears to be offline."))
+        settle()
+        if case .failure(let e) = a().first {
+            XCTAssertEqual(e.code, "failed")
+            XCTAssertEqual(e.message, "rc.example.com: The Internet connection appears to be offline.")
+        } else {
+            XCTFail("not failed")
+        }
+        XCTAssertNil(onScreen)
+    }
+
+    func testTheSheetAllowsWebPagesAndStopsAtTheCallback() {
+        let decide = { SignInSheet.decide(url: URL(string: $0), callbackScheme: "com.opencode.rc") }
+        XCTAssertEqual(decide("https://idp.example.com/authorize"), .allow)
+        XCTAssertEqual(decide("http://idp.example.com/"), .allow)
+        XCTAssertEqual(decide("about:blank"), .allow)
+        XCTAssertEqual(decide("com.opencode.rc:/auth/done#code=c"), .callback)
+        XCTAssertEqual(decide("COM.OPENCODE.RC:/auth/done"), .callback)
+        XCTAssertEqual(decide("tel:123"), .cancel)
+        XCTAssertEqual(decide("opencode-rc://localhost/"), .cancel)
+        XCTAssertEqual(decide("file:///etc/passwd"), .cancel)
     }
 
     func testSwipeDownCancels() {
@@ -102,11 +138,12 @@ final class SignInTests: XCTestCase {
         settle()
         XCTAssertEqual(presented.count, 2)
         XCTAssertTrue(onScreen === presented[1])
-        // Late callbacks from the old view do not touch the new sign-in.
-        signIn.safariViewControllerDidFinish(presented[0] as! SFSafariViewController)
+        // Late events from the old view do not touch the new sign-in.
+        signIn.sheet(sheet(0), reported: .cancelled)
+        signIn.sheet(sheet(0), reported: .callback(URL(string: "com.opencode.rc:/auth/done#code=old")!))
         signIn.presentationControllerDidDismiss(presented[0].presentationController!)
         XCTAssertTrue(b().isEmpty)
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
         XCTAssertEqual(codes(b()), ["ok"])
         XCTAssertEqual(codes(a()), ["cancelled"])
     }
@@ -123,7 +160,7 @@ final class SignInTests: XCTestCase {
         XCTAssertEqual(presented.count, 2) // A, then C; B never
         XCTAssertTrue(onScreen === presented[1])
         XCTAssertTrue(c().isEmpty)
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
         settle()
         XCTAssertEqual(codes(a()), ["cancelled"])
         XCTAssertEqual(codes(b()), ["cancelled"])
@@ -149,7 +186,7 @@ final class SignInTests: XCTestCase {
         canPresent = false
         let a = start("https://idp.example.com/a")
         XCTAssertEqual(codes(a()), ["failed"])
-        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
         XCTAssertEqual(codes(a()), ["failed"])
     }
 
@@ -172,7 +209,7 @@ final class SignInTests: XCTestCase {
         XCTAssertEqual(presented.count, 2)
         settle()
         XCTAssertTrue(onScreen === presented[1])
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
         XCTAssertEqual(codes(b()), ["ok"])
         XCTAssertEqual(codes(a()), ["cancelled"])
     }
@@ -180,7 +217,7 @@ final class SignInTests: XCTestCase {
     func testAnOldWatchdogDoesNotEndANewerTransition() {
         let a = start("https://idp.example.com/a")
         settle()
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!)) // A's dismiss starts
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!)) // A's dismiss starts
         XCTAssertEqual(timers.count, 2)
         timers[0]() // A's present watchdog: that transition already ended
         let b = start("https://idp.example.com/b")
@@ -206,12 +243,12 @@ final class SignInTests: XCTestCase {
         lostEnds.forEach { $0(true) } // the lost end arrives late: no effect
         XCTAssertEqual(presented.count, 1)
         XCTAssertTrue(a().isEmpty)
-        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=c")!))
+        XCTAssertTrue(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=c")!))
         settle()
         XCTAssertEqual(dismissed.count, 1) // A was recorded as shown, so it is closed
         XCTAssertTrue(dismissed[0] === presented[0])
         XCTAssertNil(onScreen)
-        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/callback?code=d")!))
+        XCTAssertFalse(signIn.handle(URL(string: "com.opencode.rc:/auth/done#code=d")!))
         timers.forEach { $0() }
         XCTAssertEqual(codes(a()), ["ok"])
         XCTAssertEqual(presented.count, 1)

@@ -7,12 +7,12 @@ export const REFRESH_KEY = "opencode-rc-refresh"
 export const VERIFIER_KEY = "opencode-rc-login-verifier"
 const EARLY_REFRESH_MS = 30_000
 
-// The apps' sign-in callback scheme; the redirect URI comes from /auth/app-config.
+// The apps' sign-in callback; must match APP_CALLBACK in api/src/origins.ts.
 export const APP_CALLBACK_SCHEME = "com.opencode.rc"
+export const APP_CALLBACK = `${APP_CALLBACK_SCHEME}:/auth/done`
 
-// "unsupported": the server has no app sign-in (its /auth/app-config answers 404).
 // { failed }: why app sign-in failed, for the user.
-export type LoginResult = "redirected" | "ok" | "cancelled" | "unsupported" | { failed: string }
+export type LoginResult = "redirected" | "ok" | "cancelled" | { failed: string }
 
 // The iOS shell answers 502 with this header when it cannot reach the server; the body is the
 // reason (ui/ios/App/App/ServerProxy.swift).
@@ -196,21 +196,6 @@ async function exchangeCode(code: string, verifier: string): Promise<boolean> {
   }
 }
 
-interface AppConfig {
-  authorizationEndpoint: string
-  clientId: string
-  redirectUri: string
-  prompt?: string
-}
-
-function urlOrNull(value: unknown): URL | null {
-  try {
-    return typeof value === "string" ? new URL(value) : null
-  } catch {
-    return null
-  }
-}
-
 // App sign-in requests give up when the server does not answer in time: a VPN that drops packets
 // after the connection opens would otherwise keep them waiting (the iOS shell allows long requests).
 export const SIGN_IN_TIMEOUT_MS = 30_000
@@ -221,13 +206,9 @@ function deadline() {
   return { signal: controller.signal, done: () => clearTimeout(timer) }
 }
 
-function randomString(bytes: number): string {
-  return base64url(crypto.getRandomValues(new Uint8Array(bytes)))
-}
-
-// The apps sign in as a public OIDC client in the system browser view (iOS
-// SFSafariViewController, Android Custom Tab), which loads only the IdP; the API exchanges the
-// code. The verifier, state and nonce never leave the app.
+// The apps sign in through the server, as the web UI does, in a sign-in view of the app (iOS: a
+// WKWebView sheet, whose traffic a per-app VPN carries; Android: a Custom Tab). The server
+// redirects to the app callback with a login code, which only this app's verifier can exchange.
 async function nativeLogin(verifier: string, challenge: string): Promise<LoginResult> {
   const base = getBaseUrl()
   if (!base) return { failed: "No server is set. Open Server settings." }
@@ -235,73 +216,37 @@ async function nativeLogin(verifier: string, challenge: string): Promise<LoginRe
   const unreachable = (reason?: string): LoginResult => ({
     failed: `Cannot reach ${host}${reason ? ` (${reason})` : ""}. Check the network or VPN.`,
   })
-  const noAnswer = (signal: AbortSignal) => (signal.aborted ? `no answer in ${SIGN_IN_TIMEOUT_MS / 1000} s` : undefined)
-  // A server answer that is not OK: the shell's own 502, or the server's error and description.
-  const answered = async (res: Response, what: string): Promise<LoginResult> => {
-    if (res.headers.has(PROXY_ERROR_HEADER)) return unreachable((await res.text().catch(() => "")) || undefined)
-    const body = (await res.json().catch(() => null)) as { error?: unknown; error_description?: unknown } | null
-    const detail = [body?.error, body?.error_description].filter((v) => typeof v === "string" && v).join(": ")
-    return { failed: `${what}: ${host} answered HTTP ${res.status}${detail ? ` (${detail})` : ""}.` }
-  }
 
-  const config = deadline()
-  let cfg: AppConfig | null
-  try {
-    const res = await fetch(apiUrl("/auth/app-config"), { signal: config.signal })
-    if (res.status === 404) return "unsupported"
-    if (!res.ok) return answered(res, "Cannot read the sign-in settings")
-    // E.g. the server URL is the UI host, which answers with its page.
-    cfg = (await res.json().catch(() => null)) as AppConfig | null
-    if (config.signal.aborted) return unreachable(noAnswer(config.signal))
-  } catch {
-    return unreachable(noAnswer(config.signal))
-  } finally {
-    config.done()
-  }
-  const authorize = cfg && urlOrNull(cfg.authorizationEndpoint)
-  if (!cfg || !authorize) return { failed: `${host} is not an opencode-rc API server. Check the server URL.` }
-  const state = randomString(16)
-  const nonce = randomString(16)
-  const params: Record<string, string> = {
-    response_type: "code",
-    client_id: cfg.clientId,
-    redirect_uri: cfg.redirectUri,
-    scope: "openid email profile",
-    state,
-    nonce,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-  }
-  if (cfg.prompt) params.prompt = cfg.prompt
-  for (const [k, v] of Object.entries(params)) authorize.searchParams.set(k, v)
-
-  let callback: URL
+  let callback: URLSearchParams
   try {
     const result = await nativeCall<{ url: string }>("signIn", {
-      url: authorize.href,
+      url: apiUrl(`/auth/start?return_to=${encodeURIComponent(APP_CALLBACK)}&code_challenge=${challenge}`),
       callbackScheme: APP_CALLBACK_SCHEME,
     })
-    callback = new URL(result.url)
+    callback = new URLSearchParams(new URL(result.url).hash.slice(1))
   } catch (err) {
     if (err instanceof NativeError && err.code === "cancelled") return "cancelled"
     return { failed: `Cannot open the sign-in page${err instanceof Error && err.message ? ` (${err.message})` : ""}.` }
   }
-  if (callback.searchParams.get("state") !== state) return { failed: "The sign-in reply does not match this sign-in." }
-  const error = callback.searchParams.get("error")
-  if (error) {
-    const description = callback.searchParams.get("error_description")
-    return { failed: `The identity provider refused sign-in: ${error}${description ? `: ${description}` : ""}.` }
-  }
-  const code = callback.searchParams.get("code")
-  if (!code) return { failed: "The identity provider sent no sign-in code." }
+  const error = callback.get("error_description") || callback.get("error")
+  if (error) return { failed: `The server could not complete the sign-in (${error}).` }
+  const code = callback.get("code")
+  if (!code) return { failed: "The server sent no sign-in code." }
+
   const token = deadline()
   try {
-    const tokenRes = await postJson("/auth/app-token", { code, code_verifier: verifier, nonce }, token.signal)
-    if (!tokenRes.ok) return answered(tokenRes, "The server did not accept the sign-in")
-    save((await tokenRes.json()) as TokenResponse)
-    return "ok"
+    const res = await postJson("/auth/token", { code, code_verifier: verifier }, token.signal)
+    if (res.ok) {
+      save((await res.json()) as TokenResponse)
+      return "ok"
+    }
+    // The iOS shell's own 502, or the server's error.
+    if (res.headers.has(PROXY_ERROR_HEADER)) return unreachable((await res.text().catch(() => "")) || undefined)
+    const body = (await res.json().catch(() => null)) as { error?: unknown } | null
+    const detail = typeof body?.error === "string" ? ` (${body.error})` : ""
+    return { failed: `The server did not accept the sign-in: ${host} answered HTTP ${res.status}${detail}.` }
   } catch {
-    return unreachable(noAnswer(token.signal))
+    return unreachable(token.signal.aborted ? `no answer in ${SIGN_IN_TIMEOUT_MS / 1000} s` : undefined)
   } finally {
     token.done()
   }
