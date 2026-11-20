@@ -393,7 +393,7 @@ The CLI authenticates via OIDC (opens browser), starts `opencode serve`, and mai
 Environment variables override the config file — see the [CLI README](cli/README.md) for details.
 
 Supported opencode versions: 1.x, and 2.x within the range in `config/opencode-versions.json`
-(currently 2.3.2 up to, not including, 2.3.3). A machine running 2.x requires an opencode-rc CLI
+(currently 2.3.2 up to, not including, 2.4.0). A machine running 2.x requires an opencode-rc CLI
 release with opencode 2.x support, and a server that supports opencode 2.x.
 
 ### CLI Environment Variables
