@@ -21,17 +21,43 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["DELETE", "/api/credential/:credentialID", "allow"], // credential.remove
   ["PATCH", "/api/credential/:credentialID", "never"], // credential.update
   ["POST", "/api/credential/:credentialID/activate", "allow"], // credential.activate
+  ["POST", "/api/debug/heap-dump", "never"], // debug.heapDump (writes a heap snapshot on the server)
   ["DELETE", "/api/debug/location", "never"], // debug.location.evict
   ["GET", "/api/debug/location", "never"], // debug.location (every loaded directory; the UI never calls it)
   ["GET", "/api/event", "allow"], // event.subscribe
+  ["GET", "/api/experimental/artifacts", "never"], // artifacts.list (artifacts are unused by the 2.x UI)
+  ["POST", "/api/experimental/artifacts", "never"], // artifacts.create
+  ["DELETE", "/api/experimental/artifacts/:artifactID", "never"], // artifacts.delete
+  ["GET", "/api/experimental/artifacts/:artifactID", "never"], // artifacts.get
+  ["PATCH", "/api/experimental/artifacts/:artifactID", "never"], // artifacts.update
+  ["GET", "/api/experimental/artifacts/:artifactID/view/*", "never"], // artifacts.view (serves an artifact's files)
+  ["GET", "/api/experimental/artifacts/providers", "never"], // artifacts.providers
+  ["GET", "/api/experimental/automation", "never"], // automation.list (automations send prompts on a schedule; unused by the 2.x UI)
+  ["POST", "/api/experimental/automation", "never"], // automation.create
+  ["DELETE", "/api/experimental/automation/:automationID", "never"], // automation.delete
+  ["GET", "/api/experimental/automation/:automationID", "never"], // automation.get
+  ["POST", "/api/experimental/automation/:automationID/pause", "never"], // automation.pause
+  ["POST", "/api/experimental/automation/:automationID/resume", "never"], // automation.resume
+  ["GET", "/api/experimental/blob/:id", "never"], // blob.get (generated media such as videos; unused by the 2.x UI)
+  ["GET", "/api/experimental/client-mcp", "never"], // mcp.client
+  ["POST", "/api/experimental/client-mcp/token", "never"], // mcp.clientToken (mints a token for opencode's own MCP endpoint)
   ["PATCH", "/api/experimental/config", "never"], // config.update
+  ["DELETE", "/api/experimental/fs/watch", "downloads"], // fs.unwatch
+  ["POST", "/api/experimental/fs/watch", "downloads"], // fs.watch (file tabs only)
   ["POST", "/api/experimental/fs/write", "uploads"], // fs.write
   ["POST", "/api/experimental/generate", "never"], // generate.text
+  ["POST", "/api/experimental/generate/decisions", "never"], // generate.decisions
+  ["POST", "/api/experimental/generate/image", "never"], // generate.image
+  ["POST", "/api/experimental/generate/text", "never"], // generate.text
+  ["POST", "/api/experimental/generate/video", "never"], // generate.video.create
+  ["GET", "/api/experimental/generate/video/:id", "never"], // generate.video.get
   ["POST", "/api/experimental/integration/wellknown", "never"], // integration.wellknown.add
+  ["GET", "/api/experimental/job", "allow"], // job.list (background job status)
   ["DELETE", "/api/experimental/mcp/:server", "never"], // mcp.remove
   ["PUT", "/api/experimental/mcp/:server", "never"], // mcp.add
   ["POST", "/api/experimental/mcp/:server/connect", "mcp"], // mcp.connect
   ["POST", "/api/experimental/mcp/:server/disconnect", "mcp"], // mcp.disconnect
+  ["GET", "/api/experimental/media/:hash", "allow"], // media.get (images a stored message references)
   ["GET", "/api/experimental/migration/v1", "allow"], // migration.v1.status
   ["DELETE", "/api/experimental/persistent-pty/:ptyID", "never"], // persistentPty.remove
   ["GET", "/api/experimental/persistent-pty/:ptyID", "never"], // persistentPty.get
@@ -53,6 +79,9 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["POST", "/api/experimental/session/:sessionID/wait", "allow"], // session.wait
   ["POST", "/api/experimental/session/import", "uploads"], // session.import
   ["GET", "/api/experimental/session/stats", "allow"], // session.stats
+  ["GET", "/api/experimental/usage/limits", "allow"], // usage.limits
+  ["GET", "/api/experimental/voice/models", "never"], // voice.models (voice input is not offered)
+  ["POST", "/api/experimental/voice/session", "never"], // voice.session (streams audio to a provider)
   ["GET", "/api/form", "allow"], // form.list
   ["GET", "/api/fs/find", "allow"], // fs.find
   ["GET", "/api/fs/list", "allow"], // fs.list
@@ -79,8 +108,10 @@ export const V2_ROUTES: readonly (readonly [string, string, V2Rule])[] = [
   ["GET", "/api/permission/request", "allow"], // permission.request.list
   ["GET", "/api/permission/saved", "allow"], // permission.saved.list
   ["DELETE", "/api/permission/saved/:id", "allow"], // permission.saved.remove
+  ["PATCH", "/api/permission/saved/:id", "never"], // permission.saved.update (can widen a saved permission; unused by the 2.x UI)
   ["GET", "/api/plugin", "allow"], // plugin.list
   ["POST", "/api/plugin/check", "never"], // plugin.check
+  ["GET", "/api/plugin/gui", "never"], // plugin.gui (plugin code for desktop windows)
   ["POST", "/api/plugin/update", "never"], // plugin.update
   ["GET", "/api/project", "allow"], // project.list
   ["PATCH", "/api/project/:projectID", "allow"], // project.update

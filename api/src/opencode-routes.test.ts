@@ -6,9 +6,9 @@ const v1 = fileURLToPath(new URL("../../vendor/opencode-v1", import.meta.url));
 const v2 = fileURLToPath(new URL("../../vendor/opencode-v2", import.meta.url));
 
 describe("protocolRoutes", () => {
-  it("reads every opencode 2.0.26 operation", () => {
+  it("reads every opencode 2.3.2 operation", () => {
     const routes = protocolRoutes(v2);
-    expect(routes).toHaveLength(142);
+    expect(routes).toHaveLength(173);
     expect(routes).toContainEqual({ method: "POST", path: "/api/session/:sessionID/prompt" });
     // Paths built from a `const root = "/api/worktree"` and `${root}/refresh`
     expect(routes).toContainEqual({ method: "POST", path: "/api/worktree" });

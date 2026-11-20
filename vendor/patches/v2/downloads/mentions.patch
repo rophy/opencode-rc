@@ -1,16 +1,16 @@
 diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
-index e19b4a7d62..f4692f8021 100644
+index c4c4a931c7..b22cc0eda1 100644
 --- a/packages/app/src/composer/model.ts
 +++ b/packages/app/src/composer/model.ts
-@@ -188,7 +188,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
-   const skills = createMemo(() => data.location.skill.list({ directory: sdk().directory }) ?? [])
+@@ -225,7 +225,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+   })
  
    const context = createMemo<ComposerSuggestion[]>(() => [
 -    ...references(),
      ...skills().map((skill) => ({
        id: `skill:${skill.id}`,
        kind: "skill" as const,
-@@ -212,14 +211,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+@@ -249,14 +248,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
          label: `@${agent.name}`,
          mention: { type: "agent" as const, name: agent.name, content: `@${agent.name}`, start: 0, end: 0 },
        })),
@@ -25,12 +25,12 @@ index e19b4a7d62..f4692f8021 100644
    ])
  
    const slashCommands = createMemo(() => [
-@@ -316,14 +307,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+@@ -407,14 +398,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+         .slice(0, 5)
+         .map((item) => item.suggestion)
      },
-     commands,
-     context,
--    searchContextFiles: async (query) =>
--      (await files.searchFilesAndDirectories(query)).map((path) => ({
+-    searchContextFiles: async (query, signal) =>
+-      (await files.searchFilesAndDirectories(query, { signal })).map((path) => ({
 -        id: `file:${path}`,
 -        kind: "file",
 -        label: path,
@@ -38,27 +38,27 @@ index e19b4a7d62..f4692f8021 100644
 -        mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
 -      })),
 +    searchContextFiles: async () => [],
+     onQuoteComment: (item, comment) => prompt.context.updateComment(item.commentID, { comment }),
+     quoteComment: prompt.quoteComment,
      onContextRemove(item) {
-       if (item.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
-     },
 diff --git a/packages/app/src/composer/request.ts b/packages/app/src/composer/request.ts
-index a928b80e78..975aeb0729 100644
+index 7009d7aae6..9e5634378b 100644
 --- a/packages/app/src/composer/request.ts
 +++ b/packages/app/src/composer/request.ts
-@@ -182,7 +182,8 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
-       ...comments.map((comment) => (comment.type === "note" ? formatNoteComment(comment) : formatCommentNote(comment))),
+@@ -230,7 +230,8 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
+       }),
      ].join("\n"),
-     displayText: input.text,
+     displayText: text,
 -    files: [...files, ...context, ...inline],
 +    // The server reads every uri but data: into the session; downloads are disabled.
 +    files: [...files, ...context, ...inline].filter((file) => file.uri.startsWith("data:")),
      agents,
      skills,
      comments,
-diff --git a/packages/gui-extensions/src/file/drag.ts b/packages/gui-extensions/src/file/drag.ts
-index 0189a4d824..243eaac259 100644
---- a/packages/gui-extensions/src/file/drag.ts
-+++ b/packages/gui-extensions/src/file/drag.ts
+diff --git a/packages/gui-plugins/src/file/drag.ts b/packages/gui-plugins/src/file/drag.ts
+index 973e284f2e..5c2e330874 100644
+--- a/packages/gui-plugins/src/file/drag.ts
++++ b/packages/gui-plugins/src/file/drag.ts
 @@ -26,10 +26,7 @@ const withFileDragImage = (event: DragEvent) => {
  }
  

@@ -290,7 +290,7 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
 {
   "opencodeV2": {
     "features": { "terminal": { "enabled": false } },
-    "versions": { "min": "2.0.26", "max": "2.0.27" }
+    "versions": { "min": "2.3.2", "max": "2.3.3" }
   }
 }
 ```
@@ -317,6 +317,11 @@ The UI is built twice: opencode 1.x at `/` and 2.x at `/v2/`. 2.x has its own se
   persistent terminals, listing stored credentials (it returns their secrets), `git init`,
   `session/:id/generate` and the debug location list; creating a worktree in a chosen directory
   is rejected too (see `api/src/v2-routes.ts`).
+- Compared with stock opencode 2.x, these are always off: voice input, automations (scheduled
+  prompts), artifacts, image, video, text and decision generation, editing a saved permission
+  (removing one still works), plugin GUI bundles, server heap dumps, and tokens for opencode's own
+  MCP endpoint. The 2.x web UI uses none of them (voice input is in the desktop app only), so
+  blocking them removes nothing from it.
 
 The API picks the 2.x or 1.x rules from the opencode version the dev machine's CLI reports, which it
 cannot verify. Routes both versions serve (such as the terminal under `/api/pty`) follow the reported
@@ -388,7 +393,7 @@ The CLI authenticates via OIDC (opens browser), starts `opencode serve`, and mai
 Environment variables override the config file — see the [CLI README](cli/README.md) for details.
 
 Supported opencode versions: 1.x, and 2.x within the range in `config/opencode-versions.json`
-(currently 2.0.26 up to, not including, 2.0.27). A machine running 2.x requires an opencode-rc CLI
+(currently 2.3.2 up to, not including, 2.3.3). A machine running 2.x requires an opencode-rc CLI
 release with opencode 2.x support, and a server that supports opencode 2.x.
 
 ### CLI Environment Variables

@@ -1,9 +1,9 @@
-diff --git a/packages/gui-extensions/src/file/renderer.tsx b/packages/gui-extensions/src/file/renderer.tsx
-index f8e4401a02..e537781978 100644
---- a/packages/gui-extensions/src/file/renderer.tsx
-+++ b/packages/gui-extensions/src/file/renderer.tsx
-@@ -90,15 +90,8 @@ const setup: Setup<typeof File> = (ctx) => {
-     return state === "active" || state === "visible"
+diff --git a/packages/gui-plugins/src/file/renderer.tsx b/packages/gui-plugins/src/file/renderer.tsx
+index 2771b8b450..7148fffc76 100644
+--- a/packages/gui-plugins/src/file/renderer.tsx
++++ b/packages/gui-plugins/src/file/renderer.tsx
+@@ -233,18 +233,8 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
+     )
    }
  
 -  // Opens on the session screen, whose file model serves the routed session `session` is.
@@ -12,61 +12,78 @@ index f8e4401a02..e537781978 100644
 -
 -    if (!screen) return
 -
+-    // Not batched: the mobile tab strip must register the new tab before it leaves the browser, or Kobalte falls back
+-    // to the first tab and reselects it.
 -    layout.open(key(screen.file, path), session, options)
+-    dispatchPicker({ type: "file.opened", sessionKey: session.key })
 -    void screen.file.sync(path)
 -  }
 +  // File contents are not offered: nothing opens a file tab.
 +  const open = (_session: MountedSession, _path: string, _options?: OpenOptions) => {}
  
-   const shared: FileShared = {
-     changes: ctx.uses.changes,
-@@ -233,7 +226,7 @@ const setup: Setup<typeof File> = (ctx) => {
+   const applySelection = (session: MountedSession, files: Files, path: string, selection: LineRange | undefined) => {
+     if (!selection || artifactKind(path) !== "text") return
+@@ -437,14 +427,14 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
      },
      list(input) {
        return input.open.flatMap((id) => {
--        if (id === OPEN) return [launcher]
-+        if (id === OPEN) return []
+-        if (!isLauncher(id) && !isFileTab(id)) return []
++        if (!isFileTab(id)) return []
  
-         if (!isFileTab(id)) return []
+         const cache = tabsOf(input.screen)
+         const existing = cache.get(id)
  
-@@ -279,31 +272,6 @@ const setup: Setup<typeof File> = (ctx) => {
-     },
-   })
+         if (existing) return [existing]
  
--  ctx.add(MenuItem, {
--    menu: "session.panel",
--    id: "open",
--    get title() {
--      return ctx.t("command.open")
--    },
--    icon: "file-tree",
--    keybind: "file.open",
--    order: 10,
--    run() {
--      const session = sessions.current()
+-        const created = isLauncher(id) ? launcher(id) : fileTab(input.screen.file, id)
++        const created = fileTab(input.screen.file, id)
+ 
+         cache.set(id, created)
+ 
+@@ -495,37 +485,6 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
+ 
+   const mac = /(Mac|iPhone|iPad)/.test(navigator.platform)
+ 
+-  ctx.add(
+-    Command,
+-    (): Command => ({
+-      id: "browse",
+-      title: ctx.t("command.open"),
+-      group: ctx.t("command.category.view"),
+-      bind: mac ? "ctrl+meta+p" : "ctrl+alt+p",
+-      editable: true,
+-      enabled: !!sessions.current(),
+-      run: browse,
+-    }),
+-  )
 -
--      if (!session) return
+-  // A new tab always offers another launcher, however many are open.
+-  ctx.add(
+-    MenuItem,
+-    (): MenuItem => ({
+-      menu: "session.panel",
+-      id: "open",
+-      title: ctx.t("command.open"),
+-      icon: "folder",
+-      keybind: "file.browse",
+-      order: 30,
+-      run: () => {
+-        const session = sessions.current()
 -
--      layout.open(`file:${OPEN}`, session, { tab: "preview" })
--      queueMicrotask(() => {
--        const element = shared.filter.element
--
--        if (element?.isConnected) return element.focus()
--
--        shared.filter.pending = true
--      })
--    },
--  })
+-        if (session) openPicker(session, "", { another: true })
+-      },
+-    }),
+-  )
 -
    const OpenInAppButton = lazy(() => import("./open-in-app"))
  
-   // How many "Open in" buttons each screen's panel headers show; the tab strip shows its own only while none do.
-@@ -427,7 +395,7 @@ const setup: Setup<typeof File> = (ctx) => {
+   const OpenInAppMenuItem = lazy(() =>
+@@ -896,7 +855,7 @@ const setup: Plugin.Setup<typeof File> = (ctx) => {
    // Opens files the agent references as side panel tabs, inside or outside the workspace, or as
    // a browser tab for HTML when the desktop can load the file directly.
    ctx.add(LinkHandler, {
 -    match: () => true,
 +    match: () => false,
+     exists: linkExists,
      open(link) {
        const session = sessions.current()
-       const files = ctx.screen.current()?.file

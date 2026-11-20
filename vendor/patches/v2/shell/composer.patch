@@ -1,8 +1,8 @@
 diff --git a/packages/app/src/composer/editor/editor.tsx b/packages/app/src/composer/editor/editor.tsx
-index defbf666d0..684d103616 100644
+index 0c0d870a27..f1f4a2ab9c 100644
 --- a/packages/app/src/composer/editor/editor.tsx
 +++ b/packages/app/src/composer/editor/editor.tsx
-@@ -802,9 +802,6 @@ export function ComposerEditorAddMenu(props: {
+@@ -1025,9 +1025,6 @@ function ComposerEditorAddMenu(props: {
              <Menu.Item onSelect={props.onContext} shortcut="@">
                {props.contextLabel}
              </Menu.Item>
@@ -13,38 +13,47 @@ index defbf666d0..684d103616 100644
          </Menu.Portal>
        </Menu>
 diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
-index e19b4a7d62..dd5d1f89c8 100644
+index c4c4a931c7..6a5ea60dd0 100644
 --- a/packages/app/src/composer/model.ts
 +++ b/packages/app/src/composer/model.ts
-@@ -450,7 +450,8 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
-       title: language.t("command.prompt.mode.shell"),
+@@ -591,13 +591,16 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+       title: language.t("command.prompt.mode.toggle"),
        category: language.t("command.category.session"),
        keybind: "mod+shift+x",
--      disabled: controller.state.mode === "shell",
++      disabled: true,
++      hidden: true,
+       onSelect: () => void controller.dispatch({ type: mode() === "normal" ? "mode.shell" : "mode.normal" }),
+     },
+     {
+       id: "prompt.mode.shell",
+       title: language.t("command.prompt.mode.shell"),
+       category: language.t("command.category.session"),
+-      disabled: mode() === "shell",
 +      disabled: true,
 +      hidden: true,
        onSelect: () => void controller.dispatch({ type: "mode.shell" }),
      },
      {
 diff --git a/packages/app/src/composer/suggestions/machine.ts b/packages/app/src/composer/suggestions/machine.ts
-index c2d4758c3c..6ec57d7846 100644
+index 9d2028b8bb..bed8341b60 100644
 --- a/packages/app/src/composer/suggestions/machine.ts
 +++ b/packages/app/src/composer/suggestions/machine.ts
-@@ -81,7 +81,7 @@ export function transitionComposer(
+@@ -172,7 +172,8 @@ export function transitionComposer(
  
-   if (event.type === "key.down") return keyDown(state, event)
+   if (event.type === "key.down") return keyDown(state, event, selectComposerMode(persisted))
  
--  if (event.type === "mode.shell") return changed({ ...state, mode: "shell", popover: { type: "closed" } })
-+  if (event.type === "mode.shell") return changed({ ...state, mode: "normal", popover: { type: "closed" } })
+-  if (event.type === "mode.shell") return enterShell(state, selectComposerMode(persisted))
++  // Shell mode is disabled: the composer stays in normal mode.
++  if (event.type === "mode.shell") return unchanged(state)
  
-   if (event.type === "mode.normal") return changed({ ...state, mode: "normal" })
+   if (event.type === "mode.normal") return leaveShell(state, selectComposerMode(persisted))
  
-@@ -106,7 +106,7 @@ function inputChanged(
+@@ -207,7 +208,7 @@ function inputChanged(
+   persist: boolean,
+   persisted: ComposerPersistedState,
  ): ComposerEditorTransition {
-   const setText: ComposerInteractionCommand[] = persist ? [{ type: "draft.setText", value }] : []
- 
--  if (state.mode === "normal" && value === "!") {
+-  if (selectComposerMode(persisted) === "normal" && value === "!") {
 +  if (false) {
-     return changed({ ...state, mode: "shell", popover: { type: "closed" }, focus: "editor" }, [
-       { type: "draft.setText", value: "" },
-     ])
+     return changed({ ...state, popover: CLOSED, focus: "editor" }, [SHELL, { type: "draft.setText", value: "" }])
+   }
+ 

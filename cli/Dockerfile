@@ -14,7 +14,7 @@ ARG OPENCODE_VERSION=1.19.5
 ARG OPENCODE_SHA256_AMD64=588310a336fa3b9df36b3f0225b26f679d453efaad0cf3d66c3651ef3ec1647a
 ARG OPENCODE_SHA256_ARM64=fae5be262d693b7c5e562856cc473e59e741772936db0c0600ac0d5ed5bd088b
 # The 2.x release the gateway accepts (config/opencode-versions.json). Bump together with it.
-ARG OPENCODE_V2_VERSION=2.0.26
+ARG OPENCODE_V2_VERSION=2.3.2
 # Kept in the environment (whichever opencode the image carries) so the e2e tests, which run in
 # the 1.x image, know which 2.x version the second dev machine runs.
 ENV OPENCODE_V2_VERSION=${OPENCODE_V2_VERSION}

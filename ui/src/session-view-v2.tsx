@@ -26,8 +26,9 @@ const platform: Platform = {
 function AutoOpenProjects(props: { server: ServerConnection.Any }) {
   const global = useGlobal()
   createEffect(() => {
-    const ctx = global.ensureServerCtx(props.server)
-    for (const project of ctx.sync.data.project) ctx.projects.open(project.worktree)
+    const ctx = global.serverCtx(ServerConnection.key(props.server))
+    if (!ctx) return
+    for (const project of ctx.sync.data.project) ctx.projects.touch(project.worktree)
   })
   return null
 }

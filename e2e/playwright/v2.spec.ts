@@ -7,7 +7,7 @@ import { test, expect, type Page } from "@playwright/test";
 // Same defaults as helpers.ts (not imported: it pulls in vitest).
 const SESSION_ID = process.env.OPENCODE_RC_SESSION_ID ?? "alice-dev";
 const SESSION_ID_V2 = process.env.OPENCODE_RC_SESSION_ID_V2 ?? "alice-dev-v2";
-const OPENCODE_V2_VERSION = process.env.OPENCODE_V2_VERSION ?? "2.0.26";
+const OPENCODE_V2_VERSION = process.env.OPENCODE_V2_VERSION ?? "2.3.2";
 
 const V2_PREFIX = `/v2/s/${SESSION_ID_V2}/`;
 const V2_URL = new RegExp(`/v2/s/${SESSION_ID_V2}/`);

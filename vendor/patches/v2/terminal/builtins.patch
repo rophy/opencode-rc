@@ -1,7 +1,7 @@
-diff --git a/packages/gui-extensions/src/renderer.ts b/packages/gui-extensions/src/renderer.ts
-index f5f1754f89..9d52eed9b2 100644
---- a/packages/gui-extensions/src/renderer.ts
-+++ b/packages/gui-extensions/src/renderer.ts
+diff --git a/packages/gui-plugins/src/renderer.ts b/packages/gui-plugins/src/renderer.ts
+index 5c131e235d..d65117526f 100644
+--- a/packages/gui-plugins/src/renderer.ts
++++ b/packages/gui-plugins/src/renderer.ts
 @@ -5,8 +5,6 @@ import btw from "./btw"
  import btwRenderer from "./btw/renderer"
  import debug from "./debug"
@@ -11,11 +11,11 @@ index f5f1754f89..9d52eed9b2 100644
  import file from "./file"
  import fileRenderer from "./file/renderer"
  import review from "./review"
-@@ -39,7 +37,6 @@ export const builtins = Extension.compose(
-   { ...context, renderer: eager(contextRenderer) },
-   { ...btw, renderer: eager(btwRenderer) },
-   { ...debug, renderer: eager(debugRenderer) },
--  { ...terminal, renderer: eager(terminalRenderer) },
-   { ...file, renderer: eager(fileRenderer) },
-   { ...review, renderer: eager(reviewRenderer) },
-   { ...details, renderer: eager(detailsRenderer) },
+@@ -40,7 +38,6 @@ export const builtins = compose({
+   context: { ...context, windowEntry: eager(contextRenderer) },
+   btw: { ...btw, windowEntry: eager(btwRenderer) },
+   debug: { ...debug, windowEntry: eager(debugRenderer) },
+-  terminal: { ...terminal, windowEntry: eager(terminalRenderer) },
+   file: { ...file, windowEntry: eager(fileRenderer) },
+   review: { ...review, windowEntry: eager(reviewRenderer) },
+   details: { ...details, windowEntry: eager(detailsRenderer) },

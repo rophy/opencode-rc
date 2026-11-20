@@ -40,10 +40,11 @@ describe("2.x feature patches on the pinned opencode", () => {
 
   it("shell: no shell mode, no ! trigger, no + menu item", () => {
     const machine = patched("shell", "packages/app/src/composer/suggestions/machine.ts")
-    expect(machine).toContain('if (event.type === "mode.shell") return changed({ ...state, mode: "normal"')
+    expect(machine).toContain('if (event.type === "mode.shell") return unchanged(state)')
     expect(machine).not.toContain('value === "!"')
     const model = patched("shell", "packages/app/src/composer/model.ts")
     expect(model).toMatch(/keybind: "mod\+shift\+x",\n\s+disabled: true,\n\s+hidden: true,/)
+    expect(model).toMatch(/id: "prompt\.mode\.shell",\n(.*\n){2}\s+disabled: true,\n\s+hidden: true,/)
     const editor = patched("shell", "packages/app/src/composer/editor/editor.tsx")
     expect(editor).not.toContain("onSelect={props.onShell}")
   })
@@ -55,15 +56,18 @@ describe("2.x feature patches on the pinned opencode", () => {
     expect(timeline).not.toContain("props.action.export(id)")
     const home = patched("export", "packages/app/src/home/sessions/view.tsx")
     expect(home).not.toContain("props.onExportSession(")
-    const tab = patched("export", "packages/gui-extensions/src/context/tab.tsx")
+    const tab = patched("export", "packages/gui-plugins/src/context/tab.tsx")
     expect(tab).not.toContain("onClick={exportSession}")
+    for (const menu of ["tab-nav", "inbox", "project-session-row", "sidebar-pins"]) {
+      expect(patched("export", `packages/app/src/shell/titlebar/${menu}.tsx`), menu).not.toContain("exporter.export(")
+    }
   })
 
   it("downloads: no file opening, no Open menu item or tab, palette without files, links inert", () => {
-    const file = patched("downloads", "packages/gui-extensions/src/file/renderer.tsx")
-    expect(file).not.toContain('keybind: "file.open"')
-    expect(file).not.toContain("layout.open(`file:${OPEN}`")
-    expect(file).not.toContain("return [launcher]")
+    const file = patched("downloads", "packages/gui-plugins/src/file/renderer.tsx")
+    expect(file).not.toContain('keybind: "file.browse"')
+    expect(file).not.toContain('id: "browse"')
+    expect(file).not.toContain("launcher(id)")
     expect(file).toContain("const open = (_session: MountedSession, _path: string, _options?: OpenOptions) => {}")
     expect(file).not.toContain("match: () => true")
     // The review panel's file list still gets its FileTree contract.
@@ -80,7 +84,7 @@ describe("2.x feature patches on the pinned opencode", () => {
     expect(model).not.toMatch(/\.\.\.references\(\),|\.\.\.recent\(\)\.map/)
     // @ still offers agents.
     expect(model).toContain("id: `agent:${agent.name}`,")
-    const drag = patched("downloads", "packages/gui-extensions/src/file/drag.ts")
+    const drag = patched("downloads", "packages/gui-plugins/src/file/drag.ts")
     expect(drag).not.toContain("setData(")
     expect(drag).toMatch(/export function startFileDrag[^]*?event\.preventDefault\(\)/)
     const request = patched("downloads", "packages/app/src/composer/request.ts")
@@ -88,8 +92,8 @@ describe("2.x feature patches on the pinned opencode", () => {
   })
 
   it("terminal: not among the built-in extensions", () => {
-    const code = patched("terminal", "packages/gui-extensions/src/renderer.ts")
+    const code = patched("terminal", "packages/gui-plugins/src/renderer.ts")
     expect(code).not.toMatch(/\bterminal\b/)
-    expect(code).toContain("{ ...debug, renderer: eager(debugRenderer) }")
+    expect(code).toContain("debug: { ...debug, windowEntry: eager(debugRenderer) },")
   })
 })

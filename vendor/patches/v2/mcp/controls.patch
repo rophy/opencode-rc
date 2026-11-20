@@ -1,87 +1,165 @@
-diff --git a/packages/app/src/providers/connect/dialog.tsx b/packages/app/src/providers/connect/dialog.tsx
-index 6c4b4fda60..a77a2b8d82 100644
---- a/packages/app/src/providers/connect/dialog.tsx
-+++ b/packages/app/src/providers/connect/dialog.tsx
-@@ -253,7 +253,8 @@ function ProviderPicker(props: { directory?: string; onSelect: (provider: string
-           integration.id === CONSOLE_INTEGRATION
-             ? !consoleAccount()
-             : !integration.connections.some((connection) => connection.type === "credential"),
--        ),
-+        )
-+        .filter((integration) => integration.metadata?.source !== "mcp"),
-     ]
- 
-     if (!query) return values
 diff --git a/packages/app/src/providers/connect/mcp-dialog.tsx b/packages/app/src/providers/connect/mcp-dialog.tsx
-index 6be62f2fa2..2a505ba18e 100644
+index 3c4b3a524f..89034adbd9 100644
 --- a/packages/app/src/providers/connect/mcp-dialog.tsx
 +++ b/packages/app/src/providers/connect/mcp-dialog.tsx
-@@ -47,10 +47,7 @@ export const DialogSelectMcp: Component = () => {
-           items={items}
-           filterKeys={["name", "status"]}
-           sortBy={(a, b) => a.name.localeCompare(b.name)}
--          onSelect={(x) => {
--            if (!x || x.status === "pending" || toggle.isPending) return
--            toggle.mutate(x.name)
--          }}
-+          onSelect={() => {}}
-         >
-           {(i) => {
-             const mcpStatus = () =>
-@@ -88,17 +85,6 @@ export const DialogSelectMcp: Component = () => {
-                     <span class="text-11-regular text-text-weaker truncate">{error()}</span>
-                   </Show>
+@@ -88,8 +88,7 @@ export function McpDialog(props: {
+     return mcpDetailView(props.mcp.state(), current ? statusOf(current.name)?.status : undefined)
+   })
+ 
+-  const toggle = (name: string, enabled: boolean) =>
+-    props.mcp.dispatch({ type: "toggle.requested", name, enabled, status: statusOf(name)?.status })
++  const toggle = (_name: string, _enabled: boolean) => {}
+ 
+   // Like the TUI, a failed server's row opens its error; retrying and disabling happen there.
+   const select = (name: string) => {
+@@ -215,12 +214,6 @@ export function McpDialog(props: {
+                 >
+                   {language.t(current().copied ? "common.copied" : "dialog.mcp.error.copy")}
+                 </Button>
+-                <Button variant="ghost" disabled={current().busy} onClick={() => toggle(current().name, false)}>
+-                  {language.t("dialog.mcp.error.disable")}
+-                </Button>
+-                <Button variant="neutral" disabled={current().busy} onClick={() => toggle(current().name, true)}>
+-                  {language.t("common.retry")}
+-                </Button>
+               </ErrorDetails>
+             </DialogBody>
+           </div>
+@@ -279,31 +272,6 @@ export function McpDialog(props: {
+                         {language.t("dialog.mcp.error.view")}
+                       </Button>
+                     </Show>
+-                    <Show
+-                      when={signIn()}
+-                      fallback={
+-                        <Switch
+-                          checked={!!status() && status()?.status !== "disabled"}
+-                          disabled={view().pending}
+-                          description={label()}
+-                          class="[&_[data-slot=switch-description]]:sr-only"
+-                          onChange={(enabled) => toggle(item().name, enabled)}
+-                        >
+-                          <span class="sr-only">{item().name}</span>
+-                        </Switch>
+-                      }
+-                    >
+-                      <Button
+-                        size="small"
+-                        variant="ghost-muted"
+-                        disabled={busy()}
+-                        aria-busy={busy()}
+-                        aria-label={language.t("dialog.mcp.signIn.open", { name: item().name })}
+-                        onClick={() => toggle(item().name, true)}
+-                      >
+-                        {language.t(busy() ? "dialog.mcp.signingIn" : "dialog.mcp.signIn")}
+-                      </Button>
+-                    </Show>
+                   </div>
                  </div>
--                <div onClick={(e) => e.stopPropagation()}>
--                  <Switch
--                    appearance="standard"
--                    checked={enabled()}
--                    disabled={status() === "pending" || (toggle.isPending && toggle.variables === i.name)}
--                    onChange={() => {
--                      if (toggle.isPending) return
--                      toggle.mutate(i.name)
--                    }}
--                  />
--                </div>
-               </div>
-             )
-           }}
+               )
+diff --git a/packages/app/src/providers/connect/mcp-machine.ts b/packages/app/src/providers/connect/mcp-machine.ts
+index cd2ff591b2..259292e00c 100644
+--- a/packages/app/src/providers/connect/mcp-machine.ts
++++ b/packages/app/src/providers/connect/mcp-machine.ts
+@@ -177,18 +177,8 @@ function step(state: Live, event: Exclude<McpEvent, { type: "disposed" }>): McpT
+ 
+   if (event.type === "unmounted") return { state: { ...state, mounts: Math.max(0, state.mounts - 1) }, effects: NONE }
+ 
+-  if (event.type === "toggle.requested") {
+-    // One toggle per server at a time, from its row and its error view alike; other servers stay free.
+-    if (toggling(state, event.name) || event.status === "pending") return { state, effects: NONE }
+-    const attempt = state.issued + 1
+-
+-    return {
+-      state: { ...state, issued: attempt, toggles: [...state.toggles, { name: event.name, attempt }] },
+-      effects: [
+-        { type: "run-toggle", name: event.name, attempt, enabled: event.enabled, timeoutMs: MCP_TOGGLE_TIMEOUT_MS },
+-      ],
+-    }
+-  }
++  // MCP servers are not connected, disconnected or signed in to while mcp is disabled.
++  if (event.type === "toggle.requested") return { state, effects: NONE }
+ 
+   if (
+     event.type === "toggle.authorizing" ||
 diff --git a/packages/app/src/settings/providers/extensions.tsx b/packages/app/src/settings/providers/extensions.tsx
-index d9f7c6e653..a8d0b80b3a 100644
+index e697ef5bd4..b0780d1f1f 100644
 --- a/packages/app/src/settings/providers/extensions.tsx
 +++ b/packages/app/src/settings/providers/extensions.tsx
-@@ -107,9 +107,6 @@ export const SettingsExtensions: Component<{
-                         <Icon name="mcp" class="text-v2-icon-icon-muted shrink-0" />
-                         <span class="settings-extension-name truncate">{item.name}</span>
-                       </div>
--                      <Switch checked={item.enabled} onChange={(checked) => handleMcpToggle(item, checked)} hideLabel>
--                        {item.name}
--                      </Switch>
-                     </div>
-                   )}
-                 </For>
+@@ -280,33 +280,6 @@ export const SettingsExtensions: Component<{
+                           </Show>
+                           <Show
+                             when={connect()}
+-                            fallback={
+-                              <Show
+-                                when={item.status.status === "needs_auth" && item.integrationID}
+-                                fallback={
+-                                  <Switch
+-                                    checked={item.status.status !== "disabled"}
+-                                    disabled={row().pending}
+-                                    description={label()}
+-                                    class="[&_[data-slot=switch-description]]:sr-only"
+-                                    onChange={(enabled) => toggle(item, enabled)}
+-                                  >
+-                                    <span class="sr-only">{item.name}</span>
+-                                  </Switch>
+-                                }
+-                              >
+-                                <Button
+-                                  size="small"
+-                                  variant="ghost-muted"
+-                                  disabled={busy()}
+-                                  aria-busy={busy()}
+-                                  aria-label={language.t("dialog.mcp.signIn.open", { name: item.name })}
+-                                  onClick={() => toggle(item, true)}
+-                                >
+-                                  {language.t(busy() ? "dialog.mcp.signingIn" : "dialog.mcp.signIn")}
+-                                </Button>
+-                              </Show>
+-                            }
+                           >
+                             {(href) => (
+                               <Button
 diff --git a/packages/app/src/settings/workspaces/project-extensions.tsx b/packages/app/src/settings/workspaces/project-extensions.tsx
-index 6abd9c6013..ff513058df 100644
+index 3e3885f3d6..fc5a82a371 100644
 --- a/packages/app/src/settings/workspaces/project-extensions.tsx
 +++ b/packages/app/src/settings/workspaces/project-extensions.tsx
-@@ -281,19 +281,7 @@ export const ProjectSettingsExtensions: Component<{
-   const mcpRows = (items: string[]) => (
-     <For each={items}>
-       {(name) => (
--        <ExtensionRow icon="mcp" name={name}>
--          <Switch
--            checked={mcpEnabled(name)}
--            disabled={toggleMcp.isPending && toggleMcp.variables === name}
--            hideLabel
--            onChange={() => {
--              if (toggleMcp.isPending) return
--              toggleMcp.mutate(name)
--            }}
--          >
--            {name}
--          </Switch>
--        </ExtensionRow>
-+        <ExtensionRow icon="mcp" name={name} />
-       )}
-     </For>
-   )
+@@ -371,38 +371,6 @@ export const ProjectSettingsExtensions: Component<{
+         >
+           <Show
+             when={sources.connect(name)}
+-            fallback={
+-              <Show
+-                when={needsSignIn(name)}
+-                fallback={
+-                  <Switch
+-                    checked={mcpStatus(name) === "connected"}
+-                    disabled={mcpRowView(mcp.state(), name, undefined).busy}
+-                    description={mcpLabel(name)}
+-                    class="[&_[data-slot=switch-description]]:sr-only"
+-                    hideLabel
+-                    onChange={(enabled) =>
+-                      mcp.dispatch({ type: "toggle.requested", name, enabled, status: untrack(() => mcpStatus(name)) })
+-                    }
+-                  >
+-                    {name}
+-                  </Switch>
+-                }
+-              >
+-                <Button
+-                  size="small"
+-                  variant="ghost-muted"
+-                  disabled={mcpRowView(mcp.state(), name, "needs_auth").busy}
+-                  aria-busy={mcpRowView(mcp.state(), name, "needs_auth").busy}
+-                  aria-label={language.t("dialog.mcp.signIn.open", { name })}
+-                  onClick={() => mcp.dispatch({ type: "toggle.requested", name, enabled: true, status: "needs_auth" })}
+-                >
+-                  {language.t(
+-                    mcpRowView(mcp.state(), name, "needs_auth").busy ? "dialog.mcp.signingIn" : "dialog.mcp.signIn",
+-                  )}
+-                </Button>
+-              </Show>
+-            }
+           >
+             {(href) => (
+               <Button

@@ -194,7 +194,7 @@ export default defineConfig({
       "#session-view": path.join(import.meta.dirname, v2 ? "src/session-view-v2.tsx" : "src/session-view-v1.tsx"),
       // Mirrors packages/app/vite.js upstream.
       ...(v2
-        ? { "@betteroffice/fonts-cjk": path.join(opencodePackages, "gui-extensions/src/microsoft-office/fonts-cjk.ts") }
+        ? { "@betteroffice/fonts-cjk": path.join(opencodePackages, "gui-plugins/src/microsoft-office/fonts-cjk.ts") }
         : {}),
     },
     conditions: ["import", "module", "browser", "default"],

@@ -1,21 +1,23 @@
 diff --git a/packages/app/src/settings/workspaces/project-model.ts b/packages/app/src/settings/workspaces/project-model.ts
-index 5b1ad4d72f..5ba2f6724e 100644
+index e7359fc1d2..90b9fc2ca2 100644
 --- a/packages/app/src/settings/workspaces/project-model.ts
 +++ b/packages/app/src/settings/workspaces/project-model.ts
-@@ -89,7 +89,7 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
-   }
+@@ -155,7 +155,10 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
  
-   function selectFile(file: File) {
--    if (!file.type.startsWith("image/")) return
+   onCleanup(() => dispatch({ type: "disposed" }))
+ 
+-  const selectFile = (file: File) => dispatch({ type: "icon.file-selected", file })
++  function selectFile(file: File) {
 +    return
-     const reader = new FileReader()
-     reader.onload = (event) => {
-       const result = event.target?.result
-@@ -140,8 +140,6 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
++    dispatch({ type: "icon.file-selected", file })
++  }
  
-         return
-       }
--
+   return {
+     view,
+@@ -192,7 +195,6 @@ export function createEditProjectModel(props: { project: LocalProject; server: S
+     // Hover only reveals the remove overlay; a tap, click or Enter removes a custom icon on any input device.
+     iconClick() {
+       if (view().iconOverride) return dispatch({ type: "icon.cleared" })
 -      iconInput?.click()
      },
      setIconInput(input: HTMLInputElement) {

@@ -1,0 +1,127 @@
+diff --git a/packages/gui-plugins/src/details/mcp-machine.ts b/packages/gui-plugins/src/details/mcp-machine.ts
+index 9c29cb7852..7cf3ee32ea 100644
+--- a/packages/gui-plugins/src/details/mcp-machine.ts
++++ b/packages/gui-plugins/src/details/mcp-machine.ts
+@@ -163,18 +163,8 @@ function step(state: Live, event: Exclude<McpEvent, { type: "disposed" }>): McpT
+ 
+   if (event.type === "unmounted") return { state: { ...state, mounts: Math.max(0, state.mounts - 1) }, effects: NONE }
+ 
+-  if (event.type === "toggle.requested") {
+-    // One toggle per server at a time, from its row and its dialog alike.
+-    if (toggling(state, event.name) || event.status === "pending") return { state, effects: NONE }
+-    const attempt = state.issued + 1
+-
+-    return {
+-      state: { ...state, issued: attempt, toggles: [...state.toggles, { name: event.name, attempt }] },
+-      effects: [
+-        { type: "run-toggle", name: event.name, attempt, enabled: event.enabled, timeoutMs: MCP_TOGGLE_TIMEOUT_MS },
+-      ],
+-    }
+-  }
++  // MCP servers are not connected, disconnected or signed in to while mcp is disabled.
++  if (event.type === "toggle.requested") return { state, effects: NONE }
+ 
+   if (
+     event.type === "toggle.authorizing" ||
+diff --git a/packages/gui-plugins/src/details/server-panel.tsx b/packages/gui-plugins/src/details/server-panel.tsx
+index 8f2ef137db..ca4a5b47d5 100644
+--- a/packages/gui-plugins/src/details/server-panel.tsx
++++ b/packages/gui-plugins/src/details/server-panel.tsx
+@@ -7,7 +7,6 @@ import { Loader } from "@opencode/ui/loader"
+ import { createMcpSignIn, type McpSignInFailure } from "@opencode/ui/mcp-sign-in"
+ import { MenuScroll } from "@opencode/ui/menu-scroll"
+ import { RedirectPasteForm } from "@opencode/ui/redirect-paste"
+-import { Switch } from "@opencode/ui/switch"
+ import { showToast } from "@opencode/ui/toast"
+ import { Tooltip } from "@opencode/ui/tooltip"
+ import { TruncatedText } from "@opencode/ui/truncated-text"
+@@ -598,7 +597,6 @@ function useMcp(props: ServiceProps, controllers: McpControllers, close: () => v
+             const enabled = () => server().status.status !== "disabled"
+             const view = createMemo(() => mcpRowView(mcp.state(), server().name, server().status.status))
+             const pending = () => view().pending
+-            const busy = () => view().busy
+ 
+             const failure = () => {
+               const status = server().status
+@@ -606,21 +604,6 @@ function useMcp(props: ServiceProps, controllers: McpControllers, close: () => v
+               return status.status === "failed" ? status.error : undefined
+             }
+ 
+-            const signIn = () => server().status.status === "needs_auth" && !!server().integrationID
+-
+-            // The dot shows the status; the words stay for assistive technology.
+-            const label = () => {
+-              const status = server().status.status
+-
+-              if (status === "pending") return ctx.t("connecting")
+-
+-              if (status === "needs_auth") return ctx.t("needsAuth")
+-
+-              if (status === "failed") return ctx.t("failed")
+-
+-              return ctx.t(status === "connected" ? "mcp.connected" : "mcp.disabled")
+-            }
+-
+             const change = (value: boolean) =>
+               mcp.dispatch({
+                 type: "toggle.requested",
+@@ -656,36 +639,6 @@ function useMcp(props: ServiceProps, controllers: McpControllers, close: () => v
+                   />
+                   <TruncatedText text={server().name} class="session-summary-label" />
+                 </span>
+-                <span class="session-mcp-trailing" onClick={(event) => event.stopPropagation()}>
+-                  <Show
+-                    when={signIn()}
+-                    fallback={
+-                      <Switch
+-                        checked={enabled()}
+-                        readOnly={pending()}
+-                        aria-disabled={pending()}
+-                        aria-busy={busy()}
+-                        description={label()}
+-                        class="[&_[data-slot=switch-description]]:sr-only"
+-                        onChange={change}
+-                      >
+-                        <span class="sr-only">{server().name}</span>
+-                      </Switch>
+-                    }
+-                  >
+-                    <Button
+-                      size="small"
+-                      variant="ghost-muted"
+-                      class="session-mcp-sign-in"
+-                      disabled={pending()}
+-                      aria-busy={busy()}
+-                      aria-label={ctx.t("mcp.signIn.open", { name: server().name })}
+-                      onClick={follow}
+-                    >
+-                      {ctx.t(busy() ? "mcp.signingIn" : "mcp.signIn")}
+-                    </Button>
+-                  </Show>
+-                </span>
+               </div>
+             )
+           }}
+@@ -1471,9 +1424,6 @@ function McpErrorDialog(props: {
+   )
+   onCleanup(() => props.mcp.dismiss(props.attempt))
+ 
+-  const toggle = (enabled: boolean) =>
+-    props.mcp.dispatch({ type: "toggle.requested", name: props.name, enabled, status: status()?.status })
+-
+   const copy = (name: string, error: string) =>
+     void ctx.system.copy(ctx.t("mcp.error.details", { name, error })).then(
+       () => props.mcp.dispatch({ type: "error.copied", attempt: props.attempt, error }),
+@@ -1509,12 +1459,6 @@ function McpErrorDialog(props: {
+               >
+                 {ctx.t(current().copied ? "common.copied" : "mcp.error.copy")}
+               </Button>
+-              <Button variant="ghost" disabled={current().busy} onClick={() => toggle(false)}>
+-                {ctx.t("mcp.error.disable")}
+-              </Button>
+-              <Button variant="neutral" disabled={current().busy} onClick={() => toggle(true)}>
+-                {ctx.t("common.retry")}
+-              </Button>
+             </ErrorDetails>
+           </DialogBody>
+         </Dialog>

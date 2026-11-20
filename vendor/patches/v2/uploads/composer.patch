@@ -1,8 +1,8 @@
 diff --git a/packages/app/src/composer/editor/editor.tsx b/packages/app/src/composer/editor/editor.tsx
-index defbf666d0..feb42d2feb 100644
+index 0c0d870a27..a9e45dc2d0 100644
 --- a/packages/app/src/composer/editor/editor.tsx
 +++ b/packages/app/src/composer/editor/editor.tsx
-@@ -160,18 +160,6 @@ export function ComposerEditor(props: ComposerEditorProps) {
+@@ -218,18 +218,6 @@ export function ComposerEditor(props: ComposerEditorProps) {
  
    return (
      <div class={`relative size-full flex flex-col gap-0 ${props.class ?? ""}`}>
@@ -18,10 +18,10 @@ index defbf666d0..feb42d2feb 100644
 -          event.currentTarget.value = ""
 -        }}
 -      />
-       <Show when={!view.draftOnly && state.popover.type !== "closed"}>
+       <Show when={!view.draftOnly && isComposerPopoverOpen(state)}>
          <ComposerEditorPopover
-           emptyLabel={i18n.t("ui.promptInput.noMatchingItems")}
-@@ -792,10 +780,6 @@ export function ComposerEditorAddMenu(props: {
+           id={suggestionsID}
+@@ -1015,10 +1003,6 @@ function ComposerEditorAddMenu(props: {
              class="[&_[data-slot=menu-v2-item-shortcut]]:w-5 [&_[data-slot=menu-v2-item-shortcut]]:justify-center"
              style={{ "min-width": "180px" }}
            >
@@ -33,10 +33,10 @@ index defbf666d0..feb42d2feb 100644
                {props.commandsLabel}
              </Menu.Item>
 diff --git a/packages/app/src/composer/model.ts b/packages/app/src/composer/model.ts
-index e19b4a7d62..af0bc4cdcf 100644
+index c4c4a931c7..c13779da3f 100644
 --- a/packages/app/src/composer/model.ts
 +++ b/packages/app/src/composer/model.ts
-@@ -363,29 +363,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+@@ -470,29 +470,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
  
        return () => command.trigger(selected.id, "slash")
      },
@@ -66,7 +66,7 @@ index e19b4a7d62..af0bc4cdcf 100644
      view: {
        placeholder,
        get agent() {
-@@ -436,15 +413,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+@@ -577,15 +554,6 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
    Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
  
    command.register("composer-editor", () => [
@@ -76,9 +76,9 @@ index e19b4a7d62..af0bc4cdcf 100644
 -      category: language.t("command.category.file"),
 -      keybind: "mod+u",
 -      editable: true,
--      disabled: controller.state.mode !== "normal",
+-      disabled: mode() !== "normal",
 -      onSelect: () => controller.attach(),
 -    },
      {
-       id: "prompt.mode.shell",
-       title: language.t("command.prompt.mode.shell"),
+       id: "prompt.mode.toggle",
+       title: language.t("command.prompt.mode.toggle"),

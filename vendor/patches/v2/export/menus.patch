@@ -1,36 +1,108 @@
 diff --git a/packages/app/src/home/sessions/view.tsx b/packages/app/src/home/sessions/view.tsx
-index f83940f13f..68be98168f 100644
+index af4e51f2d2..7906bc5f4d 100644
 --- a/packages/app/src/home/sessions/view.tsx
 +++ b/packages/app/src/home/sessions/view.tsx
-@@ -780,9 +780,6 @@ function HomeSessionRow(
-             }}
-           >
-             <Menu.Item onSelect={openEditor}>{props.language.t("common.rename")}</Menu.Item>
--            <Menu.Item onSelect={() => void props.onExportSession(props.server, props.record.session)}>
+@@ -862,12 +862,6 @@ function HomeSessionRow(
+             >
+               {props.language.t("common.rename")}
+             </Menu.Item>
+-            <Menu.Item
+-              disabled={props.isExportingSession(props.server, props.record.session)}
+-              onSelect={() => props.onExportSession(props.server, props.record.session)}
+-            >
 -              {props.language.t("common.export")}…
 -            </Menu.Item>
+             <SessionReadMenuItem server={props.server} session={props.record.session} />
              <Menu.Separator />
              <Menu.Item onSelect={() => props.onDeleteSession(props.server, props.record.session)}>
-               {props.language.t("common.delete")}…
 diff --git a/packages/app/src/session/timeline/message-timeline.tsx b/packages/app/src/session/timeline/message-timeline.tsx
-index 3656cad3b2..ea418cf8c8 100644
+index 591a7b843b..d6ef9eef0d 100644
 --- a/packages/app/src/session/timeline/message-timeline.tsx
 +++ b/packages/app/src/session/timeline/message-timeline.tsx
-@@ -556,9 +556,6 @@ function MessageTimelineView(
-                               >
-                                 {language.t("common.rename")}
-                               </Menu.Item>
--                              <Menu.Item onSelect={() => void props.action.export(id)}>
--                                {language.t("common.export")}…
--                              </Menu.Item>
-                             </Show>
-                             <Show when={!parentID()}>
-                               {/* TODO: Need a session archive API. */}
-diff --git a/packages/gui-extensions/src/context/tab.tsx b/packages/gui-extensions/src/context/tab.tsx
-index 4c0a32babd..dd7e3f1249 100644
---- a/packages/gui-extensions/src/context/tab.tsx
-+++ b/packages/gui-extensions/src/context/tab.tsx
-@@ -308,15 +308,6 @@ export default function SessionContextTab(props: { session: MountedSession }) {
+@@ -722,9 +722,6 @@ function MessageTimelineView(
+                         }}
+                       >
+                         <Menu.Item onSelect={props.title.chooseRename}>{language.t("common.rename")}</Menu.Item>
+-                        <Menu.Item disabled={props.action.exporting(id)} onSelect={() => props.action.export(id)}>
+-                          {language.t("common.export")}…
+-                        </Menu.Item>
+                         <Menu.Separator />
+                         <Menu.Item onSelect={() => props.action.showDelete(id)}>
+                           {language.t("common.delete")}…
+diff --git a/packages/app/src/shell/titlebar/inbox.tsx b/packages/app/src/shell/titlebar/inbox.tsx
+index 19d6ac88f9..9b12dea4f0 100644
+--- a/packages/app/src/shell/titlebar/inbox.tsx
++++ b/packages/app/src/shell/titlebar/inbox.tsx
+@@ -198,12 +198,6 @@ export function SidebarInbox() {
+                   >
+                     {language.t("common.rename")}
+                   </Menu.Item>
+-                  <Menu.Item
+-                    disabled={exporter.exporting({ server: entry().server, sessionID: entry().session.id })}
+-                    onSelect={() => exporter.export({ server: entry().server, sessionID: entry().session.id })}
+-                  >
+-                    {language.t("common.export")}…
+-                  </Menu.Item>
+                   <SessionReadMenuItem server={entry().server} session={entry().session} />
+                   <Menu.Separator />
+                 </>
+diff --git a/packages/app/src/shell/titlebar/project-session-row.tsx b/packages/app/src/shell/titlebar/project-session-row.tsx
+index 25e94e7f5c..ad72bd074a 100644
+--- a/packages/app/src/shell/titlebar/project-session-row.tsx
++++ b/packages/app/src/shell/titlebar/project-session-row.tsx
+@@ -213,12 +213,6 @@ export function ProjectSessionRow(props: {
+           >
+             {language.t("common.rename")}
+           </Menu.Item>
+-          <Menu.Item
+-            disabled={!ctx() || exporter.exporting(exportTarget())}
+-            onSelect={() => exporter.export(exportTarget())}
+-          >
+-            {language.t("common.export")}…
+-          </Menu.Item>
+           <SessionReadMenuItem server={props.server} session={props.session} />
+           <Menu.Separator />
+           <Menu.Item disabled={!ctx()} onSelect={() => dialog.show(() => <DeleteDialog />)}>
+diff --git a/packages/app/src/shell/titlebar/sidebar-pins.tsx b/packages/app/src/shell/titlebar/sidebar-pins.tsx
+index 5d1174e398..ea72c4edd9 100644
+--- a/packages/app/src/shell/titlebar/sidebar-pins.tsx
++++ b/packages/app/src/shell/titlebar/sidebar-pins.tsx
+@@ -408,9 +408,6 @@ function PinnedSessionRow(props: {
+       </Menu.Item>
+       <Menu.Separator />
+       <Menu.Item onSelect={rename}>{language.t("common.rename")}</Menu.Item>
+-      <Menu.Item disabled={exporter.exporting(exportTarget())} onSelect={() => exporter.export(exportTarget())}>
+-        {language.t("common.export")}…
+-      </Menu.Item>
+       <SessionReadMenuItem server={props.item.server} session={props.item.session} />
+       <Show when={props.open}>
+         <Menu.Separator />
+diff --git a/packages/app/src/shell/titlebar/tab-nav.tsx b/packages/app/src/shell/titlebar/tab-nav.tsx
+index 161e55f0eb..363504a426 100644
+--- a/packages/app/src/shell/titlebar/tab-nav.tsx
++++ b/packages/app/src/shell/titlebar/tab-nav.tsx
+@@ -657,16 +657,6 @@ export function TabNavItem(
+               <Menu.Item disabled={!props.session} onSelect={() => startRename("menu")}>
+                 {language.t("common.rename")}
+               </Menu.Item>
+-              <Menu.Item
+-                disabled={!props.session || exporter.exporting({ server: props.server, sessionID: props.session.id })}
+-                onSelect={() => {
+-                  const session = props.session
+-
+-                  if (session) exporter.export({ server: props.server, sessionID: session.id })
+-                }}
+-              >
+-                {language.t("common.export")}…
+-              </Menu.Item>
+               <SessionReadMenuItem server={props.server} session={props.session} />
+               <Menu.Separator />
+               <TabCloseMenuItems
+diff --git a/packages/gui-plugins/src/context/tab.tsx b/packages/gui-plugins/src/context/tab.tsx
+index 9de35745f4..51c3e809b6 100644
+--- a/packages/gui-plugins/src/context/tab.tsx
++++ b/packages/gui-plugins/src/context/tab.tsx
+@@ -425,18 +425,6 @@ export default function SessionContextTab(props: { session: MountedSession }) {
          <div class="flex flex-col gap-2">
            <div class="flex items-center justify-between">
              <div class="text-12-regular text-text-weak">{ctx.t("rawMessages.title")}</div>
@@ -38,9 +110,12 @@ index 4c0a32babd..dd7e3f1249 100644
 -              size="small"
 -              variant="ghost"
 -              class="gap-1.5 px-2 text-text-weak hover:text-text-base"
+-              disabled={!props.session.id || exporting()}
 -              onClick={exportSession}
 -            >
--              <Icon name="download" size="small" />
+-              <Show when={exporting()} fallback={<Icon name="download" />}>
+-                <Loader class="size-4 shrink-0" />
+-              </Show>
 -              <span>{ctx.t("export.session")}</span>
 -            </Button>
            </div>
