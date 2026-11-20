@@ -1,0 +1,1 @@
+import{_ as e,c as t}from"./web-Dl45KU3J.js";var n=e(`<div data-component=error-details><pre data-slot=error-details-text tabindex=0></pre><div data-slot=error-details-actions>`);function r(e){return(()=>{var r=n(),i=r.firstChild,a=i.nextSibling;return t(i,()=>e.error),t(a,()=>e.children),r})()}export{r as t};

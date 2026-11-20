@@ -1,0 +1,1 @@
+import{P as e}from"./web-C99xIhOq.js";import{l as t,r as n,yr as r}from"./server-sdk-BB81M-Wg.js";var{use:i,provider:a}=r({name:`SDK`,init:t=>{let r=n();return e(()=>{let e=typeof t.directory==`function`?t.directory():t.directory;return r().ensureDirSdkContext(e)})}}),o=()=>{let n=t(),r=i();return e(()=>n().ensureDirSyncContext(r().directory))};export{a as n,i as r,o as t};

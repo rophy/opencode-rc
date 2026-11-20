@@ -1,0 +1,1 @@
+var e=`<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 32 32"><path stroke="#536dfe" stroke-width="8" d="M10 26c16 0 16-20 0-20"/></svg>`;export{e as default};

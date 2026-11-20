@@ -1,0 +1,1 @@
+import"./solid-DlCzZEdX.js";import"./web-Dl45KU3J.js";import{o as e}from"./dist-C6vLsMSh.js";import{n as t}from"./eventListener-jHp1Meiz.js";function n(n,r=!1){let i=window.matchMedia(n),[a,o]=e(r,()=>i.matches);return t(i,`change`,()=>o(i.matches)),a}function r(e){return n(`(prefers-color-scheme: dark)`,e)}r.bind(void 0,!1);export{n as t};

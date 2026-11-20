@@ -1,0 +1,1 @@
+var e=`/v2/assets/bip-bop-03-DXp7Zb0f.aac`;export{e as default};

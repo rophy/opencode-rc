@@ -1,0 +1,1 @@
+import{B as e,M as t}from"./solid-DlCzZEdX.js";import{_ as n,m as r}from"./web-Dl45KU3J.js";var i=n(`<div>`);function a(n){let[a,o]=e(n,[`class`,`classList`]);return(()=>{var e=i();return r(e,t(o,{role:`separator`,"aria-orientation":`horizontal`,"data-component":`divider-v2`,get classList(){return{...a.classList,[a.class??``]:!!a.class}}}),!1,!1),e})()}export{a as t};

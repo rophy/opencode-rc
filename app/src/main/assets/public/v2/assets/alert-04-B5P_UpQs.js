@@ -1,0 +1,1 @@
+var e=`/v2/assets/alert-04-CaGsIGFP.aac`;export{e as default};

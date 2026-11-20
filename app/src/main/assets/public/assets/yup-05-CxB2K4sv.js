@@ -1,0 +1,1 @@
+var e=`/assets/yup-05-CuuaeyjC.aac`;export{e as default};

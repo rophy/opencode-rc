@@ -1,0 +1,1 @@
+var e=`/v2/assets/staplebops-04-olyHi8qQ.aac`;export{e as default};

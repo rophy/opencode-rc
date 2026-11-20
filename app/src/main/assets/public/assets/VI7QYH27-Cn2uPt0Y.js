@@ -1,0 +1,1 @@
+import{An as e,dr as t}from"./server-sdk-BB81M-Wg.js";function n(n={}){let[r,i]=e({value:()=>t(n.isSelected),defaultValue:()=>!!t(n.defaultIsSelected),onChange:e=>n.onSelectedChange?.(e)});return{isSelected:r,setIsSelected:e=>{!t(n.isReadOnly)&&!t(n.isDisabled)&&i(e)},toggle:()=>{!t(n.isReadOnly)&&!t(n.isDisabled)&&i(!r())}}}export{n as t};
